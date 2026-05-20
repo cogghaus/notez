@@ -1,6 +1,8 @@
 import { NodeViewWrapper } from '@tiptap/react';
 import type { NodeViewProps } from '@tiptap/react';
 import { useCallback, useRef, useState, useEffect, useMemo } from 'react';
+import { Copy, Check } from 'lucide-react';
+import { copyImageToClipboard } from '../lib/copyImageToClipboard';
 
 /**
  * Sanitize image src to prevent javascript: URLs and other unsafe protocols
@@ -32,6 +34,8 @@ export function ResizableImage({ node, updateAttributes, selected }: NodeViewPro
   const containerRef = useRef<HTMLDivElement>(null);
   const [isResizing, setIsResizing] = useState(false);
   const [aspectRatio, setAspectRatio] = useState<number | null>(null);
+  const [isHovered, setIsHovered] = useState(false);
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle');
 
   // Store cleanup functions for event listeners
   const cleanupRef = useRef<(() => void) | null>(null);
@@ -98,12 +102,29 @@ export function ResizableImage({ node, updateAttributes, selected }: NodeViewPro
     };
   }, []);
 
+  const handleCopy = useCallback(async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!safeSrc) return;
+
+    const result = await copyImageToClipboard(safeSrc);
+    if (result.ok) {
+      setCopyState('copied');
+      setTimeout(() => setCopyState('idle'), 2000);
+    } else {
+      setCopyState('error');
+      setTimeout(() => setCopyState('idle'), 2000);
+    }
+  }, [safeSrc]);
+
   return (
     <NodeViewWrapper className="resizable-image-wrapper">
       <div
         ref={containerRef}
         className={`resizable-image-container ${selected ? 'selected' : ''} ${isResizing ? 'resizing' : ''}`}
         style={{ width: width ? `${width}px` : 'auto', maxWidth: '100%' }}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
       >
         <img
           src={safeSrc}
@@ -116,6 +137,33 @@ export function ResizableImage({ node, updateAttributes, selected }: NodeViewPro
             height: aspectRatio && width ? `${width / aspectRatio}px` : 'auto',
           }}
         />
+
+        {/* Image action toolbar - show on hover or select */}
+        {(isHovered || selected) && safeSrc && (
+          <div className="image-action-toolbar">
+            <button
+              className={`image-action-btn${copyState === 'error' ? ' image-action-btn--error' : ''}`}
+              onClick={handleCopy}
+              title={
+                copyState === 'copied'
+                  ? 'Copied!'
+                  : copyState === 'error'
+                  ? 'Copy failed'
+                  : 'Copy image'
+              }
+              aria-label="Copy image to clipboard"
+            >
+              {copyState === 'copied' ? (
+                <Check className="w-3.5 h-3.5" />
+              ) : (
+                <Copy className="w-3.5 h-3.5" />
+              )}
+              <span className="image-action-label">
+                {copyState === 'copied' ? 'Copied!' : copyState === 'error' ? 'Failed' : 'Copy'}
+              </span>
+            </button>
+          </div>
+        )}
 
         {/* Resize handles - only show when selected */}
         {selected && (

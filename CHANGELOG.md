@@ -7,11 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.28.0] - 2026-05-20
+
+### Added
+
+- **Copy image to clipboard** — hover over any embedded image in a note to reveal a "Copy" button. Clicking it fetches the image and writes it to the system clipboard via the Clipboard API, ready to paste into other apps. Shows a brief "Copied!" confirmation or "Failed" on error. Requires HTTPS and browser clipboard permission.
+
+## [1.27.0] - 2026-04-14
+
 ### Added
 
 - **OpenTelemetry instrumentation** — backend now ships traces, metrics, and logs to the homelab OTel Collector (OpenObserve backend) when `OTEL_EXPORTER_OTLP_ENDPOINT` is set. Uses `@opentelemetry/auto-instrumentations-node` for zero-code instrumentation of Fastify, HTTP, Postgres/Prisma, and outbound fetch. Set `OTEL_SDK_DISABLED=true` to opt out.
-
-## [1.27.0] - 2026-04-14
 
 ### Added
 

@@ -12,6 +12,13 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '1.28.0',
+    date: '2026-05-20',
+    added: [
+      'Hover over an image in a note to copy it to your clipboard — paste it directly into other apps without downloading first',
+    ],
+  },
+  {
     version: '1.27.0',
     date: '2026-04-14',
     added: [
