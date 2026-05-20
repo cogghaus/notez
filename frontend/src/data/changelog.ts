@@ -12,6 +12,13 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '1.29.0',
+    date: '2026-05-20',
+    added: [
+      'Select a folder from the sidebar while viewing Tasks to filter the task list to just that folder\'s tasks',
+    ],
+  },
+  {
     version: '1.27.0',
     date: '2026-04-14',
     added: [

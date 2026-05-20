@@ -13,6 +13,8 @@ import { ServiceAccountDashboard } from '../components/ServiceAccountDashboard';
 import { ServiceAccountWorkspace } from '../components/ServiceAccountWorkspace';
 import type { Task } from '../types';
 
+const VIRTUAL_FOLDER_IDS = new Set(['shared', 'my-shares', 'unfiled', 'trash', 'service-accounts']);
+
 // localStorage keys
 const SIDEBAR_COLLAPSED_KEY = 'notez-sidebar-collapsed';
 const TASK_VIEW_MODE_KEY = 'notez-task-view-mode';
@@ -175,9 +177,14 @@ export function EditorPage() {
             onSelectFolder={(folderId) => {
               setSelectedFolderId(folderId);
               setSelectedNoteId(null);
-              setSelectedServiceAccount(null); // Clear service account drill-down
-              setSelectedView('notes'); // Switch to notes view when folder is selected
-              setMobileView('list'); // Switch to list view on mobile after selecting folder
+              setSelectedServiceAccount(null);
+              // Virtual folders (null = All Notes) always switch to notes view.
+              // Real folders keep the current view so tasks view can be filtered by folder.
+              const isVirtual = folderId === null || VIRTUAL_FOLDER_IDS.has(folderId);
+              if (isVirtual || selectedView !== 'tasks') {
+                setSelectedView('notes');
+              }
+              setMobileView('list');
             }}
             onSelectTag={(tagId) => {
               setSelectedTagId(tagId);
@@ -277,6 +284,7 @@ export function EditorPage() {
               <TaskList
                 onNoteClick={handleNoteClick}
                 serviceAccountMode={selectedFolderId === 'service-accounts'}
+                folderId={selectedFolderId && !VIRTUAL_FOLDER_IDS.has(selectedFolderId) ? selectedFolderId : null}
               />
             </div>
           )}

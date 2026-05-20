@@ -453,7 +453,6 @@ export const FolderSidebar = forwardRef<FolderSidebarHandle, FolderSidebarProps>
               trigger={
                 <button
                   onClick={() => {
-                    onSelectView('notes');
                     onSelectFolder(folder.id);
                     onSelectTag(null);
                   }}

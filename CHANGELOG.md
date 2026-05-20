@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.29.0] - 2026-05-20
+
+### Added
+
+- **Filter tasks by folder** — selecting a folder in the sidebar while in Tasks view now filters the task list to tasks belonging to that folder. Switching between notes and tasks views preserves the folder context. Virtual folders (Unfiled, Trash, Shared, etc.) continue to switch to the notes view as before. Frontend only — no backend changes (the `folderId` query param on `GET /api/tasks` was already supported).
+
 ### Added
 
 - **OpenTelemetry instrumentation** — backend now ships traces, metrics, and logs to the homelab OTel Collector (OpenObserve backend) when `OTEL_EXPORTER_OTLP_ENDPOINT` is set. Uses `@opentelemetry/auto-instrumentations-node` for zero-code instrumentation of Fastify, HTTP, Postgres/Prisma, and outbound fetch. Set `OTEL_SDK_DISABLED=true` to opt out.
