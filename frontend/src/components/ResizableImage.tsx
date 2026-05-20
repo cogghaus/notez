@@ -142,6 +142,7 @@ export function ResizableImage({ node, updateAttributes, selected }: NodeViewPro
         {(isHovered || selected) && safeSrc && (
           <div className="image-action-toolbar">
             <button
+              type="button"
               className={`image-action-btn${copyState === 'error' ? ' image-action-btn--error' : ''}`}
               onClick={handleCopy}
               title={
