@@ -39,6 +39,7 @@ export function ResizableImage({ node, updateAttributes, selected }: NodeViewPro
 
   // Store cleanup functions for event listeners
   const cleanupRef = useRef<(() => void) | null>(null);
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { src, alt, title, width } = node.attrs;
 
@@ -92,12 +93,15 @@ export function ResizableImage({ node, updateAttributes, selected }: NodeViewPro
     [updateAttributes]
   );
 
-  // Clean up event listeners on unmount to prevent memory leaks
+  // Clean up event listeners and timers on unmount
   useEffect(() => {
     return () => {
       if (cleanupRef.current) {
         cleanupRef.current();
         cleanupRef.current = null;
+      }
+      if (copyTimerRef.current) {
+        clearTimeout(copyTimerRef.current);
       }
     };
   }, []);
@@ -108,13 +112,9 @@ export function ResizableImage({ node, updateAttributes, selected }: NodeViewPro
     if (!safeSrc) return;
 
     const result = await copyImageToClipboard(safeSrc);
-    if (result.ok) {
-      setCopyState('copied');
-      setTimeout(() => setCopyState('idle'), 2000);
-    } else {
-      setCopyState('error');
-      setTimeout(() => setCopyState('idle'), 2000);
-    }
+    if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    setCopyState(result.ok ? 'copied' : 'error');
+    copyTimerRef.current = setTimeout(() => setCopyState('idle'), 2000);
   }, [safeSrc]);
 
   return (

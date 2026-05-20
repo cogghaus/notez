@@ -18,7 +18,7 @@ export async function copyImageToClipboard(src: string): Promise<CopyImageResult
 
   let blob: Blob;
   try {
-    const response = await fetch(src, { credentials: 'include' });
+    const response = await fetch(src, { credentials: 'same-origin' });
     if (!response.ok) return { ok: false, reason: 'fetch-failed' };
     blob = await response.blob();
   } catch {
