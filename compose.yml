@@ -6,8 +6,8 @@ services:
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: notez
-      MINIO_ROOT_PASSWORD: notez-secret
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-notez}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-notez-secret}
     ports:
       - "9000:9000"   # API
       - "9001:9001"   # Console
@@ -25,8 +25,8 @@ services:
     container_name: notez-db
     restart: unless-stopped
     environment:
-      POSTGRES_USER: notez
-      POSTGRES_PASSWORD: notez
+      POSTGRES_USER: ${POSTGRES_USER:-notez}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-notez}
       POSTGRES_DB: notez
     ports:
       - "5432:5432"
@@ -52,16 +52,16 @@ services:
       PORT: 3000
       HOST: 0.0.0.0
       DATABASE_URL: postgresql://notez:notez@postgres:5432/notez?schema=public
-      JWT_ACCESS_SECRET: change-me-jwt-secret
-      JWT_REFRESH_SECRET: change-me-refresh-secret
-      ENCRYPTION_KEY: change-me-encryption-key-32chars
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change-me-jwt-secret}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change-me-refresh-secret}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-change-me-encryption-key-32chars}
       CORS_ORIGIN: http://localhost:5173
       # MinIO Configuration
       MINIO_ENDPOINT: minio
       MINIO_PORT: 9000
       MINIO_USE_SSL: false
-      MINIO_ACCESS_KEY: notez
-      MINIO_SECRET_KEY: notez-secret
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-notez}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-notez-secret}
       MINIO_BUCKET: notez-images
     depends_on:
       postgres:
