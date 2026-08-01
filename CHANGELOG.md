@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **OpenTelemetry instrumentation** — backend now ships traces, metrics, and logs to the homelab OTel Collector (OpenObserve backend) when `OTEL_EXPORTER_OTLP_ENDPOINT` is set. Uses `@opentelemetry/auto-instrumentations-node` for zero-code instrumentation of Fastify, HTTP, Postgres/Prisma, and outbound fetch. Set `OTEL_SDK_DISABLED=true` to opt out.
 
+## [1.27.1] - 2026-08-01
+
+### Changed
+
+- **Repository moved to `github.com/cogghaus/notez`.** Clone URLs, the security advisory link, the What's New footer link, and the `notez-mcp` package repository field now point at the new owner. The production image path moves from `ghcr.io/spasticpalate/notez` to `ghcr.io/cogghaus/notez`; the old namespace no longer resolves.
+- LICENSE copyright holder normalised to Adam Coggins.
+
 ## [1.27.0] - 2026-04-14
 
 ### Added

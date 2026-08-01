@@ -40,7 +40,7 @@ services:
   # Backend API (serves both API and frontend static files)
   # Migrations run automatically via docker-entrypoint.sh before app starts
   notez-backend:
-    image: ghcr.io/spasticpalate/notez:main
+    image: ghcr.io/cogghaus/notez:main
     pull_policy: always
     container_name: notez-backend
     restart: unless-stopped

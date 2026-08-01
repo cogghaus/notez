@@ -13,7 +13,7 @@ Notez runs as a single Docker image (backend API + frontend) with PostgreSQL and
 ### 1. Clone and configure
 
 ```bash
-git clone https://github.com/SpasticPalate/notez.git
+git clone https://github.com/cogghaus/notez.git
 cd notez
 cp .env.example .env
 ```

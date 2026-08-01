@@ -199,7 +199,7 @@ export function WhatsNewModal({ isOpen, onClose, currentVersion }: WhatsNewModal
           <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 rounded-b-lg">
             <div className="flex items-center justify-between">
               <a
-                href="https://github.com/SpasticPalate/notez/blob/main/CHANGELOG.md"
+                href="https://github.com/cogghaus/notez/blob/main/CHANGELOG.md"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-sm text-blue-600 dark:text-blue-400 hover:underline"

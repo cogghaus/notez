@@ -1,6 +1,6 @@
 # notez-mcp
 
-MCP (Model Context Protocol) server for [Notez](https://github.com/SpasticPalate/notez) — a self-hosted note-taking app. Allows Claude Code and other MCP-compatible clients to read and manage your notes and tasks.
+MCP (Model Context Protocol) server for [Notez](https://github.com/cogghaus/notez) — a self-hosted note-taking app. Allows Claude Code and other MCP-compatible clients to read and manage your notes and tasks.
 
 ## Prerequisites
 
