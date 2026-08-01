@@ -31,7 +31,7 @@ A self-hosted, web-based note-taking application with real-time collaboration, t
 ### Docker Compose
 
 ```bash
-git clone https://github.com/SpasticPalate/notez.git
+git clone https://github.com/cogghaus/notez.git
 cd notez
 
 # Edit compose.prod.yml and set environment variables
