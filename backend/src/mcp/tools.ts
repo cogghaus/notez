@@ -286,6 +286,13 @@ defineTool('mcp:write', (server, getUserId) => {
           return toolError(new Error('Note content would exceed maximum size (500KB) or note not found'));
         }
         const updated = await getNoteById(id, userId);
+        // This path writes notes.content directly, so it must also push the change
+        // into the Yjs CRDT — otherwise the collaborative editor still holds the
+        // pre-append state and reverts it on next open. Best-effort: the append is
+        // already committed, so a sync failure must not fail the tool call.
+        await import('../services/collaboration.service.js')
+          .then(({ syncNoteContentToYjs }) => syncNoteContentToYjs(id, updated.content || ''))
+          .catch((err) => console.error('Failed to sync appended content to Yjs:', err));
         return toolResult(updated);
       } catch (error) {
         return toolError(error);

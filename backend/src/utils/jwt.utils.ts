@@ -1,4 +1,5 @@
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 
 export interface TokenPayload {
   userId: string;
@@ -33,9 +34,16 @@ export function generateTokenPair(payload: TokenPayload): TokenPair {
     algorithm: 'HS256',
   });
 
+  // A random jti makes every refresh token unique. Without it the payload is
+  // identical between issuances and `iat` only has second granularity, so two
+  // refresh tokens minted within the same second were byte-identical. That made
+  // rotation a silent no-op inside that window — the "new" token was the old one
+  // — and meant two sessions created for the same user in the same second
+  // collided on the sessions.refresh_token_hash unique index.
   const refreshToken = jwt.sign(payload, REFRESH_TOKEN_SECRET, {
     expiresIn: REFRESH_TOKEN_EXPIRY,
     algorithm: 'HS256',
+    jwtid: crypto.randomUUID(),
   });
 
   return { accessToken, refreshToken };

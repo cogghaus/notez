@@ -13,7 +13,7 @@ Only the latest release receives security updates. We recommend always running t
 
 If you discover a security vulnerability in Notez, please report it responsibly:
 
-1. **GitHub Security Advisories** (preferred): [Report a vulnerability](https://github.com/SpasticPalate/notez/security/advisories/new)
+1. **GitHub Security Advisories** (preferred): [Report a vulnerability](https://github.com/cogghaus/notez/security/advisories/new)
 2. **Email**: Open a GitHub issue marked `[SECURITY]` if you cannot use advisories
 
 **Please do NOT open a public GitHub issue for security vulnerabilities.**

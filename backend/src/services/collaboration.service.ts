@@ -9,7 +9,7 @@ import * as Y from 'yjs';
 import { prisma } from '../lib/db.js';
 import { verifyAccessToken } from '../utils/jwt.utils.js';
 import { checkNoteAccess } from './share.service.js';
-import { markdownToYDoc, yDocToMarkdown } from '../lib/tiptap-server.js';
+import { markdownToYDoc, yDocToMarkdown, applyMarkdownToYDoc } from '../lib/tiptap-server.js';
 
 // Assign a consistent color to each user based on their userId
 const CURSOR_COLORS = [
@@ -158,3 +158,45 @@ export const hocuspocusServer = new Hocuspocus({
     }
   },
 });
+
+/**
+ * Push an out-of-band content change (REST API, MCP tools) into the Yjs document.
+ *
+ * Note content is persisted twice: as CRDT state in note_yjs_state and as mirrored
+ * markdown in notes.content. fetchDocument prefers the CRDT state whenever the row
+ * exists and never reconciles it against notes.content, and storeDocument then
+ * writes its markdown back over notes.content. Without this call, any write that
+ * bypasses the editor was silently reverted the next time the note was opened
+ * collaboratively — which is exactly what MCP-driven edits do.
+ *
+ * openDirectConnection covers both cases: if the document is live, Hocuspocus
+ * applies the update to the in-memory doc and broadcasts it to connected clients;
+ * if it is not, Hocuspocus loads it, applies the change, and persists via
+ * storeDocument. Documents with no CRDT state yet are skipped — fetchDocument
+ * converts from notes.content on first open, so there is nothing stale to correct.
+ *
+ * Best-effort by design: the caller has already committed to the database, so a
+ * failure here is logged rather than propagated.
+ */
+export async function syncNoteContentToYjs(noteId: string, markdown: string): Promise<void> {
+  try {
+    const existing = await prisma.noteYjsState.findUnique({
+      where: { noteId },
+      select: { noteId: true },
+    });
+    if (!existing) {
+      return;
+    }
+
+    const connection = await hocuspocusServer.openDirectConnection(noteId);
+    try {
+      await connection.transact((doc) => {
+        applyMarkdownToYDoc(doc, markdown);
+      });
+    } finally {
+      await connection.disconnect();
+    }
+  } catch (err) {
+    console.error(`[collab] Failed to sync content into Yjs doc for note ${noteId}:`, err);
+  }
+}
