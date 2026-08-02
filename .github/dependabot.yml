@@ -1,0 +1,85 @@
+# Dependabot configuration.
+#
+# Without this file only *security* updates are raised, and only for manifests
+# GitHub happens to detect. That left notez-mcp/ with no update PRs at all
+# despite carrying 51 open alerts, while backend/ and frontend/ were covered.
+# Declaring all three ecosystems makes coverage explicit and adds regular
+# version updates so security fixes are not the only thing that ever lands.
+#
+# Updates are grouped per directory to keep the PR count manageable: one PR for
+# production dependencies and one for development dependencies, rather than one
+# per package.
+
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: /backend
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      backend-production:
+        dependency-type: production
+        update-types:
+          - minor
+          - patch
+      backend-development:
+        dependency-type: development
+        update-types:
+          - minor
+          - patch
+    commit-message:
+      prefix: chore(deps)
+      prefix-development: chore(deps-dev)
+
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      frontend-production:
+        dependency-type: production
+        update-types:
+          - minor
+          - patch
+      frontend-development:
+        dependency-type: development
+        update-types:
+          - minor
+          - patch
+    commit-message:
+      prefix: chore(deps)
+      prefix-development: chore(deps-dev)
+
+  - package-ecosystem: npm
+    directory: /notez-mcp
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      notez-mcp-production:
+        dependency-type: production
+        update-types:
+          - minor
+          - patch
+      notez-mcp-development:
+        dependency-type: development
+        update-types:
+          - minor
+          - patch
+    commit-message:
+      prefix: chore(deps)
+      prefix-development: chore(deps-dev)
+
+  # Keep the Actions used by docker-build.yml current as well.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: chore(ci)
