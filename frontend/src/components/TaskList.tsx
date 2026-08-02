@@ -11,6 +11,7 @@ import { useToast } from './Toast';
 interface TaskListProps {
   onNoteClick?: (noteId: string) => void;
   serviceAccountMode?: boolean;
+  folderId?: string | null;
 }
 
 interface Folder {
@@ -18,7 +19,7 @@ interface Folder {
   name: string;
 }
 
-export default function TaskList({ onNoteClick, serviceAccountMode }: TaskListProps) {
+export default function TaskList({ onNoteClick, serviceAccountMode, folderId }: TaskListProps) {
   const confirm = useConfirm();
   const { showToast } = useToast();
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -27,7 +28,7 @@ export default function TaskList({ onNoteClick, serviceAccountMode }: TaskListPr
   const [isLoading, setIsLoading] = useState(true);
   const [showCompleted, setShowCompleted] = useState(false);
   const [selectedPriority, setSelectedPriority] = useState<string>('');
-  const [selectedFolder, setSelectedFolder] = useState<string>('');
+  const [selectedFolder, setSelectedFolder] = useState<string>(folderId ?? '');
   const [showOverdueOnly, setShowOverdueOnly] = useState(false);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [sortBy, setSortBy] = useState<TaskSortBy>('priority');
@@ -37,6 +38,10 @@ export default function TaskList({ onNoteClick, serviceAccountMode }: TaskListPr
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+
+  useEffect(() => {
+    setSelectedFolder(folderId ?? '');
+  }, [folderId]);
 
   useEffect(() => {
     loadTasks();

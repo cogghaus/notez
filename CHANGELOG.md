@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.29.0] - 2026-08-02
+
+### Added
+
+- **Filter tasks by folder** — selecting a folder in the sidebar while in Tasks view now filters the task list to tasks belonging to that folder. Switching between notes and tasks views preserves the folder context. Virtual folders (Unfiled, Trash, Shared, etc.) continue to switch to the notes view as before. Frontend only — no backend changes (the `folderId` query param on `GET /api/tasks` was already supported).
+
 ## [1.28.0] - 2026-08-02
 
 ### Added
