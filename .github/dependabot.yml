@@ -9,6 +9,17 @@
 # Updates are grouped per directory to keep the PR count manageable: one PR for
 # production dependencies and one for development dependencies, rather than one
 # per package.
+#
+# Major bumps are ignored for scheduled version updates. The groups below only
+# cover minor and patch, so without this every major fell outside a group and
+# got its own PR -- the first run opened 14 of them at once, including
+# typescript 5.9 -> 7.0, zod 3 -> 4 and @types/node 20 -> 26. Majors deserve a
+# deliberate look rather than arriving as routine weekly noise, so they are
+# raised manually instead.
+#
+# This does not weaken security coverage: Dependabot security updates are driven
+# by advisories, not by this schedule, and still open PRs for vulnerable
+# packages regardless of whether the fix is a major.
 
 version: 2
 
@@ -30,6 +41,10 @@ updates:
         update-types:
           - minor
           - patch
+    ignore:
+      - dependency-name: '*'
+        update-types:
+          - version-update:semver-major
     commit-message:
       prefix: chore(deps)
       prefix-development: chore(deps-dev)
@@ -51,6 +66,10 @@ updates:
         update-types:
           - minor
           - patch
+    ignore:
+      - dependency-name: '*'
+        update-types:
+          - version-update:semver-major
     commit-message:
       prefix: chore(deps)
       prefix-development: chore(deps-dev)
@@ -72,6 +91,10 @@ updates:
         update-types:
           - minor
           - patch
+    ignore:
+      - dependency-name: '*'
+        update-types:
+          - version-update:semver-major
     commit-message:
       prefix: chore(deps)
       prefix-development: chore(deps-dev)
@@ -81,5 +104,9 @@ updates:
     directory: /
     schedule:
       interval: monthly
+    ignore:
+      - dependency-name: '*'
+        update-types:
+          - version-update:semver-major
     commit-message:
       prefix: chore(ci)
