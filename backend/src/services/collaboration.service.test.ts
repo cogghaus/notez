@@ -18,6 +18,7 @@ vi.mock('../lib/db.js', () => ({
 vi.mock('../lib/tiptap-server.js', () => ({
   markdownToYDoc: vi.fn(),
   yDocToMarkdown: vi.fn(),
+  applyMarkdownToYDoc: vi.fn(),
 }));
 
 // Mock jwt utils (used by onAuthenticate)
@@ -31,8 +32,13 @@ vi.mock('./share.service.js', () => ({
 }));
 
 import { prisma } from '../lib/db.js';
-import { markdownToYDoc, yDocToMarkdown } from '../lib/tiptap-server.js';
-import { fetchDocument, storeDocument } from './collaboration.service.js';
+import { markdownToYDoc, yDocToMarkdown, applyMarkdownToYDoc } from '../lib/tiptap-server.js';
+import {
+  fetchDocument,
+  storeDocument,
+  syncNoteContentToYjs,
+  hocuspocusServer,
+} from './collaboration.service.js';
 import * as Y from 'yjs';
 
 describe('collaboration.service', () => {
@@ -139,6 +145,66 @@ describe('collaboration.service', () => {
       // Markdown sync failed but was caught
       expect(console.error).toHaveBeenCalledWith(
         expect.stringContaining('Failed to sync Yjs state to markdown'),
+        expect.any(Error),
+      );
+    });
+  });
+
+  // Writes that bypass the editor (REST API, MCP tools) must be pushed into the
+  // CRDT, otherwise fetchDocument keeps serving the stored state and storeDocument
+  // reverts them on the next collaborative open.
+  describe('syncNoteContentToYjs', () => {
+    it('skips notes that have no CRDT state yet', async () => {
+      // No state row: fetchDocument will convert from notes.content on first
+      // open, so there is nothing stale to correct.
+      (prisma.noteYjsState.findUnique as any).mockResolvedValue(null);
+      const openSpy = vi.spyOn(hocuspocusServer, 'openDirectConnection');
+
+      await syncNoteContentToYjs('note-1', '# hello');
+
+      expect(openSpy).not.toHaveBeenCalled();
+      expect(applyMarkdownToYDoc).not.toHaveBeenCalled();
+    });
+
+    it('applies the new content to the document when CRDT state exists', async () => {
+      (prisma.noteYjsState.findUnique as any).mockResolvedValue({ noteId: 'note-1' });
+
+      const doc = new Y.Doc();
+      const disconnect = vi.fn().mockResolvedValue(undefined);
+      const transact = vi.fn(async (cb: any) => { cb(doc); });
+      vi.spyOn(hocuspocusServer, 'openDirectConnection').mockResolvedValue({
+        transact,
+        disconnect,
+      } as any);
+
+      await syncNoteContentToYjs('note-1', '# hello');
+
+      expect(transact).toHaveBeenCalled();
+      expect(applyMarkdownToYDoc).toHaveBeenCalledWith(doc, '# hello');
+      expect(disconnect).toHaveBeenCalled();
+    });
+
+    it('disconnects even when the transaction throws', async () => {
+      (prisma.noteYjsState.findUnique as any).mockResolvedValue({ noteId: 'note-1' });
+
+      const disconnect = vi.fn().mockResolvedValue(undefined);
+      const transact = vi.fn().mockRejectedValue(new Error('transact failed'));
+      vi.spyOn(hocuspocusServer, 'openDirectConnection').mockResolvedValue({
+        transact,
+        disconnect,
+      } as any);
+
+      await syncNoteContentToYjs('note-1', '# hello');
+
+      expect(disconnect).toHaveBeenCalled();
+    });
+
+    it('swallows errors so a sync failure cannot fail the committed write', async () => {
+      (prisma.noteYjsState.findUnique as any).mockRejectedValue(new Error('DB down'));
+
+      await expect(syncNoteContentToYjs('note-1', 'x')).resolves.toBeUndefined();
+      expect(console.error).toHaveBeenCalledWith(
+        expect.stringContaining('Failed to sync content into Yjs doc'),
         expect.any(Error),
       );
     });

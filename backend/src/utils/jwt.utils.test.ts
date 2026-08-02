@@ -44,6 +44,27 @@ describe('jwt.utils', () => {
       expect(decoded.username).toBe(testPayload.username);
       expect(decoded.role).toBe(testPayload.role);
     });
+
+    // Two pairs minted back to back land in the same second, so `iat` is
+    // identical. Without a unique jti the refresh tokens came out byte-identical,
+    // which made rotation a no-op and collided on the session unique index.
+    it('should mint a unique refresh token even when issued in the same second', () => {
+      const first = generateTokenPair(testPayload);
+      const second = generateTokenPair(testPayload);
+
+      expect(first.refreshToken).not.toBe(second.refreshToken);
+
+      const a = jwt.decode(first.refreshToken) as { iat: number; jti: string };
+      const b = jwt.decode(second.refreshToken) as { iat: number; jti: string };
+      expect(a.iat).toBe(b.iat); // same second — proves jti is what differs
+      expect(a.jti).toBeDefined();
+      expect(a.jti).not.toBe(b.jti);
+    });
+
+    it('should still verify a refresh token carrying a jti', () => {
+      const { refreshToken } = generateTokenPair(testPayload);
+      expect(() => verifyRefreshToken(refreshToken)).not.toThrow();
+    });
   });
 
   describe('verifyAccessToken', () => {
