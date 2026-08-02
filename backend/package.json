@@ -64,7 +64,7 @@
     "minio": "^8.0.7",
     "openai": "^6.10.0",
     "resend": "^6.18.1",
-    "sharp": "^0.35.0",
+    "sharp": "^0.35.3",
     "turndown": "^7.2.2",
     "uuid": "^14.0.1",
     "yjs": "^13.6.29",
@@ -76,14 +76,14 @@
     "@types/node": "^20.14.0",
     "@types/turndown": "^5.0.6",
     "@types/uuid": "^10.0.0",
-    "@typescript-eslint/eslint-plugin": "^8.0.0",
-    "@typescript-eslint/parser": "^8.0.0",
-    "eslint": "^9.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.65.0",
+    "@typescript-eslint/parser": "^8.65.0",
+    "eslint": "^10.8.0",
     "eslint-import-resolver-typescript": "^3.6.0",
     "eslint-plugin-import": "^2.29.0",
     "prisma": "^5.20.0",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3",
-    "vitest": "^3.2.6"
+    "vitest": "^4.1.10"
   }
 }
