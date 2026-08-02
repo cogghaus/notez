@@ -7,9 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.28.0] - 2026-08-02
+
 ### Added
 
-- **OpenTelemetry instrumentation** — backend now ships traces, metrics, and logs to the homelab OTel Collector (OpenObserve backend) when `OTEL_EXPORTER_OTLP_ENDPOINT` is set. Uses `@opentelemetry/auto-instrumentations-node` for zero-code instrumentation of Fastify, HTTP, Postgres/Prisma, and outbound fetch. Set `OTEL_SDK_DISABLED=true` to opt out.
+- **Copy image to clipboard** — hover over any embedded image in a note to reveal a "Copy" button. Clicking it fetches the image and writes it to the system clipboard via the Clipboard API, ready to paste into other apps. Shows a brief "Copied!" confirmation or "Failed" on error. Requires HTTPS and browser clipboard permission.
 
 ## [1.27.1] - 2026-08-01
 
@@ -22,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **OpenTelemetry instrumentation** — backend now ships traces, metrics, and logs to the homelab OTel Collector (OpenObserve backend) when `OTEL_EXPORTER_OTLP_ENDPOINT` is set. Uses `@opentelemetry/auto-instrumentations-node` for zero-code instrumentation of Fastify, HTTP, Postgres/Prisma, and outbound fetch. Set `OTEL_SDK_DISABLED=true` to opt out.
 - **MCP: Task Links** — New tools `notez_add_task_link`, `notez_update_task_link`, `notez_delete_task_link` for managing URL links on tasks via MCP. Each task supports up to 10 links.
 - **MCP: Notifications** — New tools `notez_list_notifications`, `notez_get_unread_count`, `notez_mark_notification_read`, `notez_mark_all_notifications_read`, `notez_delete_notification`. Read tools use `mcp:read` scope; mutation tools use `mcp:write`.
 - **MCP: Feedback** — New tools `notez_create_feedback`, `notez_list_my_feedback`, `notez_get_feedback` for submitting and reviewing bug reports and feature requests via MCP.
