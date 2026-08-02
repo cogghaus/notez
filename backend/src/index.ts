@@ -115,9 +115,14 @@ await fastify.register(rateLimit, {
   keyGenerator: (request) => {
     return request.ip;
   },
-  // Custom error message
+  // Custom error message.
+  // @fastify/rate-limit throws whatever this returns, verbatim, so the object
+  // must carry statusCode itself — the default builder sets it on an Error.
+  // Without it the global error handler cannot distinguish throttling from an
+  // unexpected failure and turns every rate-limited request into a 500.
   errorResponseBuilder: (_request, context) => {
     return {
+      statusCode: context.statusCode,
       error: 'Too Many Requests',
       message: `Rate limit exceeded. Try again in ${Math.ceil(context.ttl / 1000)} seconds.`,
       retryAfter: Math.ceil(context.ttl / 1000),
@@ -158,11 +163,14 @@ fastify.setErrorHandler((error: FastifyError, request, reply) => {
     });
   }
 
-  // Rate limit errors (already have statusCode set)
+  // Rate limit errors (statusCode comes from the rate-limit errorResponseBuilder).
+  // retryAfter is forwarded so clients can back off instead of guessing.
   if (error.statusCode === 429) {
+    const { retryAfter } = error as unknown as { retryAfter?: number };
     return reply.code(429).send({
       error: 'Too Many Requests',
       message: error.message,
+      ...(retryAfter !== undefined ? { retryAfter } : {}),
     });
   }
 
