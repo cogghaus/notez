@@ -182,13 +182,17 @@ fastify.setErrorHandler((error: FastifyError, request, reply) => {
   });
 });
 
-// Health check endpoint
-fastify.get('/health', async () => {
+// Health check endpoint.
+// Must return a non-2xx code when the database is unreachable: the Docker
+// HEALTHCHECK (and any upstream probe) only inspects the status code, so
+// returning 200 with an "error" body would report the container as healthy
+// through a full database outage and suppress the restart.
+fastify.get('/health', async (_request, reply) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
     return { status: 'ok', database: 'connected' };
   } catch (error) {
-    return { status: 'error', database: 'disconnected' };
+    return reply.code(503).send({ status: 'error', database: 'disconnected' });
   }
 });
 
