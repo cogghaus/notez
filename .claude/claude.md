@@ -94,7 +94,7 @@ If the guard is not firing, the fix belongs in `G:/dev/_git-hooks/`, not in loca
 - **Project Name:** Notez
 - **Description:** Self-hosted web-based note-taking application with AI features
 - **Architecture:** Monorepo (Node.js backend + React frontend)
-- **Deployment:** Docker → ghcr.io → Portainer
+- **Deployment:** Docker → ghcr.io → Docker Compose on the target host (`compose.prod.yml`)
 - **Documentation:** See `/docs` folder for requirements and MVP spec
 
 ## Development Permissions
@@ -139,7 +139,8 @@ You have extensive autonomous permissions to:
 /notez
 ├── backend/          # Fastify + TypeScript backend
 ├── frontend/         # React + TypeScript frontend
-├── docker/           # Docker and docker-compose files
+├── notez-mcp/        # MCP server published to npm
+├── compose*.yml      # Compose files (dev, local, prod, test) live at the repo root
 ├── docs/             # Documentation
 ├── .github/          # GitHub Actions workflows
 └── .claude/          # Claude instructions (this file)
