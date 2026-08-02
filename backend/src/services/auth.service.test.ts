@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import crypto from 'crypto';
 
 // Mock prisma
 vi.mock('../lib/db.js', () => ({
@@ -544,6 +545,92 @@ describe('auth.service', () => {
         expiresAt: new Date(Date.now() + 3600000),
       } as any);
       expect(await validateResetToken('valid-token')).toBe(true);
+    });
+  });
+
+  // ─── refresh token storage ────────────────────────────────────────────
+  // Sessions must persist only a SHA-256 digest. Storing the raw JWT would make
+  // any database read (leaked backup, restic archive) directly replayable
+  // against /api/auth/refresh.
+  describe('refresh token storage', () => {
+    const sha256 = (value: string) =>
+      crypto.createHash('sha256').update(value).digest('hex');
+
+    it('should store a hash of the refresh token on login, never the token itself', async () => {
+      const hash = await hashPassword('GoodPass1!');
+      mockPrisma.user.findFirst.mockResolvedValue({
+        id: 'user-1',
+        username: 'alice',
+        email: 'alice@test.com',
+        role: 'user',
+        isActive: true,
+        passwordHash: hash,
+        mustChangePassword: false,
+      } as any);
+      mockPrisma.session.create.mockResolvedValue({} as any);
+
+      const result = await login({
+        usernameOrEmail: 'alice',
+        password: 'GoodPass1!',
+      });
+
+      const stored = mockPrisma.session.create.mock.calls[0][0].data as any;
+      expect(stored.refreshTokenHash).toBe(sha256(result.tokens.refreshToken));
+      expect(stored.refreshTokenHash).toHaveLength(64);
+      // The raw token must not appear anywhere in the persisted row
+      expect(JSON.stringify(stored)).not.toContain(result.tokens.refreshToken);
+    });
+
+    it('should store a hash of the refresh token during first-user setup', async () => {
+      mockPrisma.user.count.mockResolvedValue(0);
+      mockPrisma.user.findFirst.mockResolvedValue(null);
+      mockPrisma.user.create.mockResolvedValue({
+        id: 'user-1',
+        username: 'admin',
+        email: 'admin@test.com',
+        role: 'admin',
+      } as any);
+      mockPrisma.session.create.mockResolvedValue({} as any);
+
+      const result = await setupFirstUser({
+        username: 'admin',
+        email: 'admin@test.com',
+        password: 'AdminPass1!',
+      } as any);
+
+      const stored = mockPrisma.session.create.mock.calls[0][0].data as any;
+      expect(stored.refreshTokenHash).toBe(sha256(result.tokens.refreshToken));
+      expect(JSON.stringify(stored)).not.toContain(result.tokens.refreshToken);
+    });
+
+    it('should look up sessions by hash, not by raw token', async () => {
+      const { generateTokenPair } = await import('../utils/jwt.utils.js');
+      const tokens = generateTokenPair({
+        userId: 'user-1',
+        username: 'alice',
+        role: 'user',
+      });
+      mockPrisma.session.findUnique.mockResolvedValue(null);
+
+      await expect(refreshAccessToken(tokens.refreshToken)).rejects.toThrow();
+
+      expect(mockPrisma.session.findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { refreshTokenHash: sha256(tokens.refreshToken) },
+        })
+      );
+    });
+
+    it('should look up the session by hash on logout', async () => {
+      mockPrisma.session.findUnique.mockResolvedValue(null);
+
+      await logout('some-refresh-token');
+
+      expect(mockPrisma.session.findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { refreshTokenHash: sha256('some-refresh-token') },
+        })
+      );
     });
   });
 });

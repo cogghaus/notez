@@ -8,6 +8,19 @@ import type { SetupInput, LoginInput, ChangePasswordInput } from '../utils/valid
 const SALT_ROUNDS = 10;
 
 /**
+ * Hash a refresh token for storage. Sessions persist only this digest, so a
+ * database read cannot be replayed against /api/auth/refresh. Kept consistent
+ * with token.service.hashToken and the OAuth token hashing.
+ *
+ * SHA-256 rather than bcrypt is deliberate: refresh tokens are 256-bit random
+ * JWTs, not low-entropy secrets, so there is nothing to brute force, and the
+ * lookup has to be an indexed equality match on every refresh.
+ */
+function hashRefreshToken(token: string): string {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+/**
  * Hash a password using bcrypt
  */
 export async function hashPassword(password: string): Promise<string> {
@@ -79,7 +92,7 @@ export async function setupFirstUser(data: SetupInput) {
   await prisma.session.create({
     data: {
       userId: user.id,
-      refreshToken: tokens.refreshToken,
+      refreshTokenHash: hashRefreshToken(tokens.refreshToken),
       expiresAt,
     },
   });
@@ -147,7 +160,7 @@ export async function login(data: LoginInput) {
   await prisma.session.create({
     data: {
       userId: user.id,
-      refreshToken: tokens.refreshToken,
+      refreshTokenHash: hashRefreshToken(tokens.refreshToken),
       expiresAt,
     },
   });
@@ -175,9 +188,9 @@ export async function refreshAccessToken(refreshToken: string) {
     throw new Error('Invalid or expired refresh token');
   }
 
-  // Check if refresh token exists in database
+  // Check if refresh token exists in database (looked up by digest)
   const session = await prisma.session.findUnique({
-    where: { refreshToken },
+    where: { refreshTokenHash: hashRefreshToken(refreshToken) },
     include: { user: true },
   });
 
@@ -217,7 +230,7 @@ export async function refreshAccessToken(refreshToken: string) {
     prisma.session.create({
       data: {
         userId: session.user.id,
-        refreshToken: tokens.refreshToken,
+        refreshTokenHash: hashRefreshToken(tokens.refreshToken),
         expiresAt: newExpiresAt,
       },
     }),
@@ -239,9 +252,9 @@ export async function refreshAccessToken(refreshToken: string) {
  * Logout (invalidate all user sessions for security)
  */
 export async function logout(refreshToken: string) {
-  // Find the session to get the userId
+  // Find the session to get the userId (looked up by digest)
   const session = await prisma.session.findUnique({
-    where: { refreshToken },
+    where: { refreshTokenHash: hashRefreshToken(refreshToken) },
     select: { userId: true },
   });
 
