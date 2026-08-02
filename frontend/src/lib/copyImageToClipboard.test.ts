@@ -38,9 +38,16 @@ describe('copyImageToClipboard', () => {
       writable: true,
     });
 
-    // ClipboardItem must exist for the unsupported check to pass
+    // ClipboardItem must exist for the unsupported check to pass.
+    // The field is declared and assigned explicitly rather than via a
+    // constructor parameter property: tsconfig sets erasableSyntaxOnly, which
+    // rejects parameter properties because they emit runtime code instead of
+    // being pure type erasure (TS1294).
     globalThis.ClipboardItem = class MockClipboardItem {
-      constructor(public data: Record<string, Blob>) {}
+      data: Record<string, Blob>;
+      constructor(data: Record<string, Blob>) {
+        this.data = data;
+      }
     } as unknown as typeof ClipboardItem;
   });
 

@@ -207,7 +207,7 @@ spec:
 # 1. Update password in your secret manager
 # 2. Update POSTGRES_PASSWORD in .env
 # 3. Restart application
-docker-compose restart backend
+docker compose -f compose.prod.yml restart notez-backend
 ```
 
 ### With Explicit URL (Harder):
@@ -215,7 +215,7 @@ docker-compose restart backend
 # 1. Construct new DATABASE_URL with new password
 # 2. Update DATABASE_URL in .env
 # 3. Restart application
-docker-compose restart backend
+docker compose -f compose.prod.yml restart notez-backend
 ```
 
 ## Special Characters in Password

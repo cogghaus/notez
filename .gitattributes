@@ -1,0 +1,12 @@
+# Shell scripts must keep LF endings in the working tree on every platform.
+# On Windows, core.autocrlf=true (the Git for Windows default) otherwise rewrites
+# them to CRLF on checkout. docker-entrypoint.sh is COPYed into the Linux image
+# verbatim, so a CRLF shebang makes the kernel look for an interpreter literally
+# named "/bin/sh\r" and the container dies at startup with:
+#   exec /usr/local/bin/docker-entrypoint.sh: no such file or directory
+# CI never caught this because ubuntu-latest checks out LF.
+*.sh text eol=lf
+
+# Git hooks are shell scripts without a .sh extension.
+.githooks/pre-commit text eol=lf
+.githooks/pre-push text eol=lf

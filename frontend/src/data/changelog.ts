@@ -13,9 +13,16 @@ export interface ChangelogEntry {
 export const changelog: ChangelogEntry[] = [
   {
     version: '1.28.0',
-    date: '2026-05-20',
+    date: '2026-08-02',
     added: [
       'Hover over an image in a note to copy it to your clipboard — paste it directly into other apps without downloading first',
+    ],
+  },
+  {
+    version: '1.27.1',
+    date: '2026-08-01',
+    changed: [
+      'Notez has moved to github.com/cogghaus/notez — links in this dialog now point at the new home',
     ],
   },
   {

@@ -55,11 +55,16 @@ model User {
 
 // Session management for refresh tokens
 model Session {
-  id           String   @id @default(uuid())
-  userId       String   @map("user_id")
-  refreshToken String   @unique @map("refresh_token") @db.VarChar(500)
-  expiresAt    DateTime @map("expires_at")
-  createdAt    DateTime @default(now()) @map("created_at")
+  id     String @id @default(uuid())
+  userId String @map("user_id")
+  // SHA-256 hex digest of the refresh token, never the token itself. Storing the
+  // raw JWT meant anyone who could read the database — a leaked backup, a restic
+  // archive, a SQL injection — held directly replayable credentials, since
+  // /api/auth/refresh only needs the token value. Matches how ApiToken,
+  // OAuthAccessToken and OAuthAuthorizationCode are persisted.
+  refreshTokenHash String   @unique @map("refresh_token_hash") @db.VarChar(64)
+  expiresAt        DateTime @map("expires_at")
+  createdAt        DateTime @default(now()) @map("created_at")
 
   // Relations
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)

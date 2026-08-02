@@ -422,6 +422,18 @@ export async function updateNote(noteId: string, userId: string, data: UpdateNot
       syncNoteLinks(updatedNote.id, updatedNote.content).catch((err) => {
         console.error('Failed to sync note links:', err);
       });
+
+      // Push the new content into the Yjs CRDT as well, otherwise the collaborative
+      // editor keeps serving its stored state and silently reverts this write the
+      // next time the note is opened. Imported lazily so that consumers which only
+      // need note CRUD do not pull in the Hocuspocus server.
+      import('./collaboration.service.js')
+        .then(({ syncNoteContentToYjs }) =>
+          syncNoteContentToYjs(updatedNote.id, updatedNote.content || '')
+        )
+        .catch((err) => {
+          console.error('Failed to sync note content to Yjs:', err);
+        });
     }
 
     return result;

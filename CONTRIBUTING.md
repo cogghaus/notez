@@ -13,7 +13,7 @@ Thanks for your interest in contributing to Notez! This guide covers the basics 
 
 ```bash
 # Clone the repository
-git clone https://github.com/SpasticPalate/notez.git
+git clone https://github.com/cogghaus/notez.git
 cd notez
 
 # Backend

@@ -1,0 +1,47 @@
+# gitleaks allowlist for notez
+#
+# Reviewed 2026-08-01 during the transfer of this repo to github.com/cogghaus.
+# All 27 findings below were inspected by shape, length and sha256 fingerprint
+# without their values being printed. Every one resolves to either a
+# documentation placeholder or a file checksum. None is a live credential,
+# so no rotation was required.
+#
+#   docs/api-testing-guide.md      20 hits, 2 distinct values, both uppercase
+#                                  placeholder tokens in curl walkthrough steps
+#   docs/database-security.md       2 hits, an example password in a section
+#                                  headed 'LESS SECURE: Password visible in one place'
+#   docs/requirements.md            2 hits, an env-assignment example
+#   docs/specs/mcp-integration.md   2 hits, a synthetic API key in a config sample
+#   .bmad/_cfg/files-manifest.csv   1 hit, a 64-char value in a column literally
+#                                  named 'hash'. A file checksum, not a secret.
+#                                  That file is no longer tracked on main.
+#
+# Re-verify with: gitleaks detect --source . --redact
+
+0b20c7920df76e703a8f133784528696aeb9b8ee:docs/database-security.md:generic-api-key:27
+0df122c6226f3592717ec80875e0a8eae1981b0f:docs/api-testing-guide.md:curl-auth-header:116
+0df122c6226f3592717ec80875e0a8eae1981b0f:docs/api-testing-guide.md:curl-auth-header:148
+0df122c6226f3592717ec80875e0a8eae1981b0f:docs/api-testing-guide.md:curl-auth-header:185
+0df122c6226f3592717ec80875e0a8eae1981b0f:docs/api-testing-guide.md:curl-auth-header:203
+0df122c6226f3592717ec80875e0a8eae1981b0f:docs/api-testing-guide.md:curl-auth-header:228
+0df122c6226f3592717ec80875e0a8eae1981b0f:docs/api-testing-guide.md:curl-auth-header:252
+0df122c6226f3592717ec80875e0a8eae1981b0f:docs/api-testing-guide.md:curl-auth-header:296
+0df122c6226f3592717ec80875e0a8eae1981b0f:docs/api-testing-guide.md:curl-auth-header:312
+0df122c6226f3592717ec80875e0a8eae1981b0f:docs/api-testing-guide.md:curl-auth-header:388
+0df122c6226f3592717ec80875e0a8eae1981b0f:docs/api-testing-guide.md:curl-auth-header:97
+0df122c6226f3592717ec80875e0a8eae1981b0f:docs/database-security.md:generic-api-key:27
+0df122c6226f3592717ec80875e0a8eae1981b0f:docs/requirements.md:generic-api-key:343
+0df122c6226f3592717ec80875e0a8eae1981b0f:docs/specs/mcp-integration.md:generic-api-key:167
+1bdc545841ee8eb26575a64d203f5474bab5b929:docs/specs/mcp-integration.md:generic-api-key:167
+98fd8cbea78f81fa516ef8608805d48df6ff00fb:docs/requirements.md:generic-api-key:343
+e81bf92464c38d95fd2ade0b75fa58b92826d204:docs/api-testing-guide.md:curl-auth-header:116
+e81bf92464c38d95fd2ade0b75fa58b92826d204:docs/api-testing-guide.md:curl-auth-header:148
+e81bf92464c38d95fd2ade0b75fa58b92826d204:docs/api-testing-guide.md:curl-auth-header:185
+e81bf92464c38d95fd2ade0b75fa58b92826d204:docs/api-testing-guide.md:curl-auth-header:203
+e81bf92464c38d95fd2ade0b75fa58b92826d204:docs/api-testing-guide.md:curl-auth-header:228
+e81bf92464c38d95fd2ade0b75fa58b92826d204:docs/api-testing-guide.md:curl-auth-header:252
+e81bf92464c38d95fd2ade0b75fa58b92826d204:docs/api-testing-guide.md:curl-auth-header:296
+e81bf92464c38d95fd2ade0b75fa58b92826d204:docs/api-testing-guide.md:curl-auth-header:312
+e81bf92464c38d95fd2ade0b75fa58b92826d204:docs/api-testing-guide.md:curl-auth-header:388
+e81bf92464c38d95fd2ade0b75fa58b92826d204:docs/api-testing-guide.md:curl-auth-header:97
+e93d7553c4711dc209300bde8da4b155f499276b:.bmad/_cfg/files-manifest.csv:generic-api-key:59

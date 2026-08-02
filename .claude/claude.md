@@ -36,16 +36,22 @@ git commit -m "message"
 
 ### Automated Enforcement
 
-A pre-commit git hook prevents accidental commits to main:
-- Location: `.git/hooks/pre-commit` (active)
-- Source: `.githooks/pre-commit` (committed to repo)
-- Blocks any commit attempt on main branch
-- Provides clear error message with instructions
+A pre-commit hook blocks commits made while `main` is checked out. It reaches this repo
+through a two-stage dispatch, not through `.git/hooks/`:
 
-If hook is missing, install it:
-```bash
-git config core.hooksPath .githooks
-```
+- `core.hooksPath` is set **globally** to `G:/dev/_git-hooks`, so git ignores this repo's
+  `.git/hooks/` directory entirely.
+- `G:/dev/_git-hooks/pre-commit` is a dispatcher. It looks for
+  `<repo root>/.githooks/pre-commit` and runs it when present.
+- This repo's guard therefore lives at `.githooks/pre-commit` (committed), and runs via that
+  dispatcher. It blocks any commit attempt on the default branch with an explanatory message.
+
+**Never run `git config core.hooksPath .githooks` in this or any repo.** Setting `core.hooksPath`
+locally *replaces* the global hooks directory rather than adding to it, which would silently
+disable the global pre-push gitleaks secret scan. Repo-local hooks are already picked up by the
+global dispatcher; there is nothing to install.
+
+If the guard is not firing, the fix belongs in `G:/dev/_git-hooks/`, not in local git config.
 
 ### Branch Strategy
 
@@ -88,7 +94,7 @@ git config core.hooksPath .githooks
 - **Project Name:** Notez
 - **Description:** Self-hosted web-based note-taking application with AI features
 - **Architecture:** Monorepo (Node.js backend + React frontend)
-- **Deployment:** Docker → ghcr.io → Portainer
+- **Deployment:** Docker → ghcr.io → Docker Compose on the target host (`compose.prod.yml`)
 - **Documentation:** See `/docs` folder for requirements and MVP spec
 
 ## Development Permissions
@@ -133,7 +139,8 @@ You have extensive autonomous permissions to:
 /notez
 ├── backend/          # Fastify + TypeScript backend
 ├── frontend/         # React + TypeScript frontend
-├── docker/           # Docker and docker-compose files
+├── notez-mcp/        # MCP server published to npm
+├── compose*.yml      # Compose files (dev, local, prod, test) live at the repo root
 ├── docs/             # Documentation
 ├── .github/          # GitHub Actions workflows
 └── .claude/          # Claude instructions (this file)

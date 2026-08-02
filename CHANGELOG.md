@@ -7,11 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.28.0] - 2026-05-20
+## [1.28.0] - 2026-08-02
 
 ### Added
 
 - **Copy image to clipboard** — hover over any embedded image in a note to reveal a "Copy" button. Clicking it fetches the image and writes it to the system clipboard via the Clipboard API, ready to paste into other apps. Shows a brief "Copied!" confirmation or "Failed" on error. Requires HTTPS and browser clipboard permission.
+
+## [1.27.1] - 2026-08-01
+
+### Changed
+
+- **Repository moved to `github.com/cogghaus/notez`.** Clone URLs, the security advisory link, the What's New footer link, and the `notez-mcp` package repository field now point at the new owner. The production image path moves from `ghcr.io/spasticpalate/notez` to `ghcr.io/cogghaus/notez`; the old namespace no longer resolves.
+- LICENSE copyright holder normalised to Adam Coggins.
 
 ## [1.27.0] - 2026-04-14
 
