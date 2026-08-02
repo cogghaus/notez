@@ -79,27 +79,42 @@ turndownService.addRule('taskListItems', {
 });
 
 /**
+ * Replace the contents of an existing Y.Doc with the given markdown.
+ *
+ * Applied in a single Yjs transaction so collaborators observe one atomic
+ * change rather than a delete followed by a rebuild.
+ *
+ * Note this replaces rather than merges: the CRDT cannot meaningfully rebase an
+ * out-of-band full-document rewrite against concurrent edits, so last-write-wins
+ * is the intended semantic.
+ */
+export function applyMarkdownToYDoc(doc: Y.Doc, markdown: string): void {
+  const xmlFragment = doc.getXmlFragment('default');
+
+  doc.transact(() => {
+    if (xmlFragment.length > 0) {
+      xmlFragment.delete(0, xmlFragment.length);
+    }
+
+    if (!markdown || !markdown.trim()) {
+      // Empty document still needs one paragraph for TipTap to mount into
+      xmlFragment.insert(0, [new Y.XmlElement('paragraph')]);
+      return;
+    }
+
+    // Convert markdown -> HTML -> ProseMirror JSON -> Yjs XML fragment
+    const html = marked.parse(markdown) as string;
+    const json = generateJSON(html, extensions);
+    prosemirrorJsonToYXml(json, xmlFragment);
+  });
+}
+
+/**
  * Convert markdown content to a Yjs Y.Doc with TipTap-compatible XML fragment
  */
 export function markdownToYDoc(markdown: string): Y.Doc {
   const doc = new Y.Doc();
-
-  if (!markdown || !markdown.trim()) {
-    // Create empty doc with default fragment
-    const xmlFragment = doc.getXmlFragment('default');
-    const paragraph = new Y.XmlElement('paragraph');
-    xmlFragment.insert(0, [paragraph]);
-    return doc;
-  }
-
-  // Convert markdown -> HTML -> ProseMirror JSON
-  const html = marked.parse(markdown) as string;
-  const json = generateJSON(html, extensions);
-
-  // Convert ProseMirror JSON to Yjs XML fragment
-  const xmlFragment = doc.getXmlFragment('default');
-  prosemirrorJsonToYXml(json, xmlFragment);
-
+  applyMarkdownToYDoc(doc, markdown);
   return doc;
 }
 
