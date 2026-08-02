@@ -30,7 +30,7 @@
     "date-fns": "^4.1.0",
     "dompurify": "^3.4.12",
     "lucide-react": "^0.556.0",
-    "marked": "^16.4.1",
+    "marked": "^18.0.7",
     "qrcode.react": "^4.2.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
