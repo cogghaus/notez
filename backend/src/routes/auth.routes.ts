@@ -18,6 +18,42 @@ import type { OidcTransaction } from '../services/oidc.service.js';
 // tossing). The prefix requires Secure and Path=/, so plain-http dev uses a bare name.
 const isProduction = () => process.env.NODE_ENV === 'production';
 const oidcTxCookie = () => (isProduction() ? '__Host-oidc_tx' : 'oidc_tx');
+// Holds a verified provider identity between the provider's redirect and the signed-in
+// confirm call that actually links it (see /auth/oidc/link/confirm)
+const oidcLinkCookie = () => (isProduction() ? '__Host-oidc_link' : 'oidc_link');
+
+// A __Host- cookie is only accepted, and only deleted, when the Set-Cookie carries
+// Secure and Path=/, so every set and clear goes through these options.
+const oidcCookieBase = () => ({
+  httpOnly: true,
+  secure: isProduction(),
+  // lax: the cookie must ride along on the provider's top-level redirect back
+  sameSite: 'lax' as const,
+  path: '/',
+});
+
+function clearOidcCookies(reply: FastifyReply): void {
+  reply.clearCookie(oidcTxCookie(), oidcCookieBase());
+  reply.clearCookie(oidcLinkCookie(), oidcCookieBase());
+}
+
+interface PendingLink {
+  userId: string;
+  sub: string;
+}
+
+function parsePendingLink(raw: string | undefined): PendingLink | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as Partial<PendingLink>;
+    if (typeof parsed.userId === 'string' && typeof parsed.sub === 'string' && parsed.sub) {
+      return { userId: parsed.userId, sub: parsed.sub };
+    }
+  } catch {
+    // fall through
+  }
+  return null;
+}
 
 // SSO endpoints are browser redirects, keyed by IP only
 const oidcRateLimitConfig = {
@@ -45,12 +81,8 @@ function parseTransaction(raw: string | undefined): OidcTransaction | null {
 
 function setTransactionCookie(reply: FastifyReply, transaction: OidcTransaction): void {
   reply.setCookie(oidcTxCookie(), JSON.stringify(transaction), {
-    httpOnly: true,
-    secure: isProduction(),
-    // lax: the cookie must ride along on the provider's top-level redirect back
-    sameSite: 'lax',
+    ...oidcCookieBase(),
     maxAge: 10 * 60,
-    path: '/',
     signed: true,
   });
 }
@@ -250,7 +282,7 @@ export async function authRoutes(fastify: FastifyInstance) {
       // One-shot: the transaction cookie is cleared whatever happens next
       const cookieName = oidcTxCookie();
       const rawCookie = request.cookies[cookieName];
-      reply.clearCookie(cookieName, { path: '/' });
+      reply.clearCookie(cookieName, oidcCookieBase());
 
       const unsigned = rawCookie ? request.unsignCookie(rawCookie) : null;
       const transaction =
@@ -276,9 +308,17 @@ export async function authRoutes(fastify: FastifyInstance) {
         const identity = await oidcService.completeLogin(callbackQuery, transaction);
 
         if (transaction.linkUserId) {
-          // Already signed in: link only, the existing session stays as it is
-          await oidcService.linkOidcToUser(transaction.linkUserId, identity);
-          return reply.redirect('/settings/profile?sso_linked=1', 302);
+          // Do not link yet. Whoever finished at the provider may not be the person who
+          // clicked Connect (shared browser, a replayed authorize URL), so the identity
+          // waits in a short-lived signed cookie until the Settings page confirms it with
+          // the signed-in user's bearer token (POST /auth/oidc/link/confirm).
+          const pending: PendingLink = { userId: transaction.linkUserId, sub: identity.sub };
+          reply.setCookie(oidcLinkCookie(), JSON.stringify(pending), {
+            ...oidcCookieBase(),
+            maxAge: 5 * 60,
+            signed: true,
+          });
+          return reply.redirect('/settings/profile?sso_link=confirm', 302);
         }
 
         const user = await oidcService.resolveOidcUser(identity);
@@ -302,6 +342,48 @@ export async function authRoutes(fastify: FastifyInstance) {
         }
         request.log.error({ err: error }, 'SSO callback failed');
         return fail('failed');
+      }
+    }
+  );
+
+  // Signed-in Settings page completes a Connect: the pending identity is linked only if
+  // the bearer token belongs to the same user who started it.
+  fastify.post(
+    '/auth/oidc/link/confirm',
+    {
+      preHandler: authenticateToken,
+      config: { rateLimit: oidcRateLimitConfig },
+    },
+    async (request, reply) => {
+      if (!request.user) {
+        return reply.status(401).send({ error: 'Unauthorized', message: 'Authentication required' });
+      }
+
+      // One-shot, like the transaction cookie
+      const cookieName = oidcLinkCookie();
+      const rawCookie = request.cookies[cookieName];
+      reply.clearCookie(cookieName, oidcCookieBase());
+
+      const unsigned = rawCookie ? request.unsignCookie(rawCookie) : null;
+      const pending =
+        unsigned && unsigned.valid ? parsePendingLink(unsigned.value ?? undefined) : null;
+      if (!pending) {
+        return reply.status(400).send({ error: 'Bad Request', code: 'expired', message: 'No pending connection' });
+      }
+      if (pending.userId !== request.user.userId) {
+        request.log.warn('SSO link confirm by a different user than the one who started it');
+        return reply.status(403).send({ error: 'Forbidden', code: 'not_allowed', message: 'Connection was started by another account' });
+      }
+
+      try {
+        await oidcService.linkOidcToUser(pending.userId, { sub: pending.sub });
+        return { linked: true };
+      } catch (error) {
+        if (error instanceof oidcService.OidcLoginError) {
+          request.log.warn({ code: error.code, reason: error.message }, 'SSO link refused');
+          return reply.status(409).send({ error: 'Conflict', code: error.code, message: 'Could not connect this account' });
+        }
+        throw error;
       }
     }
   );
@@ -389,6 +471,9 @@ export async function authRoutes(fastify: FastifyInstance) {
         reply.clearCookie('refreshToken', {
           path: '/',
         });
+        // Drop any half-finished SSO sign-in or Connect so the next person on this
+        // browser cannot complete it
+        clearOidcCookies(reply);
 
         return { message: 'Logout successful' };
       } catch (error) {

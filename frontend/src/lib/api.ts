@@ -107,6 +107,9 @@ export const authApi = {
   // Signed-in user connects their account; returns the provider URL to navigate to
   oidcLink: () => api.post<{ url: string }>('/api/auth/oidc/link'),
 
+  // After the provider redirect, link the pending identity to the signed-in user
+  oidcLinkConfirm: () => api.post<{ linked: boolean }>('/api/auth/oidc/link/confirm'),
+
   changePassword: (data: { currentPassword: string; newPassword: string }) =>
     api.post('/api/auth/change-password', data),
 };

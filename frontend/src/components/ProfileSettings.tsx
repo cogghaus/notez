@@ -3,15 +3,8 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { authApi, profileApi } from '../lib/api';
 import { User, Mail, Lock, Loader2, Check, Camera, Trash2, Pencil, X, KeyRound } from 'lucide-react';
-
-// Codes from the SSO callback when connecting an account (?sso_error=...)
-const SSO_LINK_ERRORS: Record<string, string> = {
-  cancelled: 'Connecting was cancelled.',
-  expired: 'The connection attempt expired. Please try again.',
-  conflict: 'That sign-in account is already connected to a different Notez account.',
-  not_allowed: 'Your sign-in account does not have access to Notez.',
-};
 import { useConfirm } from './ConfirmDialog';
+import { SSO_ERROR_MESSAGES, SSO_ERROR_FALLBACK } from '../lib/ssoMessages';
 
 export function ProfileSettings() {
   const { user, updateUser, refreshAuth } = useAuth();
@@ -38,18 +31,35 @@ export function ProfileSettings() {
       .catch(() => setSso(null));
   }, []);
 
-  // Returning from the provider after "Connect"
+  // Returning from the provider after "Connect": confirm the link as the signed-in user
+  const linkHandled = useRef(false);
   useEffect(() => {
-    const linked = searchParams.get('sso_linked');
+    if (linkHandled.current) return;
+    const linkStep = searchParams.get('sso_link');
     const ssoError = searchParams.get('sso_error');
-    if (!linked && !ssoError) return;
+    if (!linkStep && !ssoError) return;
+    linkHandled.current = true;
     setSearchParams({}, { replace: true });
-    if (linked) {
-      setSuccess('Single sign-on connected. You can now sign in without your password.');
-    } else if (ssoError) {
-      setError(SSO_LINK_ERRORS[ssoError] ?? 'Connecting single sign-on failed. Please try again.');
+
+    if (ssoError) {
+      setError(SSO_ERROR_MESSAGES[ssoError] ?? SSO_ERROR_FALLBACK);
+      return;
     }
-  }, [searchParams, setSearchParams]);
+    if (linkStep === 'confirm') {
+      setIsLinkingSso(true);
+      authApi
+        .oidcLinkConfirm()
+        .then(async () => {
+          setSuccess('Pocket ID connected. Next time you can sign in with Pocket ID instead of your password.');
+          await refreshAuth();
+        })
+        .catch((err) => {
+          const code = (err as { response?: { data?: { code?: string } } }).response?.data?.code;
+          setError((code && SSO_ERROR_MESSAGES[code]) || SSO_ERROR_FALLBACK);
+        })
+        .finally(() => setIsLinkingSso(false));
+    }
+  }, [searchParams, setSearchParams, refreshAuth]);
 
   const handleConnectSso = async () => {
     setIsLinkingSso(true);
@@ -60,7 +70,7 @@ export function ProfileSettings() {
       window.location.assign(response.data.url);
     } catch (err) {
       const message = (err as { response?: { data?: { message?: string } } }).response?.data?.message;
-      setError(message || 'Single sign-on is unavailable right now.');
+      setError(message || SSO_ERROR_MESSAGES.unavailable);
       setIsLinkingSso(false);
     }
   };
@@ -439,13 +449,15 @@ export function ProfileSettings() {
         <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
           <div className="flex items-center space-x-3 mb-4">
             <KeyRound className="w-5 h-5 text-gray-600 dark:text-gray-400" />
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Single sign-on</h3>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+              Sign in with {sso.providerName}
+            </h3>
           </div>
 
           <div className="flex items-center justify-between">
             <div>
               <p className="text-gray-900 dark:text-white">
-                {user.oidcLinked ? `Connected to ${sso.providerName}` : 'Not connected'}
+                {user.oidcLinked ? `Connected to ${sso.providerName}` : 'Not connected yet'}
               </p>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                 {user.oidcLinked
@@ -457,10 +469,11 @@ export function ProfileSettings() {
               <button
                 onClick={handleConnectSso}
                 disabled={isLinkingSso}
-                className="text-sm text-blue-600 dark:text-blue-400 hover:underline disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-1"
+                aria-label={`Connect ${sso.providerName}`}
+                className="shrink-0 ml-4 text-sm text-blue-600 dark:text-blue-400 hover:underline disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-1"
               >
-                {isLinkingSso && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                <span>Connect</span>
+                {isLinkingSso && <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />}
+                <span>{isLinkingSso ? 'Connecting...' : 'Connect'}</span>
               </button>
             )}
           </div>

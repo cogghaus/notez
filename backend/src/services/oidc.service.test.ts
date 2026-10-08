@@ -476,6 +476,11 @@ describe('oidc.service', () => {
       );
     });
 
+    it('is disabled (not a crash) when APP_URL or the issuer is not an absolute URL', () => {
+      expect(getOidcSettings({ ...full, APP_URL: 'notez.example.com' })).toBeNull();
+      expect(getOidcSettings({ ...full, OIDC_ISSUER: 'id.example.com' })).toBeNull();
+    });
+
     it('is disabled when any setting is missing', () => {
       for (const key of Object.keys(full)) {
         expect(getOidcSettings({ ...full, [key]: '' })).toBeNull();

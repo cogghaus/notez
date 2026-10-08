@@ -474,6 +474,12 @@ tests, login-page flash, discovery timeout.
 **Severity:** LOW
 **Status:** Deferred
 
+### 62. No way to disconnect Pocket ID from an account
+**Location:** `frontend/src/components/ProfileSettings.tsx` (Sign in with Pocket ID card), admin user management
+**Issue:** Users can connect but not disconnect (Nielsen H3, user control), and an admin cannot unlink a user either. A wrong link (e.g. emails differed, so first SSO sign-in created an empty `pam-2`) then blocks Connect on the real account with `conflict`; recovery is SQL (`UPDATE users SET oidc_subject = NULL WHERE ...`). Raised by Pixel (user disconnect) and Temper (admin unlink) on PR #149. Mitigated for this deploy: Adam's and Pam's emails were verified to match before rollout.
+**Severity:** MEDIUM
+**Status:** Deferred -- add an authenticated unlink endpoint, a Disconnect button, and an admin "unlink SSO" action
+
 ---
 
 ## Version Notes
@@ -562,3 +568,4 @@ tests, login-page flash, discovery timeout.
 | SSO: subject stored without issuer (#59) | 2026-10-08 | Deferred | - |
 | SSO: callback code in request logs (#60) | 2026-10-08 | Deferred | - |
 | SSO: concurrent logins share one transaction cookie (#61) | 2026-10-08 | Deferred | - |
+| SSO: no disconnect in Settings (#62) | 2026-10-08 | Deferred | - |

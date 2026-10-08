@@ -69,14 +69,20 @@ working (and is still how service accounts and anyone without a Pocket ID accoun
      `groups` claim, checked server-side as well as by the provider (cogg.haus: `notez_users`)
    - `APP_URL` must already be the public URL
 3. The container must be able to reach the issuer over HTTPS (discovery and token exchange).
+4. **Before telling users about it**, make each existing user's Notez email match their Pocket ID
+   email. A mismatch is not an error: their first Pocket ID sign-in silently creates a new, empty
+   account, and undoing that needs SQL (`UPDATE users SET oidc_subject = NULL WHERE ...`) until an
+   admin unlink exists (known issue #62).
 
 How accounts are matched:
 - First sign-in links to the existing **regular** Notez account with the same **verified** email
   (case-insensitive) and records the provider's subject id. Later sign-ins match on the subject
   id only, so changing the email in Pocket ID does not break or move the link.
 - **Admin accounts are never linked by email.** An admin signs in with their password once and
-  uses Settings, Profile, "Single sign-on", Connect. (Otherwise a group member who changed their
-  Pocket ID email to the admin's could inherit the admin account on first sign-in.)
+  uses Settings, Profile, "Sign in with Pocket ID", Connect. (Otherwise a group member who changed
+  their Pocket ID email to the admin's could inherit the admin account on first sign-in.) Connect
+  only completes when the same signed-in user confirms it on return, so an abandoned Connect on a
+  shared browser cannot be finished by someone else.
 - No matching account: a regular (non-admin) user is created, username taken from the Pocket ID
   username. Admin rights are never granted through SSO.
 - Refused: service accounts, deactivated accounts, an account already linked to a different

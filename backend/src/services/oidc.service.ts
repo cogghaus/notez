@@ -50,6 +50,8 @@ interface OidcSettings {
   requiredGroup: string | null;
 }
 
+let warnedInvalidUrl = false;
+
 /** Read OIDC settings from the environment; null when SSO is not configured. */
 export function getOidcSettings(env: NodeJS.ProcessEnv = process.env): OidcSettings | null {
   const issuer = env.OIDC_ISSUER?.trim();
@@ -58,11 +60,25 @@ export function getOidcSettings(env: NodeJS.ProcessEnv = process.env): OidcSetti
   const appUrl = env.APP_URL?.trim();
   if (!issuer || !clientId || !clientSecret || !appUrl) return null;
 
+  let redirectUri: string;
+  try {
+    redirectUri = new URL('/api/auth/oidc/callback', appUrl).toString();
+    new URL(issuer);
+  } catch {
+    // A malformed APP_URL or issuer disables SSO instead of turning every SSO
+    // endpoint (including the public config probe) into a 500
+    if (!warnedInvalidUrl) {
+      warnedInvalidUrl = true;
+      console.warn('SSO disabled: APP_URL or OIDC_ISSUER is not a valid absolute URL');
+    }
+    return null;
+  }
+
   return {
     issuer,
     clientId,
     clientSecret,
-    redirectUri: new URL('/api/auth/oidc/callback', appUrl).toString(),
+    redirectUri,
     requiredGroup: env.OIDC_REQUIRED_GROUP?.trim() || null,
   };
 }
