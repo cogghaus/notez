@@ -52,6 +52,44 @@ The app will be available on port `5173`. Point your reverse proxy at it.
 
 Open the app in your browser. You'll be prompted to create an admin account on first boot.
 
+## Single sign-on (Pocket ID)
+
+Optional. Adds a "Sign in with Pocket ID" button next to the password form; password login keeps
+working (and is still how service accounts and anyone without a Pocket ID account sign in).
+
+1. In Pocket ID, create a confidential client (PKCE on) with redirect URI
+   `${APP_URL}/api/auth/oidc/callback` and logout URL `${APP_URL}/`. Restrict it to a group
+   (cogg.haus: group `notez_users`). **Group membership is the access gate**: anyone in the group
+   can sign in, and gets an account created on first sign-in if they have none.
+2. Set in the server environment, then recreate `notez-backend`:
+   - `OIDC_ISSUER`: the issuer exactly as the provider publishes it (cogg.haus: `https://id.cogg.haus`)
+   - `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET` (cogg.haus: Infisical `oidc/NOTEZ_POCKET_OIDC_CLIENT_ID`,
+     `oidc/NOTEZ_POCKET_OIDC_CLIENT_SECRET`)
+   - `OIDC_REQUIRED_GROUP` (optional, recommended): the group name to require in the ID token's
+     `groups` claim, checked server-side as well as by the provider (cogg.haus: `notez_users`)
+   - `APP_URL` must already be the public URL
+3. The container must be able to reach the issuer over HTTPS (discovery and token exchange).
+
+How accounts are matched:
+- First sign-in links to the existing **regular** Notez account with the same **verified** email
+  (case-insensitive) and records the provider's subject id. Later sign-ins match on the subject
+  id only, so changing the email in Pocket ID does not break or move the link.
+- **Admin accounts are never linked by email.** An admin signs in with their password once and
+  uses Settings, Profile, "Single sign-on", Connect. (Otherwise a group member who changed their
+  Pocket ID email to the admin's could inherit the admin account on first sign-in.)
+- No matching account: a regular (non-admin) user is created, username taken from the Pocket ID
+  username. Admin rights are never granted through SSO.
+- Refused: service accounts, deactivated accounts, an account already linked to a different
+  Pocket ID user, and identities without a verified email.
+
+Removing someone's access: take them out of the Pocket ID group **and** deactivate them in Notez.
+Pocket ID does not revoke existing Notez sessions, and a user who set a Notez password can still
+use it.
+
+Local development: SSO redirects back to relative `/login` paths, so set `APP_URL` to the Vite
+origin (`http://localhost:5173`, which proxies `/api`) and register
+`http://localhost:5173/api/auth/oidc/callback` on a separate dev client.
+
 ## Auto-Update (optional)
 
 Pull and restart on a schedule with cron:

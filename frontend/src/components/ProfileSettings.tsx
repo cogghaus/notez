@@ -1,8 +1,16 @@
 import { useState, useRef, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { profileApi } from '../lib/api';
-import { User, Mail, Lock, Loader2, Check, Camera, Trash2, Pencil, X } from 'lucide-react';
+import { authApi, profileApi } from '../lib/api';
+import { User, Mail, Lock, Loader2, Check, Camera, Trash2, Pencil, X, KeyRound } from 'lucide-react';
+
+// Codes from the SSO callback when connecting an account (?sso_error=...)
+const SSO_LINK_ERRORS: Record<string, string> = {
+  cancelled: 'Connecting was cancelled.',
+  expired: 'The connection attempt expired. Please try again.',
+  conflict: 'That sign-in account is already connected to a different Notez account.',
+  not_allowed: 'Your sign-in account does not have access to Notez.',
+};
 import { useConfirm } from './ConfirmDialog';
 
 export function ProfileSettings() {
@@ -18,6 +26,44 @@ export function ProfileSettings() {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [sso, setSso] = useState<{ enabled: boolean; providerName: string } | null>(null);
+  const [isLinkingSso, setIsLinkingSso] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Is SSO configured on the server?
+  useEffect(() => {
+    authApi
+      .oidcConfig()
+      .then((response) => setSso(response.data))
+      .catch(() => setSso(null));
+  }, []);
+
+  // Returning from the provider after "Connect"
+  useEffect(() => {
+    const linked = searchParams.get('sso_linked');
+    const ssoError = searchParams.get('sso_error');
+    if (!linked && !ssoError) return;
+    setSearchParams({}, { replace: true });
+    if (linked) {
+      setSuccess('Single sign-on connected. You can now sign in without your password.');
+    } else if (ssoError) {
+      setError(SSO_LINK_ERRORS[ssoError] ?? 'Connecting single sign-on failed. Please try again.');
+    }
+  }, [searchParams, setSearchParams]);
+
+  const handleConnectSso = async () => {
+    setIsLinkingSso(true);
+    setError('');
+    setSuccess('');
+    try {
+      const response = await authApi.oidcLink();
+      window.location.assign(response.data.url);
+    } catch (err) {
+      const message = (err as { response?: { data?: { message?: string } } }).response?.data?.message;
+      setError(message || 'Single sign-on is unavailable right now.');
+      setIsLinkingSso(false);
+    }
+  };
 
   // Load avatar on mount
   useEffect(() => {
@@ -384,6 +430,39 @@ export function ProfileSettings() {
             >
               Change Password
             </Link>
+          </div>
+        </div>
+      )}
+
+      {/* Single sign-on (hidden for service accounts and when not configured) */}
+      {!user.isServiceAccount && sso?.enabled && (
+        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
+          <div className="flex items-center space-x-3 mb-4">
+            <KeyRound className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Single sign-on</h3>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-gray-900 dark:text-white">
+                {user.oidcLinked ? `Connected to ${sso.providerName}` : 'Not connected'}
+              </p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                {user.oidcLinked
+                  ? `You can sign in with ${sso.providerName} instead of your password.`
+                  : `Connect your ${sso.providerName} account to sign in with it instead of your password.`}
+              </p>
+            </div>
+            {!user.oidcLinked && (
+              <button
+                onClick={handleConnectSso}
+                disabled={isLinkingSso}
+                className="text-sm text-blue-600 dark:text-blue-400 hover:underline disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-1"
+              >
+                {isLinkingSso && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                <span>Connect</span>
+              </button>
+            )}
           </div>
         </div>
       )}

@@ -96,6 +96,17 @@ export const authApi = {
 
   me: () => api.get('/api/auth/me'),
 
+  oidcConfig: () =>
+    api.get<{ enabled: boolean; providerName: string }>('/api/auth/oidc/config'),
+
+  // Full-page navigation target (not an XHR): starts the SSO redirect. Relative on
+  // purpose: in dev the Vite proxy forwards /api, so the callback's redirects back to
+  // /login land on the SPA (set APP_URL to the Vite origin when testing SSO locally).
+  oidcLoginUrl: '/api/auth/oidc/login',
+
+  // Signed-in user connects their account; returns the provider URL to navigate to
+  oidcLink: () => api.post<{ url: string }>('/api/auth/oidc/link'),
+
   changePassword: (data: { currentPassword: string; newPassword: string }) =>
     api.post('/api/auth/change-password', data),
 };

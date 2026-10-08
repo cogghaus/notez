@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import * as authService from '../services/auth.service.js';
 import { authenticateToken } from '../middleware/auth.middleware.js';
 import { validateBody } from '../middleware/validate.middleware.js';
@@ -10,6 +10,50 @@ import {
   resetPasswordSchema,
 } from '../utils/validation.schemas.js';
 import { prisma } from '../lib/db.js';
+import * as oidcService from '../services/oidc.service.js';
+import type { OidcTransaction } from '../services/oidc.service.js';
+
+// __Host- in production: the browser refuses a Domain attribute, so a sibling
+// *.cogg.haus host cannot plant its own transaction cookie (login CSRF by cookie
+// tossing). The prefix requires Secure and Path=/, so plain-http dev uses a bare name.
+const isProduction = () => process.env.NODE_ENV === 'production';
+const oidcTxCookie = () => (isProduction() ? '__Host-oidc_tx' : 'oidc_tx');
+
+// SSO endpoints are browser redirects, keyed by IP only
+const oidcRateLimitConfig = {
+  max: 20,
+  timeWindow: '15 minutes',
+};
+
+function parseTransaction(raw: string | undefined): OidcTransaction | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as Partial<OidcTransaction>;
+    if (
+      typeof parsed.state === 'string' &&
+      typeof parsed.nonce === 'string' &&
+      typeof parsed.codeVerifier === 'string' &&
+      (parsed.linkUserId === undefined || typeof parsed.linkUserId === 'string')
+    ) {
+      return parsed as OidcTransaction;
+    }
+  } catch {
+    // fall through
+  }
+  return null;
+}
+
+function setTransactionCookie(reply: FastifyReply, transaction: OidcTransaction): void {
+  reply.setCookie(oidcTxCookie(), JSON.stringify(transaction), {
+    httpOnly: true,
+    secure: isProduction(),
+    // lax: the cookie must ride along on the provider's top-level redirect back
+    sameSite: 'lax',
+    maxAge: 10 * 60,
+    path: '/',
+    signed: true,
+  });
+}
 
 // Rate limit configuration for auth endpoints
 // These are stricter than the global rate limit to prevent brute force attacks
@@ -140,6 +184,124 @@ export async function authRoutes(fastify: FastifyInstance) {
           error: 'Internal Server Error',
           message: 'Login failed',
         });
+      }
+    }
+  );
+
+  // ─── Single sign-on (Pocket ID / OIDC) ─────────────────────────────────
+
+  // Tells the login page whether to show the SSO button
+  fastify.get('/auth/oidc/config', async () => {
+    return {
+      enabled: oidcService.isOidcEnabled(),
+      providerName: oidcService.OIDC_PROVIDER_NAME,
+    };
+  });
+
+  // Start SSO: remember state/nonce/PKCE in a signed cookie, redirect to the provider
+  fastify.get(
+    '/auth/oidc/login',
+    { config: { rateLimit: oidcRateLimitConfig } },
+    async (request, reply) => {
+      try {
+        const { url, transaction } = await oidcService.beginLogin();
+        setTransactionCookie(reply, transaction);
+        return reply.redirect(url, 302);
+      } catch (error) {
+        const code =
+          error instanceof oidcService.OidcLoginError ? error.code : 'unavailable';
+        request.log.error({ err: error }, 'SSO login start failed');
+        return reply.redirect(`/login?sso_error=${code}`, 302);
+      }
+    }
+  );
+
+  // Signed-in user connects their account to the provider (the only way an admin
+  // links). XHR with the bearer token; the SPA then navigates to the returned URL.
+  fastify.post(
+    '/auth/oidc/link',
+    {
+      preHandler: authenticateToken,
+      config: { rateLimit: oidcRateLimitConfig },
+    },
+    async (request, reply) => {
+      if (!request.user) {
+        return reply.status(401).send({ error: 'Unauthorized', message: 'Authentication required' });
+      }
+      try {
+        const { url, transaction } = await oidcService.beginLogin(request.user.userId);
+        setTransactionCookie(reply, transaction);
+        return { url };
+      } catch (error) {
+        if (error instanceof oidcService.OidcLoginError && error.code === 'not_configured') {
+          return reply.status(404).send({ error: 'Not Found', message: 'Single sign-on is not configured' });
+        }
+        request.log.error({ err: error }, 'SSO link start failed');
+        return reply.status(503).send({ error: 'Service Unavailable', message: 'Single sign-on is unavailable' });
+      }
+    }
+  );
+
+  // Provider redirects back here with ?code&state (or ?error)
+  fastify.get(
+    '/auth/oidc/callback',
+    { config: { rateLimit: oidcRateLimitConfig } },
+    async (request, reply) => {
+      // One-shot: the transaction cookie is cleared whatever happens next
+      const cookieName = oidcTxCookie();
+      const rawCookie = request.cookies[cookieName];
+      reply.clearCookie(cookieName, { path: '/' });
+
+      const unsigned = rawCookie ? request.unsignCookie(rawCookie) : null;
+      const transaction =
+        unsigned && unsigned.valid ? parseTransaction(unsigned.value ?? undefined) : null;
+
+      // Link attempts return to Settings, sign-ins to the login page
+      const isLink = Boolean(transaction?.linkUserId);
+      const fail = (code: string) =>
+        reply.redirect(`${isLink ? '/settings/profile' : '/login'}?sso_error=${code}`, 302);
+
+      const query = request.query as { error?: string };
+      if (query.error) {
+        return fail('cancelled');
+      }
+      if (!transaction) {
+        return fail('expired');
+      }
+
+      try {
+        const queryIndex = request.url.indexOf('?');
+        const callbackQuery = queryIndex >= 0 ? request.url.slice(queryIndex) : '';
+
+        const identity = await oidcService.completeLogin(callbackQuery, transaction);
+
+        if (transaction.linkUserId) {
+          // Already signed in: link only, the existing session stays as it is
+          await oidcService.linkOidcToUser(transaction.linkUserId, identity);
+          return reply.redirect('/settings/profile?sso_linked=1', 302);
+        }
+
+        const user = await oidcService.resolveOidcUser(identity);
+        const tokens = await authService.createUserSession(user);
+
+        reply.setCookie('refreshToken', tokens.refreshToken, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          maxAge: 7 * 24 * 60 * 60,
+          path: '/',
+          signed: true,
+        });
+
+        // The SPA exchanges the refresh cookie for an access token on arrival
+        return reply.redirect('/login?sso=complete', 302);
+      } catch (error) {
+        if (error instanceof oidcService.OidcLoginError) {
+          request.log.warn({ code: error.code, reason: error.message }, 'SSO login refused');
+          return fail(error.code);
+        }
+        request.log.error({ err: error }, 'SSO callback failed');
+        return fail('failed');
       }
     }
   );
@@ -302,6 +464,7 @@ export async function authRoutes(fastify: FastifyInstance) {
             role: true,
             isServiceAccount: true,
             mustChangePassword: true,
+            oidcSubject: true,
           },
         });
 
@@ -320,6 +483,7 @@ export async function authRoutes(fastify: FastifyInstance) {
             role: user.role,
             isServiceAccount: user.isServiceAccount,
             mustChangePassword: user.mustChangePassword,
+            oidcLinked: user.oidcSubject !== null, // the subject itself is not exposed
           },
         };
       } catch (error) {
