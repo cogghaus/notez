@@ -1,6 +1,6 @@
 {
   "name": "notez-backend",
-  "version": "1.29.0",
+  "version": "1.30.0",
   "description": "Notez backend API server",
   "main": "dist/index.js",
   "type": "module",
@@ -63,6 +63,7 @@
     "marked": "^17.0.6",
     "minio": "^8.0.7",
     "openai": "^6.49.0",
+    "openid-client": "^6.8.8",
     "resend": "^6.26.0",
     "sharp": "^0.35.4",
     "turndown": "^7.2.4",

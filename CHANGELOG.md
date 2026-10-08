@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.30.0] - 2026-10-08
+
+### Added
+
+- **Single sign-on with Pocket ID (OpenID Connect)** alongside password login. The login page shows "Sign in with Pocket ID" when the server is configured; password login is unchanged.
+  - New endpoints: `GET /api/auth/oidc/config` (is SSO enabled), `GET /api/auth/oidc/login` (starts the authorization-code flow with PKCE, state and nonce held in a signed, httpOnly 10-minute cookie), `GET /api/auth/oidc/callback` (validates via `openid-client` v6, issues a normal Notez session, redirects to `/login?sso=complete`; failures redirect to `/login?sso_error=<code>`).
+  - Account matching: first SSO login links the existing **regular** user with the same provider-verified email (case-insensitive) and stores the provider `sub`; later logins match on `sub` only. Admin accounts are never linked by email (`sso_error=link_required`); they connect from Settings, Profile. `POST /api/auth/oidc/link` (authenticated) starts the flow; the callback does not link, it holds the verified identity in a signed 5-minute cookie and returns to `/settings/profile?sso_link=confirm`, where the page calls `POST /api/auth/oidc/link/confirm` with the signed-in user's token. The link is made only if that user is the one who started it, so a Connect abandoned on a shared browser cannot be finished by someone else. Unknown identities get a regular (non-admin) user, username from `preferred_username` (sanitised, reserved names skipped case-insensitively, numeric suffix on collision). Service accounts, deactivated users, accounts linked to a different `sub`, and identities without a verified email are refused.
+  - Access is gated by group membership: the provider restricts the client to a group, and optional `OIDC_REQUIRED_GROUP` checks the `groups` claim server-side as well.
+  - The transaction and pending-link cookies are `__Host-oidc_tx` / `__Host-oidc_link` in production (Secure, host-only, `Path=/`) so a sibling subdomain cannot plant one (login CSRF by cookie tossing); they are cleared with the same attributes, and on logout.
+  - A malformed `APP_URL` or `OIDC_ISSUER` disables SSO with a warning instead of failing requests.
+  - `GET /api/auth/me` now includes `oidcLinked` (boolean; the subject itself is not exposed).
+  - Discovery uses a 10-second timeout and is retried on the next attempt after a failure.
+  - New env vars: `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, optional `OIDC_REQUIRED_GROUP` (plus existing `APP_URL`). SSO is off unless the first three and `APP_URL` are set. See `docs/deployment.md`.
+
+### Changed
+
+- `auth.service.createUserSession()` now issues sessions for both password login and SSO.
+
+### Database
+
+- Migration `20261008000000_add_user_oidc_subject`: adds nullable `users.oidc_subject` with a unique index. Additive; existing rows are untouched.
+
 ## [1.29.0] - 2026-08-02
 
 ### Added

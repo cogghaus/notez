@@ -438,6 +438,50 @@ Identified during 4-agent code review (Architect, Dev, Security, UX). All IMMEDI
 
 ---
 
+## Deferred Review Findings (v1.30.0 Pocket ID SSO, Slag + Flux 2026-10-08)
+
+Fixed in the same change: admin accounts excluded from email auto-link, server-side group check
+(`OIDC_REQUIRED_GROUP`), `__Host-` transaction cookie, relative SSO URL for dev, protocol-argument
+tests, login-page flash, discovery timeout.
+
+### 57. Removing Pocket ID access does not remove Notez access
+**Location:** `backend/src/services/auth.service.ts` (password login, password reset)
+**Issue:** An SSO-created user can set a real password through "forgot password" and keep using it after being removed from the Pocket ID group. Existing 7-day refresh sessions also survive. Offboarding currently means: remove from the group AND deactivate in Notez (documented in `docs/deployment.md`). Fix option: an SSO-only flag that refuses password login and reset for accounts created through SSO.
+**Severity:** MEDIUM
+**Status:** Deferred -- documented offboarding step; revisit when users beyond the household are added
+
+### 58. Linked user with `mustChangePassword` is routed to change-password
+**Location:** `frontend/src/App.tsx` (mustChangePassword gate), SSO callback
+**Issue:** An existing user with `mustChangePassword=true` who signs in via SSO is sent to `/change-password`, which asks for the current (temporary) password. Not a dead end (an admin set it), but awkward. Option: clear the flag on SSO sign-in.
+**Severity:** LOW
+**Status:** Deferred -- decision for Adam
+
+### 59. OIDC subject stored without issuer
+**Location:** `backend/prisma/schema.prisma` (`users.oidc_subject`)
+**Issue:** If `OIDC_ISSUER` is ever pointed at a different provider, its subjects would match existing links. Fix: store the issuer alongside the subject, or clear links when the issuer changes.
+**Severity:** LOW
+**Status:** Deferred -- single provider; note in any IdP migration runbook
+
+### 60. Callback URL (code, state) appears in request logs
+**Location:** Fastify default request logging, `/api/auth/oidc/callback`
+**Issue:** The authorization code and state are logged with the URL. The code is single-use and useless without the PKCE verifier and client secret, so impact is low. Fix: redact the query for this route.
+**Severity:** LOW
+**Status:** Deferred
+
+### 61. Two concurrent SSO logins in one browser
+**Location:** `backend/src/routes/auth.routes.ts` (transaction cookie)
+**Issue:** Starting SSO in two tabs overwrites the single transaction cookie, so the first tab's callback fails with a generic "failed" message. Harmless.
+**Severity:** LOW
+**Status:** Deferred
+
+### 62. No way to disconnect Pocket ID from an account
+**Location:** `frontend/src/components/ProfileSettings.tsx` (Sign in with Pocket ID card), admin user management
+**Issue:** Users can connect but not disconnect (Nielsen H3, user control), and an admin cannot unlink a user either. A wrong link (e.g. emails differed, so first SSO sign-in created an empty `pam-2`) then blocks Connect on the real account with `conflict`; recovery is SQL (`UPDATE users SET oidc_subject = NULL WHERE ...`). Raised by Pixel (user disconnect) and Temper (admin unlink) on PR #149. Mitigated for this deploy: Adam's and Pam's emails were verified to match before rollout.
+**Severity:** MEDIUM
+**Status:** Deferred -- add an authenticated unlink endpoint, a Disconnect button, and an admin "unlink SSO" action
+
+---
+
 ## Version Notes
 
 | Issue | Identified | Fixed | Version |
@@ -516,3 +560,12 @@ Identified during 4-agent code review (Architect, Dev, Security, UX). All IMMEDI
 | No error boundary around ServiceAccountDashboard | 2026-04-05 | Deferred | - |
 | Amber warning dark mode contrast | 2026-04-05 | Deferred | - |
 | N+1 query in getServiceAccountStats | 2026-04-05 | Deferred | - |
+| SSO: admin account takeover via email auto-link | 2026-10-08 | 2026-10-08 | v1.30.0 |
+| SSO: group enforced only by provider | 2026-10-08 | 2026-10-08 | v1.30.0 |
+| SSO: transaction cookie tossing from sibling subdomain | 2026-10-08 | 2026-10-08 | v1.30.0 |
+| SSO: Pocket ID removal does not remove Notez access (#57) | 2026-10-08 | Deferred | - |
+| SSO: mustChangePassword after SSO sign-in (#58) | 2026-10-08 | Deferred | - |
+| SSO: subject stored without issuer (#59) | 2026-10-08 | Deferred | - |
+| SSO: callback code in request logs (#60) | 2026-10-08 | Deferred | - |
+| SSO: concurrent logins share one transaction cookie (#61) | 2026-10-08 | Deferred | - |
+| SSO: no disconnect in Settings (#62) | 2026-10-08 | Deferred | - |

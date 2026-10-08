@@ -12,6 +12,13 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '1.30.0',
+    date: '2026-10-08',
+    added: [
+      'Sign in with Pocket ID using your passkey instead of a password. Already have an account? It is usually matched for you; if not, connect it once under Settings, Profile',
+    ],
+  },
+  {
     version: '1.29.0',
     date: '2026-08-02',
     added: [

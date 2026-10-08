@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { profileApi } from '../lib/api';
-import { User, Mail, Lock, Loader2, Check, Camera, Trash2, Pencil, X } from 'lucide-react';
+import { authApi, profileApi } from '../lib/api';
+import { User, Mail, Lock, Loader2, Check, Camera, Trash2, Pencil, X, KeyRound } from 'lucide-react';
 import { useConfirm } from './ConfirmDialog';
+import { SSO_ERROR_MESSAGES, SSO_ERROR_FALLBACK } from '../lib/ssoMessages';
 
 export function ProfileSettings() {
   const { user, updateUser, refreshAuth } = useAuth();
@@ -18,6 +19,61 @@ export function ProfileSettings() {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [sso, setSso] = useState<{ enabled: boolean; providerName: string } | null>(null);
+  const [isLinkingSso, setIsLinkingSso] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Is SSO configured on the server?
+  useEffect(() => {
+    authApi
+      .oidcConfig()
+      .then((response) => setSso(response.data))
+      .catch(() => setSso(null));
+  }, []);
+
+  // Returning from the provider after "Connect": confirm the link as the signed-in user
+  const linkHandled = useRef(false);
+  useEffect(() => {
+    if (linkHandled.current) return;
+    const linkStep = searchParams.get('sso_link');
+    const ssoError = searchParams.get('sso_error');
+    if (!linkStep && !ssoError) return;
+    linkHandled.current = true;
+    setSearchParams({}, { replace: true });
+
+    if (ssoError) {
+      setError(SSO_ERROR_MESSAGES[ssoError] ?? SSO_ERROR_FALLBACK);
+      return;
+    }
+    if (linkStep === 'confirm') {
+      setIsLinkingSso(true);
+      authApi
+        .oidcLinkConfirm()
+        .then(async () => {
+          setSuccess('Pocket ID connected. Next time you can sign in with Pocket ID instead of your password.');
+          await refreshAuth();
+        })
+        .catch((err) => {
+          const code = (err as { response?: { data?: { code?: string } } }).response?.data?.code;
+          setError((code && SSO_ERROR_MESSAGES[code]) || SSO_ERROR_FALLBACK);
+        })
+        .finally(() => setIsLinkingSso(false));
+    }
+  }, [searchParams, setSearchParams, refreshAuth]);
+
+  const handleConnectSso = async () => {
+    setIsLinkingSso(true);
+    setError('');
+    setSuccess('');
+    try {
+      const response = await authApi.oidcLink();
+      window.location.assign(response.data.url);
+    } catch (err) {
+      const message = (err as { response?: { data?: { message?: string } } }).response?.data?.message;
+      setError(message || SSO_ERROR_MESSAGES.unavailable);
+      setIsLinkingSso(false);
+    }
+  };
 
   // Load avatar on mount
   useEffect(() => {
@@ -384,6 +440,42 @@ export function ProfileSettings() {
             >
               Change Password
             </Link>
+          </div>
+        </div>
+      )}
+
+      {/* Single sign-on (hidden for service accounts and when not configured) */}
+      {!user.isServiceAccount && sso?.enabled && (
+        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
+          <div className="flex items-center space-x-3 mb-4">
+            <KeyRound className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+              Sign in with {sso.providerName}
+            </h3>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-gray-900 dark:text-white">
+                {user.oidcLinked ? `Connected to ${sso.providerName}` : 'Not connected yet'}
+              </p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                {user.oidcLinked
+                  ? `You can sign in with ${sso.providerName} instead of your password.`
+                  : `Connect your ${sso.providerName} account to sign in with it instead of your password.`}
+              </p>
+            </div>
+            {!user.oidcLinked && (
+              <button
+                onClick={handleConnectSso}
+                disabled={isLinkingSso}
+                aria-label={`Connect ${sso.providerName}`}
+                className="shrink-0 ml-4 text-sm text-blue-600 dark:text-blue-400 hover:underline disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-1"
+              >
+                {isLinkingSso && <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />}
+                <span>{isLinkingSso ? 'Connecting...' : 'Connect'}</span>
+              </button>
+            )}
           </div>
         </div>
       )}

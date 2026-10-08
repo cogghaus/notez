@@ -109,6 +109,31 @@ export async function setupFirstUser(data: SetupInput) {
 }
 
 /**
+ * Issue an access/refresh token pair for a user and persist the refresh session.
+ * Shared by password login and single sign-on so both produce identical sessions.
+ */
+export async function createUserSession(user: { id: string; username: string; role: string }) {
+  const tokens = generateTokenPair({
+    userId: user.id,
+    username: user.username,
+    role: user.role,
+  });
+
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + 7);
+
+  await prisma.session.create({
+    data: {
+      userId: user.id,
+      refreshTokenHash: hashRefreshToken(tokens.refreshToken),
+      expiresAt,
+    },
+  });
+
+  return tokens;
+}
+
+/**
  * Login with username or email (case-insensitive for email)
  */
 export async function login(data: LoginInput) {
@@ -146,24 +171,7 @@ export async function login(data: LoginInput) {
     throw new Error('Invalid credentials');
   }
 
-  // Generate tokens
-  const tokens = generateTokenPair({
-    userId: user.id,
-    username: user.username,
-    role: user.role,
-  });
-
-  // Store refresh token
-  const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + 7);
-
-  await prisma.session.create({
-    data: {
-      userId: user.id,
-      refreshTokenHash: hashRefreshToken(tokens.refreshToken),
-      expiresAt,
-    },
-  });
+  const tokens = await createUserSession(user);
 
   return {
     user: {

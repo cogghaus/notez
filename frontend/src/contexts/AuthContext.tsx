@@ -9,6 +9,7 @@ interface User {
   role: string;
   isServiceAccount?: boolean;
   mustChangePassword?: boolean;
+  oidcLinked?: boolean;
 }
 
 interface AuthContextType {
@@ -17,6 +18,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   setupNeeded: boolean;
   login: (usernameOrEmail: string, password: string) => Promise<void>;
+  completeSsoLogin: () => Promise<void>;
   logout: () => Promise<void>;
   updateUser: (userData: Partial<User>) => void;
   refreshAuth: () => Promise<void>;
@@ -93,6 +95,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(userData);
   };
 
+  // After the SSO redirect the server has set only the refresh cookie;
+  // exchange it for an access token, then load the user.
+  const completeSsoLogin = async () => {
+    const response = await authApi.refresh();
+    localStorage.setItem('accessToken', response.data.accessToken);
+
+    const me = await authApi.me();
+    setUser(me.data.user);
+  };
+
   const logout = async () => {
     try {
       await authApi.logout();
@@ -119,6 +131,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isAuthenticated: !!user,
     setupNeeded,
     login,
+    completeSsoLogin,
     logout,
     updateUser,
     refreshAuth,

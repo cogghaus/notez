@@ -26,6 +26,7 @@ model User {
   isServiceAccount   Boolean   @default(false) @map("is_service_account")
   mustChangePassword Boolean   @default(false) @map("must_change_password")
   avatarUrl          String?   @map("avatar_url") @db.VarChar(255)
+  oidcSubject        String?   @unique @map("oidc_subject") @db.VarChar(255) // Pocket ID `sub`, set on first SSO login
   createdAt          DateTime  @default(now()) @map("created_at")
   updatedAt          DateTime  @updatedAt @map("updated_at")
 
