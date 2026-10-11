@@ -98,7 +98,7 @@ long note:
 - Settings `main` has a non-zero width and shows the Profile section text.
 
 **Fix:** inline `width` styles on pane wrappers apply only at `xl`; editor header wraps or moves
-overflow actions into a menu; Settings layout fixed (cause found during the PR). Dark-mode classes on
+overflow actions into a menu; Settings layout fixed in `SettingsHub.tsx` (cause found during the PR). Dark-mode classes on
 the note search input and tag input; strip HTML and markdown from note previews (unit test on the
 strip function). Monaco follows the app theme.
 
@@ -144,7 +144,15 @@ previews never show HTML; Pixel review approved.
 
 - Agenda groups (Overdue / Today / Upcoming / No date / Completed collapsed), compact rows, 48px
   complete target, priority shown with icon or text as well as color.
-- Task search and filter chips (priority, folder, tag, show completed).
+- Task search and filter chips (priority, folder, tag, show completed). **Backend change:** the tasks
+  list route has no search parameter today; add `search` (title and description, case-insensitive)
+  to the list query schema and `task.service.ts`, with a backend test, also exposed to the MCP list
+  tool. Slag reviews the query for injection and per-user scoping.
+- Due-date grouping treats `dueDate` as a calendar date, not an instant: the form stores
+  `YYYY-MM-DDT00:00:00.000Z` (`TaskForm.tsx:98`), so grouping compares the `YYYY-MM-DD` part with
+  the user's local date. Converting to local time would put a task due on the 12th into "Today" on
+  the 11th for anyone west of UTC (Adam is on US Central). Table-driven unit test across
+  time zones.
 - Bottom-sheet task editor (create and edit), replacing the modal on Compact.
 - Delete only from the sheet, with a 5-second Undo; because task delete is a hard delete
   (`task.service.ts:597`), the delete is committed after the undo window, not before (no backend

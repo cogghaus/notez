@@ -29,10 +29,36 @@ real values on each phone, and this table is updated from its readings before Ph
 | --- | --- | --- | --- | --- |
 | S23U | Galaxy S23 Ultra, portrait | 1440x3088 (WQHD) / 1080x2316 (FHD+ default) | 384 x 824 | Compact |
 | BRAX | Brax3, portrait | 720x1612 | 360 x 806 (DPR 2, unconfirmed) | Compact |
-| FOLD-C | Pixel Fold cover, portrait | 1080x2092 | 412 x 797 (DPR 2.625, unconfirmed) | Compact |
-| FOLD-I | Pixel Fold inner, unfolded (landscape-shaped) | 2208x1840 | 841 x 701 (unconfirmed) | Medium (two-pane) |
+| FOLD-C | Pixel Fold cover, portrait | 1080x2092 | 411 x 667 in browser (screen 412 x 797, DPR 2.625, measured) | Compact |
+| FOLD-I | Pixel Fold inner, unfolded (landscape-shaped) | 2208x1840 | 841 x 627 in browser (screen 842 x 701, measured); keyboard leaves 297 | Medium (two-pane) |
 | FOLD-I-P | Pixel Fold inner, rotated portrait | 1840x2208 | 701 x 841 (unconfirmed) | Medium (two-pane) |
-| KB | Any compact device with keyboard open | n/a | width x (height - ~40%) | Writing mode |
+| KB | Any compact device with keyboard open | n/a | width x ~50% of height (FOLD-C measured: 411 x 351) | Writing mode |
+
+### 1.2 Measured readings (device check)
+
+**FOLD-C, Pixel Fold cover, Chrome 152, in a browser tab, 2026-10-11 (Adam):**
+- Screen 412 x 797, DPR 2.625 (matches the assumption). Browser viewport **411 x 667** with the
+  address bar shown, **411 x 693** with it collapsed. Use 411 x 667 as the test viewport for browser
+  mode; standalone mode (after D5) will be taller, to be measured.
+- Keyboard: layout height stays 693, the visible area drops to **351** (keyboard about 342px, about
+  half the screen, not the 40% assumed). Confirms Chrome's default: the keyboard shrinks only the
+  visible area.
+- Note A (today's structure): while the keyboard was up, the log shows only *visual viewport*
+  scrolls (the whole page panned, offsetTop 181 to 246) and **no scroll of the note itself**. Note B
+  (proposed): the note scrolled to its end with the keyboard up, and the scroll range grew as the
+  container followed the visible height. Adam rated both "works", so the mechanism is confirmed on
+  the Fold but the symptom was not felt there. Pam's run on the S23 Ultra decides it.
+- Safe-area insets 0 in a browser tab (expected; they appear only with `viewport-fit=cover` in
+  standalone or edge-to-edge modes).
+**FOLD-I, Pixel Fold inner (unfolded), Chrome 152, browser tab, 2026-10-11 (Adam):**
+- Screen 842 x 701 landscape, DPR 2.625. Browser viewport **841 x 627** (also seen at 841 x 572
+  briefly, browser UI). Test viewport for browser mode: 841 x 627.
+- Keyboard leaves only **297px** visible of 627 (keyboard about 330px, more than half the height).
+  Medium layouts therefore need writing mode too: with the keyboard up, the inner screen is a wide,
+  very short strip.
+- Note A was rated without opening the keyboard, so it is not evidence either way on this screen.
+  Note B scrolled fully with the keyboard up.
+- Not yet measured: live fold/unfold mid-edit, home-screen launch, Samsung S23 Ultra, Brax3.
 
 Browsers in the matrix: Chrome Android (Blink), Samsung Internet (Blink, own UI), iodéOS browser
 (Gecko). Each change is verified in the Claude browser pane at these viewports, then on the real
