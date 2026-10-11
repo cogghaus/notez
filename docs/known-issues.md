@@ -502,13 +502,13 @@ Found while shipping Pocket ID SSO; none block v1.30.0, which is live and confir
 **Location:** `.env.example`, `backend/.env.example`
 **Issue:** `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `OIDC_REQUIRED_GROUP` are documented in README, `docs/deployment.md` and `compose.prod.yml` but not in the env templates (the session's tooling is not permitted to edit `.env*` files).
 **Severity:** LOW
-**Status:** Open -- add the four names with empty values
+**Status:** FIXED in v1.30.3. Both templates gain the four names (empty), the callback to register, and (root template) the new optional `POSTGRES_DATA_DIR` / `MINIO_DATA_DIR`; `backend/.env.example` also gets `APP_URL` for local SSO. The Claude tooling still cannot open `.env*` files (deny rule plus secret guard), so the additions were appended by Adam from reviewed snippets.
 
 ### 66. Server compose file drifts from the repo; no homelab-docs stack entry
 **Location:** accserver `/datapool/docker/notez/compose.prod.yml`
 **Issue:** The server copy is hand-maintained (3458 bytes vs the repo's larger file) and was edited by hand on 2026-10-08 to pass the OIDC variables through (backup `compose.prod.yml.bak.20261008`, plus `.env.bak.20261008`, mode 600). "compose.prod.yml is the single source of truth" is not currently true. There is also no `homelab-docs/servers/accserver/stacks/notez/` entry (homelab change checklist section 7).
 **Severity:** LOW
-**Status:** Open -- reconcile the server file with the repo, add the homelab-docs stack dir with a value-free env.example, then delete the two `.bak.20261008` files
+**Status:** FIXED in v1.30.3. Masked comparison (safeview plus fingerprints of the fully resolved config) showed the server file differed from the repo only in host values: literal volume paths in the pre-repo layout (`data/` and `minio/`), `MCP_REMOTE_ENABLED` true, and an `EMAIL_FROM` default of `noreply@cogg.haus`. `compose.prod.yml` now takes `POSTGRES_DATA_DIR` / `MINIO_DATA_DIR` (defaulting to the old `${DATA_DIR}/data/...` paths), and the host values live in the generated `.env`, so the server can run the repo file unmodified (the live swap to it is done after this version merges: commands in the stack README; until then its drift check reports compose DRIFT by design); resolved against it, the only difference from the old file is the added `OTEL_SDK_DISABLED=false`. Stack entry added at homelab-docs `servers/accserver/stacks/notez/` (README, value-free `env.example`, plain-value file, Infisical mapping, `.env` generator, fingerprint drift check). Both `.bak.20261008` files deleted on 2026-10-11 (the env one shredded). The `.env` itself is now generated from Infisical (see `docs/deployment.md`, Secrets).
 
 ### 67. No uptime monitor for the Notez app
 **Location:** UptimeKuma on accserver
@@ -619,8 +619,8 @@ Found while shipping Pocket ID SSO; none block v1.30.0, which is live and confir
 | SSO: no disconnect in Settings (#62) | 2026-10-08 | Deferred | - |
 | Local commits not on main: gitleaks allowlist, dev compose interpolation (#63) | 2026-10-08 | 2026-10-11 | v1.30.2 |
 | Backend tsc OOM; CI never typechecks backend (#64) | 2026-10-08 | Open | - |
-| .env.example missing SSO vars (#65) | 2026-10-08 | Open | - |
-| Server compose drift, no homelab-docs stack (#66) | 2026-10-08 | Open | - |
+| .env.example missing SSO vars (#65) | 2026-10-08 | 2026-10-11 | v1.30.3 |
+| Server compose drift, no homelab-docs stack (#66) | 2026-10-08 | 2026-10-11 | v1.30.3 |
 | No uptime monitor for the app (#67) | 2026-10-08 | Open | - |
 | 20 Dependabot alerts untriaged (#68) | 2026-10-08 | Open | - |
 | Pre-existing frontend lint errors, no lint in CI (#69) | 2026-10-08 | Open | - |

@@ -21,8 +21,10 @@ cp .env.example .env
 Edit `.env` and fill in all required values. Generate secrets with:
 
 ```bash
-openssl rand -base64 32
+openssl rand -hex 32
 ```
+
+(Hex, not base64: `POSTGRES_PASSWORD` is embedded in `DATABASE_URL`, where `/` and `+` break.)
 
 ### 2. Create data directories
 
@@ -30,7 +32,8 @@ openssl rand -base64 32
 mkdir -p /opt/notez/data/postgres /opt/notez/data/minio
 ```
 
-Or set `DATA_DIR` in `.env` to a different path.
+Or set `DATA_DIR` in `.env` to a different path, or `POSTGRES_DATA_DIR` / `MINIO_DATA_DIR` to
+place either one anywhere (for an existing install with a different layout).
 
 ### 3. Log in to GHCR
 
@@ -96,6 +99,40 @@ Local development: SSO redirects back to relative `/login` paths, so set `APP_UR
 origin (`http://localhost:5173`, which proxies `/api`) and register
 `http://localhost:5173/api/auth/oidc/callback` on a separate dev client.
 
+## Secrets
+
+The secrets the server needs (all set in `.env`, which must be mode 600 and never committed):
+
+| Variable | Purpose | Rotation trap |
+|---|---|---|
+| `POSTGRES_PASSWORD` | database role password; also inside `DATABASE_URL` | the DB keeps the old password: needs `ALTER ROLE` |
+| `JWT_ACCESS_SECRET` | signs 1-hour access tokens | clients refresh; no sign-out expected |
+| `JWT_REFRESH_SECRET` | signs 7-day refresh tokens | signs everyone out |
+| `COOKIE_SECRET` | signs the refresh cookie and SSO cookies (defaults to `JWT_REFRESH_SECRET`) | signs everyone out |
+| `ENCRYPTION_KEY` | encrypts stored AI provider keys and webhook secrets (first 32 characters used) | stored values become unreadable without re-encryption |
+| `MINIO_SECRET_KEY` | MinIO root password and the backend's S3 secret | restart MinIO and backend together |
+| `RESEND_API_KEY` | password-reset mail (optional) | revoke the old key at Resend |
+| `OIDC_CLIENT_SECRET` | Pocket ID client secret (optional) | none for users; deactivate the old secret at the provider |
+
+Generate values with `openssl rand -hex 32` (64 characters); alphanumeric keeps them safe in an
+env file, a shell and the database URL.
+
+**cogg.haus deployment (accserver).** Infisical is the source of truth since 2026-10-11 (project
+`homelab`, env `prod`): `infra/NOTEZ_*` for the six app secrets, `external/NOTEZ_RESEND_API_KEY`,
+`oidc/NOTEZ_POCKET_OIDC_*`. The server `.env` is generated from Infisical plus a committed file
+of plain values, never edited by hand. The generator, the fingerprint drift check, the mapping and
+the stack notes live in homelab-docs `servers/accserver/stacks/notez/`. The server is meant to
+run this repo's `compose.prod.yml` unmodified, with host-specific values in that plain-values
+file (switch-over from its old hand-edited copy follows the v1.30.3 merge; the stack README
+tracks it).
+
+**Rotating:** follow [runbooks/secret-rotation.md](runbooks/secret-rotation.md). Every secret
+has an app-side trap (above), and on a host with the auto-update cron below, installing a changed
+`.env` is itself a deploy: compose recreates `notez-backend` on the next run.
+
+**Backups contain the `.env`.** The cogg.haus nightly backup copies it into the archive (mode
+600); treat backup archives as secret-bearing.
+
 ## Auto-Update (optional)
 
 Pull and restart on a schedule with cron:
@@ -110,7 +147,8 @@ Add:
 */5 * * * * cd /path/to/notez && docker compose -f compose.prod.yml -p notez pull notez-backend -q && docker compose -f compose.prod.yml -p notez up -d notez-backend 2>&1 | logger -t notez-deploy
 ```
 
-This checks for new images every 5 minutes and restarts only if the image changed.
+This checks for new images every 5 minutes and recreates the backend only if the image or its
+resolved configuration (`compose.prod.yml` or `.env`) changed.
 
 ## Stopping
 

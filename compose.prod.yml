@@ -104,17 +104,19 @@ networks:
     external: true
 
 volumes:
+  # Bind-mount sources default to ${DATA_DIR}/data/{postgres,minio}; set POSTGRES_DATA_DIR or
+  # MINIO_DATA_DIR to point either one somewhere else (an existing install's layout).
   notez_data:
     name: notez_data
     driver: local
     driver_opts:
       type: none
-      device: ${DATA_DIR:-/opt/notez}/data/postgres
+      device: ${POSTGRES_DATA_DIR:-${DATA_DIR:-/opt/notez}/data/postgres}
       o: bind
   notez_minio:
     name: notez_minio
     driver: local
     driver_opts:
       type: none
-      device: ${DATA_DIR:-/opt/notez}/data/minio
+      device: ${MINIO_DATA_DIR:-${DATA_DIR:-/opt/notez}/data/minio}
       o: bind
