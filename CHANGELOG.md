@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.30.3] - 2026-10-11
+
+### Changed
+
+- `compose.prod.yml`: the two bind-mount volume sources take optional `POSTGRES_DATA_DIR` / `MINIO_DATA_DIR`, falling back to the previous `${DATA_DIR:-/opt/notez}/data/{postgres,minio}`. Existing installs resolve to exactly the same paths (nested-default resolution checked with and without each override). Lets a host with a different layout run the repo file unmodified.
+
+### Documentation
+
+- `docs/deployment.md`: new Secrets section (what each server secret does and its rotation trap; the cogg.haus deployment's secrets now live in Infisical and the server `.env` is generated, with the generator and drift check in homelab-docs). Secret generation switched to `openssl rand -hex 32` because base64 `/` and `+` break `DATABASE_URL`. Auto-update note corrected: the cron also recreates the backend when `.env` or the compose file changes, so installing a changed `.env` is a deploy.
+- New `docs/runbooks/secret-rotation.md`: per-secret rotation procedure with proof-of-death checks. Traps recorded: `ENCRYPTION_KEY` (only its first 32 characters are used; changing it without re-encryption makes stored AI provider keys and webhook secrets undecryptable, and webhooks then auto-disable), `POSTGRES_PASSWORD` (the database keeps the old password: needs `ALTER ROLE`; loopback is `trust`, so old-password tests must go over the network with a control), `JWT_REFRESH_SECRET` / `COOKIE_SECRET` (sign everyone out; rotate together), `MINIO_SECRET_KEY` (MinIO and backend must restart together), Resend and Pocket ID (revoke the old value at the provider).
+- `.env.example` and `backend/.env.example`: SSO variables added (`OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `OIDC_REQUIRED_GROUP`), plus the optional data-dir overrides. Closes known issue #65.
+- Known issue #66 closed (server compose drift, missing homelab-docs stack entry).
+
 ## [1.30.2] - 2026-10-11
 
 ### Changed
