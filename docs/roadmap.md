@@ -212,7 +212,7 @@ Native iOS/Android applications:
 
 ### 4.5 Mobile Web Rework (v1.31)
 
-**Status:** Designed 2026-10-11, build pending approval
+**Status:** Spec approved 2026-10-11; build (Phase 2) next
 
 Phone and foldable layouts for the web app: editor keyboard scroll fix, 3-tab navigation, editor
 writing mode, tasks agenda with quick add, task soft delete, two-pane layout on the Pixel Fold inner

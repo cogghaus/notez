@@ -1,6 +1,6 @@
 # Mobile Rework: Phased Build Plan
 
-Status: proposed 2026-10-11, awaiting Adam's approval. Builds `02-mobile-design-spec.md` under the
+Status: approved by Adam 2026-10-11, including the versioning plan. Builds `02-mobile-design-spec.md` under the
 decisions in `01-audit-and-decisions.md`.
 
 ## Ground rules for every phase
@@ -32,7 +32,7 @@ decisions in `01-audit-and-decisions.md`.
   `design-language.md` edits listed in the spec and logs the desktop -600 instances in
   `known-issues.md`.
 
-## Versioning proposal (needs Adam's approval)
+## Versioning (approved 2026-10-11)
 
 The project as a whole is a minor bump. Proposed mapping:
 
@@ -56,8 +56,8 @@ Production deploys only from `main`, so pre-merge device testing runs on a local
 3. Limits: plain HTTP on the LAN means no install prompt and no clipboard API; PR9 (manifest) is
    therefore verified on production after merge, with a fast follow-up PR if needed.
 
-Open: is Pam on the home Wi-Fi for testing, or remote? If remote, a temporary authenticated preview
-route is needed (decide before PR1 ships).
+Pam is on the home Wi-Fi (confirmed 2026-10-11), so the LAN preview covers her testing; no remote
+preview route is needed.
 
 ---
 

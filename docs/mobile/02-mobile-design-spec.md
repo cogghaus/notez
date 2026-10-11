@@ -1,6 +1,6 @@
 # Mobile Rework: Design Spec
 
-Status: design spec, revision 3 (2026-10-11, after Pixel's second review). Builds on
+Status: approved by Adam 2026-10-11 (revision 3, after Pixel's second review). Builds on
 `01-audit-and-decisions.md` (D1 to D14 are binding).
 Prototype: `mockups/mobile/prototype.html` (fake data, responsive, interactive).
 The frontend developer builds from this document; `03-build-plan.md` sequences the PRs.
