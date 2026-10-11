@@ -51,7 +51,7 @@ services:
       NODE_ENV: development
       PORT: 3000
       HOST: 0.0.0.0
-      DATABASE_URL: postgresql://notez:notez@postgres:5432/notez?schema=public
+      DATABASE_URL: postgresql://${POSTGRES_USER:-notez}:${POSTGRES_PASSWORD:-notez}@postgres:5432/notez?schema=public
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change-me-jwt-secret}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change-me-refresh-secret}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-change-me-encryption-key-32chars}
