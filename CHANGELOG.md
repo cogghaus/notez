@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.30.4] - 2026-10-11
+
+### Documentation
+
+- New `docs/mobile/`: mobile layout rework design session. `01-audit-and-decisions.md` (device matrix with measured Pixel Fold readings, audit of v1.30.2 at phone and foldable sizes, decisions D1 to D14, open questions for Pam), `02-mobile-design-spec.md` (layout classes, keyboard-aware viewport model, navigation and back stack, editor writing mode, tasks agenda with quick add and soft delete, accessibility rules; reviewed against WCAG 2.1 AA), `03-build-plan.md` (ten PR-sized phases with acceptance criteria, editor keyboard scroll fix first). No code changes.
+- New `mockups/mobile/`: `prototype.html` (interactive responsive prototype, fake data) and `device-check.html` (on-device viewport, keyboard and scroll-bug check).
+- `docs/roadmap.md`: section 4.5 Mobile Web Rework (v1.31); task search and expanded task list requests linked to the plan.
+- `.nojekyll` at the repo root so GitHub Pages serves the mockups as static files.
+
 ## [1.30.3] - 2026-10-11
 
 ### Changed

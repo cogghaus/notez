@@ -12,6 +12,11 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '1.30.4',
+    date: '2026-10-11',
+    changed: ['Behind-the-scenes documentation updates'],
+  },
+  {
     version: '1.30.3',
     date: '2026-10-11',
     changed: ['Behind-the-scenes maintenance'],
