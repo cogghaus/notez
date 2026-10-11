@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.30.1] - 2026-10-08
+
+### Documentation
+
+- `docs/known-issues.md`: outstanding items found while shipping v1.30.0, numbered #63 to #69: local commits that never reached main (gitleaks allowlist, dev compose credential interpolation), backend `tsc` running out of memory with no typecheck in CI, SSO variables missing from the `.env.example` templates, server compose drift and no homelab-docs stack entry, no uptime monitor for the app (health endpoint is `GET /health`), untriaged Dependabot alerts, and pre-existing frontend lint errors with no lint step in CI. No code changes.
+
 ## [1.30.0] - 2026-10-08
 
 ### Added

@@ -482,6 +482,54 @@ tests, login-page flash, discovery timeout.
 
 ---
 
+## Outstanding After the v1.30.0 Session (2026-10-08)
+
+Found while shipping Pocket ID SSO; none block v1.30.0, which is live and confirmed working.
+
+### 63. Local work that never reached main
+**Location:** local branches in Adam's checkout (`G:\dev\notez`)
+**Issue:** Two commits exist only locally. (a) `51e62ea` "chore: add reviewed gitleaks allowlist" (branch `chore/repoint-to-cogghaus`): `.gitleaksignore` is NOT on main, so the reviewed allowlist the 2026-08-01 audit relied on is not in effect for CI or other clones. (b) `bfc00ba` "compose.yml: interpolate dev credentials instead of inlining them" (branch `feature/folder-filter-tasks`): the dev compose file on main still carries inline dev credentials. Also, local `main` has diverged from `origin/main` (2 local-only commits, 80 behind); its other commit `c2c10e2` already landed as #40. `feature/pocket-id-sso` is fully merged (squash 599c5a5) and can be deleted.
+**Severity:** MEDIUM
+**Status:** Open -- cherry-pick (a) and (b) onto fresh branches and PR each; reset local main to origin/main afterwards (Adam's call: it is his checkout)
+
+### 64. Backend full typecheck runs out of memory; CI never typechecks the backend
+**Location:** `backend/tsconfig.json`, `.github/workflows/docker-build.yml`
+**Issue:** `npx tsc --noEmit -p backend` hits the V8 heap limit even at 8 GB (reproduced 2026-10-08). CI builds the backend with esbuild (no type checking) and runs vitest, so a backend type error ships green. Changed files were typechecked in isolation for v1.30.0 as a workaround. Likely a pathological type instantiation (Prisma client, MCP SDK or Zod inference); needs `tsc --extendedDiagnostics` / `--generateTrace` to find the culprit.
+**Severity:** MEDIUM
+**Status:** Open -- find the type blow-up, then add `tsc --noEmit` to CI
+
+### 65. `.env.example` templates lack the SSO variables
+**Location:** `.env.example`, `backend/.env.example`
+**Issue:** `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `OIDC_REQUIRED_GROUP` are documented in README, `docs/deployment.md` and `compose.prod.yml` but not in the env templates (the session's tooling is not permitted to edit `.env*` files).
+**Severity:** LOW
+**Status:** Open -- add the four names with empty values
+
+### 66. Server compose file drifts from the repo; no homelab-docs stack entry
+**Location:** accserver `/datapool/docker/notez/compose.prod.yml`
+**Issue:** The server copy is hand-maintained (3458 bytes vs the repo's larger file) and was edited by hand on 2026-10-08 to pass the OIDC variables through (backup `compose.prod.yml.bak.20261008`, plus `.env.bak.20261008`, mode 600). "compose.prod.yml is the single source of truth" is not currently true. There is also no `homelab-docs/servers/accserver/stacks/notez/` entry (homelab change checklist section 7).
+**Severity:** LOW
+**Status:** Open -- reconcile the server file with the repo, add the homelab-docs stack dir with a value-free env.example, then delete the two `.bak.20261008` files
+
+### 67. No uptime monitor for the Notez app
+**Location:** UptimeKuma on accserver
+**Issue:** The only Notez monitor is push monitor 83 `job-as-backup-notez` (nightly backup heartbeat). Nothing watches the app or `/api/health`, so an outage or a migration restart loop (see the memory caveat about failed Prisma migrations) would go unnoticed. The health endpoint is `GET /health` (200 on `https://notez.cogg.haus/health`; `/api/health` is 404).
+**Severity:** MEDIUM
+**Status:** Open -- add an HTTP monitor on `https://notez.cogg.haus/health`
+
+### 68. Dependabot alerts on main
+**Location:** GitHub security tab, cogghaus/notez
+**Issue:** GitHub reports 20 open vulnerabilities on the default branch (3 high, 13 moderate, 4 low) as of 2026-10-08. Not triaged in this session.
+**Severity:** MEDIUM (until triaged)
+**Status:** Open -- triage; group bumps per workspace as the existing Dependabot PRs do
+
+### 69. Frontend lint errors pre-date SSO and CI does not run lint
+**Location:** `frontend/src` (e.g. `ProfileSettings.tsx`, `LoginPage.tsx`, `AuthContext.tsx`)
+**Issue:** `eslint` reports existing `no-explicit-any` and `react-refresh/only-export-components` errors (`catch (err: any)` handlers among them). CI does not run `npm run lint`, so they accumulate. New code in v1.30.0 added none.
+**Severity:** LOW
+**Status:** Open -- fix the existing errors, then add lint to CI
+
+---
+
 ## Version Notes
 
 | Issue | Identified | Fixed | Version |
@@ -569,3 +617,10 @@ tests, login-page flash, discovery timeout.
 | SSO: callback code in request logs (#60) | 2026-10-08 | Deferred | - |
 | SSO: concurrent logins share one transaction cookie (#61) | 2026-10-08 | Deferred | - |
 | SSO: no disconnect in Settings (#62) | 2026-10-08 | Deferred | - |
+| Local commits not on main: gitleaks allowlist, dev compose interpolation (#63) | 2026-10-08 | Open | - |
+| Backend tsc OOM; CI never typechecks backend (#64) | 2026-10-08 | Open | - |
+| .env.example missing SSO vars (#65) | 2026-10-08 | Open | - |
+| Server compose drift, no homelab-docs stack (#66) | 2026-10-08 | Open | - |
+| No uptime monitor for the app (#67) | 2026-10-08 | Open | - |
+| 20 Dependabot alerts untriaged (#68) | 2026-10-08 | Open | - |
+| Pre-existing frontend lint errors, no lint in CI (#69) | 2026-10-08 | Open | - |
