@@ -210,6 +210,15 @@ Native iOS/Android applications:
 - Offline support with sync
 - Quick capture widget
 
+### 4.5 Mobile Web Rework (v1.31)
+
+**Status:** Designed 2026-10-11, build pending approval
+
+Phone and foldable layouts for the web app: editor keyboard scroll fix, 3-tab navigation, editor
+writing mode, tasks agenda with quick add, task soft delete, two-pane layout on the Pixel Fold inner
+screen, installable web app (manifest only). Source of record: `docs/mobile/` (audit and decisions,
+design spec, phased build plan); prototype in `mockups/mobile/prototype.html`.
+
 ---
 
 ## Up Next: Service Account Visibility (v1.18.0-v1.20.0)
@@ -240,8 +249,8 @@ Native iOS/Android applications:
 
 These features are tracked but not yet prioritized:
 
-- **Task search** - Search/filter tasks by title or description (requested by pam)
-- **Expanded task list view** - Show more task detail inline without opening each task (requested by pam)
+- **Task search** - Search/filter tasks by title or description (requested by pam). Planned in the mobile rework, PR6 (`docs/mobile/03-build-plan.md`)
+- **Expanded task list view** - Show more task detail inline without opening each task (requested by pam). Addressed on mobile by the tasks agenda rows, PR6
 - **Share accept/decline flow** - Require recipients to accept share invitations before granting access (see Phase 4.3)
 - **Rich text toolbar** - Visual formatting buttons
 - **Note templates** - Predefined structures

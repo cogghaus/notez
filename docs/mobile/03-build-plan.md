@@ -20,6 +20,17 @@ decisions in `01-audit-and-decisions.md`.
   shows in the UI at https://notez.cogg.haus.
 - Desktop (>=1280px) must look and behave the same after every PR; each PR includes a desktop
   screenshot check at 1440x900.
+- Accessibility gates for every UI PR from PR3 on (Pixel review, WCAG 2.1 AA):
+  - axe-core scan in Playwright per matrix viewport, light and dark, with zero serious or critical
+    violations;
+  - 200% text size at 360px wide: no clipped or overlapping text, no lost controls;
+  - keyboard-only pass at Medium (841x627): every control reachable and operable, visible focus;
+  - Back and Escape close every sheet and menu, and focus returns to the opener (or the documented
+    fallback when the opener is gone);
+  - a TalkBack pass on a real device by Adam.
+- Light-mode status text on mobile surfaces uses the -700 shades (D13). PR2 applies the
+  `design-language.md` edits listed in the spec and logs the desktop -600 instances in
+  `known-issues.md`.
 
 ## Versioning proposal (needs Adam's approval)
 
@@ -54,12 +65,13 @@ route is needed (decide before PR1 ships).
 
 The highest-pain bug, first, as its own PR.
 
-**Step 0, reproduce on a device (before any code).** Pam and Adam run
-`mockups/mobile/device-check.html` (section 3, notes A and B). Note A copies today's structure; note
-B is the proposed model. Expected: A rated broken and B rated works on Pam's phone. If A works on
-her phone, the hypothesis is wrong: stop and re-diagnose with her answers to the open questions
-before changing code. Optional stronger repro: Playwright's Android mode driving Chrome on the Fold
-over USB (`adb`), tapping into a long note so the real keyboard opens.
+**Step 0, device evidence (done).** Adam ran `mockups/mobile/device-check.html` on the Pixel Fold
+(2026-10-11): with the keyboard up, today's structure (note A) never scrolled the note, only panned
+the page; the proposed model (note B) scrolled the note to its end. Pam's run was waived by Adam.
+Instead, Pam checks the PR1 preview build on her S23 Ultra before merge; if the symptom persists for
+her, stop and re-diagnose with her answers to the open questions. Optional stronger repro:
+Playwright's Android mode driving Chrome on the Fold over USB (`adb`), tapping into a long note so
+the real keyboard opens.
 
 **Failing test first.** Add Playwright to `frontend` (`frontend/e2e/`, projects for each matrix
 viewport with mobile emulation). Test `editor-keyboard.spec.ts`, against the dev stack with a seeded
@@ -118,12 +130,20 @@ strip function). Monaco follows the app theme.
 
 **Acceptance criteria:** Playwright: Android back from editor returns to the list with scroll
 position kept; every tab reachable; no control under 44px in the shell (automated target-size
-check); live resize between 412 and 841 keeps the open note. Pixel review approved.
+check); live resize between 412 and 841 keeps the open note. Back-stack tests: after a reload or a
+deep link into a note, the in-app back arrow always reaches the list (never a no-op, Pixel N1);
+closing the Medium detail pane leaves no dead back press (N3). Device check on the Fold: system back
+from a deep-linked note shows the list rather than leaving the app (Chrome history intervention,
+N2); if it exits, document it and rely on the in-app arrow. Pixel review approved.
 
 ## PR4: Editor writing mode (`feature/editor-writing-mode`)
 
-- Writing mode on focus plus keyboard detection (from `--app-h` vs the stable layout height): bottom
-  bar hidden, metadata rows collapsed, slim title bar, formatting strip docked above the keyboard.
+- Reading state on Compact hides the bottom tab bar (D12); the editor is a full-screen page.
+- Writing mode driven by focus within the editing region (title, body, formatting strip, Done,
+  Details trigger) plus keyboard detection (from `--app-h` vs the stable layout height), never by
+  focus on the text fields alone, so keyboard and TalkBack users can reach the strip (Pixel C1).
+  Metadata rows collapse, slim title bar, formatting strip docked above the keyboard. Applies on
+  Compact and Medium; the FAB hides in writing mode.
 - Details sheet: folder, tags, AI actions, share, raw mode, word count, delete with Undo.
 - Collaborative presence fits the slim bar.
 
@@ -140,6 +160,27 @@ closing it.
 **Acceptance criteria:** every folder, tag and virtual folder reachable in two taps from Notes;
 previews never show HTML; Pixel review approved.
 
+## PR5b: Task soft delete (`feature/task-soft-delete`, backend)
+
+D11. Mirrors the notes model (`Note.deleted` / `deletedAt`).
+- Migration: add `deleted Boolean @default(false)` and `deletedAt DateTime?` to `Task`, plus an index
+  on `(userId, deleted)`. Additive only, existing rows stay visible; no backfill, no data loss. Test
+  the migration against vanilla PostgreSQL before merge (a failed migration puts the container in a
+  restart loop).
+- `task.service.ts`: delete becomes soft; every read path (list, get, counts, kanban, MCP, search,
+  note-task links) filters `deleted: false`; new restore and permanent-delete functions; a
+  "Recently deleted" list.
+- Routes and Zod schemas for restore, permanent delete and the deleted list; the REST/MCP delete tools
+  keep their names and become soft; new restore tool in `notez-mcp` and the remote MCP registry.
+- Webhooks: `task.deleted` keeps firing on soft delete; add `task.restored`; document both in
+  `docs/api-reference.md`.
+- Failing tests first: a deleted task must not appear in list, search, counts or MCP results, and
+  must be restorable.
+
+**Acceptance criteria:** backend tests for every read path and restore; migration verified on a copy
+of the dev database; Slag (scoping: no cross-user restore) and Flux (contract and webhook semantics)
+reviews; desktop task list and kanban unchanged apart from deleted tasks no longer reappearing.
+
 ## PR6: Tasks agenda (`feature/mobile-tasks-agenda`)
 
 - Agenda groups (Overdue / Today / Upcoming / No date / Completed collapsed), compact rows, 48px
@@ -154,13 +195,15 @@ previews never show HTML; Pixel review approved.
   the 11th for anyone west of UTC (Adam is on US Central). Table-driven unit test across
   time zones.
 - Bottom-sheet task editor (create and edit), replacing the modal on Compact.
-- Delete only from the sheet, with a 5-second Undo; because task delete is a hard delete
-  (`task.service.ts:597`), the delete is committed after the undo window, not before (no backend
-  change). Flux to confirm this over adding soft delete.
+- Delete only from the sheet (D6), using task soft delete from PR5b (D11): the task leaves the agenda
+  at once, an Undo toast restores it, and "Recently deleted" (placement per spec) restores it later.
+- Focus fallback when a row disappears (complete, delete): next row in the group, else previous, else
+  the group header.
 
 **Acceptance criteria:** Pam's morning flow (open Tasks, see overdue and today, check one off) takes
 at most 2 taps after launch; at least 7 task rows visible at S23U; task search finds by title and
-description; Undo restores a deleted task; Pixel review approved; Pam tests on her phone.
+description; Undo and Recently deleted both restore a deleted task; focus-after-removal test passes;
+Pixel review approved; Pam tests on her phone.
 
 ## PR7: Quick add and gestures (`feature/tasks-quick-add`)
 

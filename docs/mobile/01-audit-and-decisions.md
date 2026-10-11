@@ -47,7 +47,7 @@ real values on each phone, and this table is updated from its readings before Ph
   scrolls (the whole page panned, offsetTop 181 to 246) and **no scroll of the note itself**. Note B
   (proposed): the note scrolled to its end with the keyboard up, and the scroll range grew as the
   container followed the visible height. Adam rated both "works", so the mechanism is confirmed on
-  the Fold but the symptom was not felt there. Pam's run on the S23 Ultra decides it.
+  the Fold but the symptom was not felt there. Pam's run on the S23 Ultra was waived by Adam on 2026-10-11 (not run; she was away); the Fold log is accepted as the evidence, and Pam verifies the fix on her phone before PR1 merges.
 - Safe-area insets 0 in a browser tab (expected; they appear only with `viewport-fit=cover` in
   standalone or edge-to-edge modes).
 **FOLD-I, Pixel Fold inner (unfolded), Chrome 152, browser tab, 2026-10-11 (Adam):**
@@ -150,12 +150,16 @@ Each decision was made by Adam in the design session on 2026-10-11.
 | D8 | **Mockups:** interactive HTML with fake data in `mockups/mobile/` and published as private artifact links; plus a device check page for Pam and Adam. | Real devices are the test bed; the repo is public so no real content. |
 | D9 | **Shared fixes allowed on desktop:** dark-mode inputs, preview HTML stripping, Settings width bug if the cause is shared. | Low risk, same components. |
 | D10 | **Editor scroll bug is fixed first**, as its own PR, with a failing test before the fix. | Highest user pain; the rest of the rework builds on the corrected viewport model. |
+| D11 | **Tasks get soft delete and a "Recently deleted" view**, like notes in Trash. Delete still shows an Undo toast; missing it is no longer permanent. | Pixel review (Critical, WCAG 2.2.1 Timing Adjustable, Nielsen H5): a 5-second Undo before a hard delete is not an adequate safeguard, especially with TalkBack. Additive migration (new nullable column), no data loss. |
+| D12 | **Editor reading state on Compact hides the bottom tab bar**; the editor is a full-screen page with a back arrow. | Matches D1 ("full screen"), gives the note 56px; tabs return on back. |
+| D13 | **Contrast: mobile surfaces use the -700 shades** for amber, green and orange status text in light mode (gray-500 minimum for text and control boundaries). `design-language.md` is updated; existing desktop uses of the -600 shades are logged in `known-issues.md` for a later sweep. | Pixel review (WCAG 1.4.3, 1.4.11): -600 shades measure 3.2 to 3.6:1 on white. D7 keeps desktop untouched in this project. |
+| D14 | **Due dates keep today's storage** (calendar date saved as `YYYY-MM-DDT00:00:00.000Z`); all grouping and display compare the date part, never a local-time conversion. | No API or data change; avoids off-by-one days west of UTC. |
 
 ---
 
 ## 4. Open questions for Pam
 
-Adam asks these; answers get logged here.
+Adam asks these; answers get logged here. None of them blocks PR1 or PR2; answers to 5 to 8 should land before PR6 and PR7 are built.
 
 1. Which browser opens Notez on the S23 Ultra: Chrome or Samsung Internet? (Open the device check page and send the screenshot.)
 2. When scrolling breaks while writing: is the keyboard open? Does the whole page move instead of the note, or does the note stop moving, or does the cursor end up hidden behind the keyboard?
