@@ -490,7 +490,7 @@ Found while shipping Pocket ID SSO; none block v1.30.0, which is live and confir
 **Location:** local branches in Adam's checkout (`G:\dev\notez`)
 **Issue:** Two commits exist only locally. (a) `51e62ea` "chore: add reviewed gitleaks allowlist" (branch `chore/repoint-to-cogghaus`): `.gitleaksignore` is NOT on main, so the reviewed allowlist the 2026-08-01 audit relied on is not in effect for CI or other clones. (b) `bfc00ba` "compose.yml: interpolate dev credentials instead of inlining them" (branch `feature/folder-filter-tasks`): the dev compose file on main still carries inline dev credentials. Also, local `main` has diverged from `origin/main` (2 local-only commits, 80 behind); its other commit `c2c10e2` already landed as #40. `feature/pocket-id-sso` is fully merged (squash 599c5a5) and can be deleted.
 **Severity:** MEDIUM
-**Status:** Open -- cherry-pick (a) and (b) onto fresh branches and PR each; reset local main to origin/main afterwards (Adam's call: it is his checkout)
+**Status:** FIXED in v1.30.2. Correction to (a): `.gitleaksignore` was already on main, byte-identical, via #40 (squash 2c40b22); the original "not on main" check was a faulty shell test. Re-verified 2026-10-11: a full-history gitleaks 8.30.1 scan finds the same 27 reviewed findings without the file and none with it, and a planted fake AWS key is still caught with the file in place. (b) landed in v1.30.2, extended so `DATABASE_URL` also takes its user and password from `${POSTGRES_USER:-...}` / `${POSTGRES_PASSWORD:-...}` (resolved value with defaults is byte-identical to the old literal, sha256 compared). Local branches cleaned and local main reset to origin/main after merge.
 
 ### 64. Backend full typecheck runs out of memory; CI never typechecks the backend
 **Location:** `backend/tsconfig.json`, `.github/workflows/docker-build.yml`
@@ -617,7 +617,7 @@ Found while shipping Pocket ID SSO; none block v1.30.0, which is live and confir
 | SSO: callback code in request logs (#60) | 2026-10-08 | Deferred | - |
 | SSO: concurrent logins share one transaction cookie (#61) | 2026-10-08 | Deferred | - |
 | SSO: no disconnect in Settings (#62) | 2026-10-08 | Deferred | - |
-| Local commits not on main: gitleaks allowlist, dev compose interpolation (#63) | 2026-10-08 | Open | - |
+| Local commits not on main: gitleaks allowlist, dev compose interpolation (#63) | 2026-10-08 | 2026-10-11 | v1.30.2 |
 | Backend tsc OOM; CI never typechecks backend (#64) | 2026-10-08 | Open | - |
 | .env.example missing SSO vars (#65) | 2026-10-08 | Open | - |
 | Server compose drift, no homelab-docs stack (#66) | 2026-10-08 | Open | - |

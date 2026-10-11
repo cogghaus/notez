@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.30.2] - 2026-10-11
+
+### Changed
+
+- Dev `compose.yml` no longer inlines credentials: every credential key uses `${KEY:-<existing placeholder>}`, and `DATABASE_URL` now takes its user and password from the same `POSTGRES_USER` / `POSTGRES_PASSWORD` defaults, so overriding the password can no longer leave the URL out of step. With nothing set, the effective config is byte-identical (sha256 compared). Local development only; `compose.prod.yml` already interpolated everything. Closes known issue #63, whose gitleaks-allowlist half turned out to be on main already (via #40).
+
 ## [1.30.1] - 2026-10-08
 
 ### Documentation
