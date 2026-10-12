@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" id="vp" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<script>
+  // Keyboard mode under test, chosen by ?iw=resizes-content | resizes-visual | overlays-content.
+  // Set before first layout so the browser reads it like a static meta.
+  (function () {
+    var iw = new URLSearchParams(location.search).get('iw');
+    if (iw && /^(resizes-content|resizes-visual|overlays-content)$/.test(iw)) {
+      document.getElementById('vp').setAttribute('content',
+        'width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=' + iw);
+    }
+  })();
+</script>
+<title>Notez Device Check</title>
+<style>
+  /* Layout: single readable column, readout table on top, two hands-on tests below. */
+  :root {
+    --bg: #f9fafb; --panel: #ffffff; --fg: #111827; --muted: #4b5563; --line: #e5e7eb;
+    --accent: #2563eb; --accent-fg: #ffffff; --ok: #15803d; --bad: #b91c1c; --code: #f3f4f6;
+    --font: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --mono: ui-monospace, "Cascadia Mono", "Roboto Mono", monospace;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #111827; --panel: #1f2937; --fg: #f9fafb; --muted: #9ca3af; --line: #374151;
+      --accent: #3b82f6; --accent-fg: #ffffff; --ok: #4ade80; --bad: #f87171; --code: #111827;
+      color-scheme: dark;
+    }
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg); color: var(--fg); font: 15px/1.5 var(--font);
+    padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+             max(24px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  }
+  main { max-width: 640px; margin: 0 auto; display: grid; gap: 20px; }
+  h1 { font-size: 1.35rem; margin: 0; text-wrap: balance; }
+  h2 { font-size: 1.05rem; margin: 0 0 8px; }
+  p { margin: 0 0 8px; color: var(--muted); }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 500; width: 42%; }
+  td { font-family: var(--mono); font-size: 13px; word-break: break-word; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; }
+  button, .btn {
+    min-height: 44px; padding: 0 16px; border-radius: 8px; border: 1px solid var(--line);
+    background: var(--panel); color: var(--fg); font: inherit; font-weight: 500; cursor: pointer;
+    text-decoration: none; display: inline-flex; align-items: center;
+  }
+  .primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+  .on { outline: 2px solid var(--accent); outline-offset: 1px; }
+  button:focus-visible, .btn:focus-visible, textarea:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  textarea {
+    width: 100%; min-height: 96px; font: inherit; color: var(--fg); background: var(--bg);
+    border: 1px solid var(--line); border-radius: 8px; padding: 10px;
+  }
+  #log { font-family: var(--mono); font-size: 12px; background: var(--code); border-radius: 8px; padding: 8px;
+         max-height: 180px; overflow: auto; white-space: pre-wrap; margin-top: 8px; }
+  #copied { color: var(--ok); }
+  .k { color: var(--muted); font-size: 13px; }
+
+  /* Test overlays: replicas of the Notez editor shell. Colors stay on tokens. */
+  .sim { position: fixed; inset: 0; z-index: 10; background: var(--panel); }
+  .sim header { height: 56px; display: flex; align-items: center; justify-content: space-between;
+                padding: 0 12px; border-bottom: 1px solid var(--line); background: var(--bg); }
+  .sim .meta { padding: 8px 12px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+  .sim .note { padding: 12px 16px 100px; outline: none; }
+  .sim .note p { color: var(--fg); margin: 0 0 12px; }
+  .sim nav { display: flex; justify-content: space-around; align-items: center; border-top: 1px solid var(--line);
+             background: var(--bg); min-height: 60px; }
+  .sim .verdict { display: flex; gap: 8px; }
+
+  /* A: current Notez structure. 100vh shell, overflow hidden, absolute inner scroller, fixed nav. */
+  #simA { height: 100vh; display: flex; flex-direction: column; overflow: hidden; padding-bottom: 80px; }
+  #simA .well { flex: 1; min-height: 0; position: relative; }
+  #simA .scroller { position: absolute; inset: 0; overflow-y: auto; }
+  #simA nav { position: fixed; left: 0; right: 0; bottom: 0; }
+
+  /* B: proposed structure. Height follows the visual viewport, editor is the only scroller,
+     nav hides while the keyboard is up, safe-area padding on the bars. */
+  #simB { height: var(--app-h, 100dvh); display: flex; flex-direction: column; overflow: hidden; }
+  #simB header { padding-top: env(safe-area-inset-top); height: auto; min-height: 56px; }
+  #simB .scroller { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+  #simB nav { padding-bottom: env(safe-area-inset-bottom); }
+  #simB.kb nav, #simB.kb .meta { display: none; }
+</style>
+</head>
+<body>
+<main>
+  <div>
+    <h1>Notez device check</h1>
+    <p>Open this on the phone that will use Notez, in the same browser you normally use. Nothing is sent anywhere. When done, tap <strong>Copy results</strong> and paste them into a message to Adam.</p>
+  </div>
+
+  <section aria-labelledby="h-screen">
+    <h2 id="h-screen">1. This screen</h2>
+    <table><tbody id="facts"></tbody></table>
+    <p class="k" style="margin-top:8px">Keyboard mode under test: <strong id="iwmode"></strong>. Switch:</p>
+    <div class="row" id="iwlinks"></div>
+  </section>
+
+  <section aria-labelledby="h-kb">
+    <h2 id="h-kb">2. Keyboard test</h2>
+    <p>Tap the box below so the keyboard opens, type a word, then close the keyboard. The log records how the browser changed the screen.</p>
+    <label for="kbtest" class="k">Test box</label>
+    <textarea id="kbtest" placeholder="Tap here and type"></textarea>
+    <div id="log" aria-live="polite"></div>
+  </section>
+
+  <section aria-labelledby="h-scroll">
+    <h2 id="h-scroll">3. Scrolling while writing</h2>
+    <p>Each button opens a fake note. Tap near the <strong>bottom</strong> of the text, type a few words, then try to scroll up and down with the keyboard still open. Rate it with the buttons at the top of the fake note.</p>
+    <p class="k">A copies how Notez is built today. B is the proposed fix.</p>
+    <div class="row">
+      <button class="primary" id="openA" type="button">Open note A (today)</button>
+      <button class="primary" id="openB" type="button">Open note B (proposed)</button>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-out">
+    <h2 id="h-out">4. Results</h2>
+    <div class="row">
+      <button class="primary" id="copy" type="button">Copy results</button>
+      <span id="copied" role="status"></span>
+    </div>
+    <label for="out" class="k">If copying fails, select this text:</label>
+    <textarea id="out" readonly rows="6"></textarea>
+  </section>
+</main>
+
+<div class="sim" id="simA" hidden role="dialog" aria-modal="true" aria-label="Test note A">
+  <header><strong>Note A</strong>
+    <span class="verdict">
+      <button type="button" data-v="A:works">Works</button>
+      <button type="button" data-v="A:broken">Broken</button>
+      <button type="button" data-close>Close</button>
+    </span>
+  </header>
+  <div class="meta">Folder: Garden · Tags: spring, beds · AI actions</div>
+  <div class="well"><div class="scroller"><div class="note" contenteditable="true"></div></div></div>
+  <nav aria-label="Fake bottom bar"><span>Folders</span><span>Notes</span><span>Tasks</span><span>Editor</span></nav>
+</div>
+
+<div class="sim" id="simB" hidden role="dialog" aria-modal="true" aria-label="Test note B">
+  <header><strong>Note B</strong>
+    <span class="verdict">
+      <button type="button" data-v="B:works">Works</button>
+      <button type="button" data-v="B:broken">Broken</button>
+      <button type="button" data-close>Close</button>
+    </span>
+  </header>
+  <div class="meta">Folder: Garden · Tags: spring, beds · AI actions</div>
+  <div class="scroller"><div class="note" contenteditable="true"></div></div>
+  <nav aria-label="Fake bottom bar"><span>Notes</span><span>Tasks</span><span>Search</span></nav>
+</div>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var vv = window.visualViewport;
+  var iw = new URLSearchParams(location.search).get('iw') || 'browser default';
+  var verdicts = [];
+  var events = [];
+  var baseInner = window.innerHeight;
+  var baseWidth = window.innerWidth;
+
+  // Fake note text: long enough to need scrolling on any phone.
+  var paras = [
+    'Spring bed plan. The raised bed by the fence gets six hours of sun, so tomatoes go there again this year with basil along the front edge.',
+    'Order seed potatoes before the end of the month. Last year the second planting was late and the crop was small.',
+    'Compost: turn the left bin every two weeks. The right bin is ready to spread on the herb bed in March.',
+    'Watering: the drip line on the long bed leaks at the second joint. Replace the joint, not the whole line.',
+    'Ask the neighbour about borrowing the tiller for one Saturday. Offer the extra rhubarb crowns in return.',
+    'Peas go in as soon as the soil can be worked. Put the trellis up first so the seedlings are not disturbed.',
+    'Mulch the strawberry bed after the first hard frost, and pull the runners that crossed the path.',
+    'Garlic planted in October should be showing green tips by now. Note which variety came up first.',
+    'Buy two more bags of potting mix for the window boxes and the lettuce trays on the porch.',
+    'End of season: write down what worked so this note is useful again next spring.'
+  ];
+  document.querySelectorAll('.sim .note').forEach(function (n) {
+    n.innerHTML = paras.concat(paras).map(function (t) { return '<p>' + t + '</p>'; }).join('');
+  });
+
+  function displayMode() {
+    var modes = ['fullscreen', 'standalone', 'minimal-ui', 'browser'];
+    for (var i = 0; i < modes.length; i++) {
+      if (matchMedia('(display-mode: ' + modes[i] + ')').matches) return modes[i];
+    }
+    return 'unknown';
+  }
+  function insets() {
+    var p = document.createElement('div');
+    p.style.cssText = 'position:fixed;visibility:hidden;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)';
+    document.body.appendChild(p);
+    var s = getComputedStyle(p);
+    var r = [s.paddingTop, s.paddingRight, s.paddingBottom, s.paddingLeft].join(' ');
+    p.remove();
+    return r;
+  }
+  function browserName() {
+    var b = navigator.userAgentData && navigator.userAgentData.brands;
+    if (b && b.length) {
+      return b.filter(function (x) { return !/Not.?A.?Brand/i.test(x.brand); })
+              .map(function (x) { return x.brand + ' ' + x.version; }).join(', ');
+    }
+    return '';
+  }
+  function facts() {
+    return [
+      ['Browser', browserName() || '(see user agent)'],
+      ['User agent', navigator.userAgent],
+      ['Opened as', displayMode()],
+      ['Layout viewport', innerWidth + ' x ' + innerHeight],
+      ['Visible area', vv ? Math.round(vv.width) + ' x ' + Math.round(vv.height) + ' (top ' + Math.round(vv.offsetTop) + ', zoom ' + vv.scale.toFixed(2) + ')' : 'no visualViewport'],
+      ['Screen', screen.width + ' x ' + screen.height],
+      ['Pixel ratio', String(window.devicePixelRatio)],
+      ['Orientation', (screen.orientation && screen.orientation.type) || (innerWidth > innerHeight ? 'landscape' : 'portrait')],
+      ['Text size', getComputedStyle(document.documentElement).fontSize + ' per rem'],
+      ['Theme', matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'],
+      ['Safe areas (t r b l)', insets()],
+      ['Touch points', String(navigator.maxTouchPoints)],
+      ['100dvh supported', CSS.supports('height', '100dvh') ? 'yes' : 'no'],
+      ['Keyboard mode', iw]
+    ];
+  }
+  function renderFacts() {
+    $('facts').innerHTML = facts().map(function (f) {
+      return '<tr><th scope="row">' + f[0] + '</th><td>' + String(f[1]).replace(/</g, '&lt;') + '</td></tr>';
+    }).join('');
+    renderOut();
+  }
+  function log(msg) {
+    var t = new Date().toTimeString().slice(0, 8);
+    events.push(t + ' ' + msg);
+    if (events.length > 60) events.shift();
+    $('log').textContent = events.join('\n');
+    $('log').scrollTop = $('log').scrollHeight;
+    renderOut();
+  }
+  function renderOut() {
+    $('out').value = 'Notez device check\n' +
+      facts().map(function (f) { return f[0] + ': ' + f[1]; }).join('\n') +
+      '\n\nScroll test: ' + (verdicts.length ? verdicts.join(', ') : 'not run') +
+      '\n\nKeyboard log:\n' + (events.join('\n') || '(empty)');
+  }
+
+  // Keyboard-mode switch links.
+  $('iwmode').textContent = iw;
+  ['browser default', 'resizes-content', 'resizes-visual'].forEach(function (m) {
+    var a = document.createElement('a');
+    a.className = 'btn' + (m === iw ? ' on' : '');
+    a.textContent = m;
+    a.href = location.pathname + (m === 'browser default' ? '' : '?iw=' + m);
+    $('iwlinks').appendChild(a);
+  });
+
+  // Track how the keyboard changes the screen: layout height vs visible height.
+  var last = '';
+  function sizeEvent(src) {
+    var s = 'layout ' + innerWidth + 'x' + innerHeight +
+      (vv ? ', visible ' + Math.round(vv.width) + 'x' + Math.round(vv.height) + ' top ' + Math.round(vv.offsetTop) : '');
+    if (s === last) return;
+    last = s;
+    // Re-baseline when the width changes (fold, unfold, rotate) or nothing is focused for typing,
+    // so only a keyboard counts as a height drop.
+    var typing = document.activeElement && (document.activeElement.isContentEditable || /TEXTAREA|INPUT/.test(document.activeElement.tagName));
+    if (innerWidth !== baseWidth || !typing) { baseInner = Math.max(innerHeight, vv ? vv.height : 0); baseWidth = innerWidth; }
+    var kb = vv && (baseInner - vv.height > 120);
+    var how = !vv ? '' : (innerHeight < baseInner - 120 ? ' -> keyboard RESIZED layout'
+            : (kb ? ' -> keyboard shrank VISIBLE area only' : ''));
+    log(src + ': ' + s + how);
+    document.documentElement.style.setProperty('--app-h', vv ? Math.round(vv.height) + 'px' : '100dvh');
+    $('simB').classList.toggle('kb', !!kb);
+    renderFacts();
+  }
+  window.addEventListener('resize', function () { sizeEvent('resize'); });
+  if (vv) {
+    vv.addEventListener('resize', function () { sizeEvent('visual resize'); });
+    vv.addEventListener('scroll', function () { sizeEvent('visual scroll'); });
+  }
+  window.addEventListener('orientationchange', function () { setTimeout(function () { baseInner = innerHeight; sizeEvent('rotate'); }, 400); });
+  $('kbtest').addEventListener('focus', function () { log('test box focused'); });
+  $('kbtest').addEventListener('blur', function () { log('test box blurred'); });
+
+  // Scroll test overlays.
+  var opener = null;
+  function openSim(id, btn) {
+    opener = btn;
+    $(id).hidden = false;
+    document.body.style.overflow = 'hidden';
+    log('opened note ' + id.slice(-1));
+    $(id).querySelector('button').focus();
+  }
+  function closeSims() {
+    $('simA').hidden = true; $('simB').hidden = true;
+    document.body.style.overflow = '';
+    if (opener) opener.focus();
+  }
+  $('openA').addEventListener('click', function () { openSim('simA', this); });
+  $('openB').addEventListener('click', function () { openSim('simB', this); });
+  document.querySelectorAll('[data-close]').forEach(function (b) { b.addEventListener('click', closeSims); });
+  document.querySelectorAll('[data-v]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      verdicts.push(b.getAttribute('data-v'));
+      log('rated ' + b.getAttribute('data-v'));
+      closeSims();
+    });
+  });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeSims(); });
+  document.querySelectorAll('.sim .scroller').forEach(function (s) {
+    var t;
+    s.addEventListener('scroll', function () {
+      clearTimeout(t);
+      t = setTimeout(function () { log('note scrolled to ' + Math.round(s.scrollTop) + ' of ' + (s.scrollHeight - s.clientHeight)); }, 250);
+    });
+  });
+  window.addEventListener('scroll', function () {
+    if (!$('simA').hidden || !$('simB').hidden) log('PAGE scrolled to ' + Math.round(scrollY) + ' (page moved, not the note)');
+  });
+
+  // Copy results.
+  $('copy').addEventListener('click', function () {
+    renderOut();
+    var text = $('out').value;
+    var done = function () { $('copied').textContent = 'Copied'; };
+    var fallback = function () { $('out').focus(); $('out').select(); $('copied').textContent = 'Select the text below and copy it'; };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, fallback);
+    } else { fallback(); }
+  });
+
+  renderFacts();
+  log('page loaded');
+})();
+</script>
+</body>
+</html>
