@@ -186,6 +186,80 @@ describe('installViewportHeight', () => {
     expect(kb()).toBe('open');
   });
 
+  it('stays open when the screen rotates or unfolds with the keyboard up (resizes-content)', () => {
+    const vv = new FakeVisualViewport(700);
+    setVisualViewport(vv);
+    cleanup = installViewportHeight();
+    focusTextField();
+
+    // Keyboard opens in portrait; the layout viewport shrinks with it.
+    setInner(400, 350);
+    vv.height = 350;
+    window.dispatchEvent(new Event('resize'));
+    vi.advanceTimersByTime(20);
+    expect(kb()).toBe('open');
+
+    // Rotate to landscape with the keyboard still up: both heights are already reduced.
+    setInner(700, 150);
+    vv.height = 150;
+    window.dispatchEvent(new Event('resize'));
+    vi.advanceTimersByTime(20);
+    expect(kb()).toBe('open');
+
+    // Back to portrait, keyboard still up: the remembered portrait height applies.
+    setInner(400, 350);
+    vv.height = 350;
+    window.dispatchEvent(new Event('resize'));
+    vi.advanceTimersByTime(20);
+    expect(kb()).toBe('open');
+  });
+
+  it('never reports a keyboard on a device without a touch screen', () => {
+    vi.stubGlobal('navigator', { ...navigator, maxTouchPoints: 0 });
+    const vv = new FakeVisualViewport(700);
+    setVisualViewport(vv);
+    cleanup = installViewportHeight();
+    focusTextField();
+
+    // Desktop window shrunk by more than the threshold while typing.
+    setInner(400, 450);
+    vv.height = 450;
+    window.dispatchEvent(new Event('resize'));
+    vi.advanceTimersByTime(20);
+    expect(kb()).toBe('closed');
+  });
+
+  it('does not count a focused checkbox as typing', () => {
+    const vv = new FakeVisualViewport(700);
+    setVisualViewport(vv);
+    cleanup = installViewportHeight();
+    const box = document.createElement('input');
+    box.type = 'checkbox';
+    document.body.appendChild(box);
+    box.focus();
+
+    vv.height = 350;
+    vv.dispatchEvent(new Event('resize'));
+    vi.advanceTimersByTime(20);
+    expect(kb()).toBe('closed');
+  });
+
+  it('re-evaluates when focus leaves, without waiting for a resize', () => {
+    const vv = new FakeVisualViewport(700);
+    setVisualViewport(vv);
+    cleanup = installViewportHeight();
+    const field = focusTextField();
+
+    vv.height = 350;
+    vv.dispatchEvent(new Event('resize'));
+    vi.advanceTimersByTime(20);
+    expect(kb()).toBe('open');
+
+    field.blur();
+    vi.advanceTimersByTime(20);
+    expect(kb()).toBe('closed');
+  });
+
   it('ignores pinch zoom: the shell keeps the layout height and the keyboard stays closed', () => {
     const vv = new FakeVisualViewport(700);
     setVisualViewport(vv);

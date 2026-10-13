@@ -95,6 +95,10 @@ export function NoteEditor({ noteId, onNoteDeleted, onTagsChanged, onNoteUpdated
   const titleInputRef = useRef<HTMLInputElement>(null);
   const monacoRef = useRef<Parameters<OnMount>[0] | null>(null);
   useKeepMonacoCaretVisible(monacoRef);
+  // Drop the disposed raw editor when leaving raw mode.
+  useEffect(() => {
+    if (editorMode !== 'raw') monacoRef.current = null;
+  }, [editorMode]);
 
   // Load folders on mount
   useEffect(() => {

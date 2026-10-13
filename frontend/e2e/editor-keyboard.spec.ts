@@ -271,13 +271,16 @@ for (const mode of MODES) {
     const viewportHeight = viewport.height;
     const visibleHeight = Math.round(viewportHeight * 0.5);
 
+    // ProseMirror applies the selection on selectionchange, asynchronously: poll until it settles.
+    await expect
+      .poll(async () => {
+        const b = await measure(page);
+        return b.caretBottom > 0 && b.caretBottom <= viewportHeight;
+      }, { message: 'precondition: caret is on screen before the keyboard opens', timeout: 3000 })
+      .toBe(true);
     const before = await measure(page);
     expect(before.shellBottom, 'shell fills the screen before the keyboard opens').toBeGreaterThan(
       viewportHeight - 2,
-    );
-    expect(before.caretBottom, 'precondition: caret is on screen before the keyboard opens').toBeGreaterThan(0);
-    expect(before.caretBottom, 'precondition: caret is on screen before the keyboard opens').toBeLessThanOrEqual(
-      viewportHeight,
     );
     await expect(page.locator('html'), 'keyboard closed before it opens').toHaveAttribute('data-kb', 'closed');
 

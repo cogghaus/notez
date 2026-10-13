@@ -100,9 +100,10 @@ still to be measured on the device check page.
   only) while focus is inside an editing region (5.3). Exposed as `useKeyboardVisible()`.
 - **As built in PR1 (supersedes the two bullets above, ruling 2026-10-12):** `lib/viewport.ts`
   writes `--app-h` = `visualViewport.height * visualViewport.scale` (pinch zoom cancels out) and
-  sets `html[data-kb=open|closed]` from a baseline: the full height at the current width, re-taken
-  whenever nothing editable has focus or the width changes. Keyboard open = baseline minus visible
-  height > 120px. This works whether the browser shrinks only the visual viewport (Chrome without
+  sets `html[data-kb=open|closed]` from a baseline: the full height recorded per width whenever
+  nothing that takes text has focus (rotating or unfolding with the keyboard up estimates the new
+  width's height from the last keyboard height). Keyboard open = baseline minus visible height >
+  120px, only on touch screens and only while a text field or contenteditable has focus. This works whether the browser shrinks only the visual viewport (Chrome without
   the meta) or the layout viewport too (`resizes-content`, Gecko), where the inset formula reads ~0
   and the `screen.height` clause depends on standalone vs tab mode. The e2e covers both modes.
   Writing mode in PR1 is the minimal version: `[data-kb-hide]` regions (app header, folder/tag
