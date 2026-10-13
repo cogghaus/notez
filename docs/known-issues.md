@@ -540,7 +540,7 @@ Found while shipping Pocket ID SSO; none block v1.30.0, which is live and confir
 **Location:** `frontend/e2e/`, `frontend/playwright.config.ts` (added in PR1 of the mobile rework)
 **Issue:** The Playwright suite (mobile keyboard and scroll regression) runs locally with `npm run test:e2e` only. CI does not install browsers or run it, so a regression would only be caught locally.
 **Severity:** LOW
-**Status:** Open -- add a CI job (Chromium only, hermetic, no backend needed)
+**Status:** FIXED in v1.30.6. `.github/workflows/e2e.yml` runs the suite on GitHub-hosted Ubuntu (Chromium only, hermetic, no backend) for every pull request and push to main that touches `frontend/`, as its own check. On failure the Playwright results are uploaded as an artifact for 7 days.
 
 ---
 
