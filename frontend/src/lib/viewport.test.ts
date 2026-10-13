@@ -260,6 +260,65 @@ describe('installViewportHeight', () => {
     expect(kb()).toBe('closed');
   });
 
+  it('closes when the keyboard goes down after a rotation estimate overshot (Android back)', () => {
+    const vv = new FakeVisualViewport(800);
+    setInner(400, 800);
+    setVisualViewport(vv);
+    cleanup = installViewportHeight();
+    focusTextField();
+
+    // Portrait keyboard (resizes-content).
+    setInner(400, 330);
+    vv.height = 330;
+    window.dispatchEvent(new Event('resize'));
+    vi.advanceTimersByTime(20);
+    expect(kb()).toBe('open');
+
+    // Rotate with the keyboard up: landscape estimated as 200 + 470 = 670 (real full height 330).
+    setInner(800, 200);
+    vv.height = 200;
+    window.dispatchEvent(new Event('resize'));
+    vi.advanceTimersByTime(20);
+    expect(kb()).toBe('open');
+
+    // Back closes the keyboard; focus stays in the editor.
+    setInner(800, 330);
+    vv.height = 330;
+    window.dispatchEvent(new Event('resize'));
+    vi.advanceTimersByTime(20);
+    expect(kb()).toBe('closed');
+
+    // Keyboard again in landscape: measured against the corrected height.
+    setInner(800, 150);
+    vv.height = 150;
+    window.dispatchEvent(new Event('resize'));
+    vi.advanceTimersByTime(20);
+    expect(kb()).toBe('open');
+  });
+
+  it('does not record a keyboard-shortened height when focus leaves before the keyboard closes', () => {
+    const vv = new FakeVisualViewport(700);
+    setVisualViewport(vv);
+    cleanup = installViewportHeight();
+    const field = focusTextField();
+
+    setInner(400, 350);
+    vv.height = 350;
+    window.dispatchEvent(new Event('resize'));
+    vi.advanceTimersByTime(20);
+    expect(kb()).toBe('open');
+
+    // Focus leaves; the keyboard is still on screen for this frame.
+    field.blur();
+    vi.advanceTimersByTime(20);
+    expect(kb()).toBe('closed');
+
+    // Focus returns before the close resize ever arrives: still measured against 700.
+    field.focus();
+    vi.advanceTimersByTime(20);
+    expect(kb()).toBe('open');
+  });
+
   it('ignores pinch zoom: the shell keeps the layout height and the keyboard stays closed', () => {
     const vv = new FakeVisualViewport(700);
     setVisualViewport(vv);

@@ -61,25 +61,50 @@ export function installViewportHeight(): () => void {
   // shrinks with the keyboard. The full height is recorded per width (portrait, landscape, folded,
   // unfolded) whenever nothing editable has focus, so no keyboard can be up; while typing it only
   // grows. Rotating or unfolding with the keyboard up lands on a width with no record yet: estimate
-  // it from the keyboard height just measured, and let the next keyboard-free reading correct it.
+  // it from the keyboard height just measured. The estimate is dropped as soon as the height climbs
+  // more than the threshold above its lowest reading there (the keyboard went down, for example
+  // with Android back while focus stays), or at the next keyboard-free reading. Heights are only
+  // recorded on frames a resize asked for: a focus change alone can land while the keyboard is
+  // still on screen.
   // visualViewport.offsetTop is deliberately ignored: it moves when the page pans, not when the
   // keyboard takes height.
   const fullByWidth = new Map<number, number>();
+  const estimatedLow = new Map<number, number>();
   let keyboardOpen = false;
   let lastGap = 0;
+  let resized = false;
 
   const apply = () => {
     frame = 0;
     const height = Math.round(currentHeight());
     const width = window.innerWidth;
     const full = Math.max(window.innerHeight, height);
+    const measured = resized;
+    resized = false;
     let open = false;
     if (!hasTouchScreen() || !isTyping()) {
-      fullByWidth.set(width, full);
+      if (measured || !fullByWidth.has(width)) {
+        fullByWidth.set(width, full);
+        estimatedLow.delete(width);
+      }
     } else {
       let base = fullByWidth.get(width);
       if (base === undefined) {
-        base = keyboardOpen ? Math.max(full, height + lastGap) : full;
+        if (keyboardOpen) {
+          base = Math.max(full, height + lastGap);
+          estimatedLow.set(width, height);
+        } else {
+          base = full;
+        }
+      }
+      const low = estimatedLow.get(width);
+      if (low !== undefined) {
+        if (height - low > KEYBOARD_MIN_INSET) {
+          base = full;
+          estimatedLow.delete(width);
+        } else {
+          estimatedLow.set(width, Math.min(low, height));
+        }
       }
       base = Math.max(base, full);
       fullByWidth.set(width, base);
@@ -103,24 +128,28 @@ export function installViewportHeight(): () => void {
     if (frame) return;
     frame = window.requestAnimationFrame(apply);
   };
+  const onResize = () => {
+    resized = true;
+    schedule();
+  };
 
   // Set the initial value synchronously so the first paint already has it.
   apply();
 
-  window.addEventListener('resize', schedule);
-  window.addEventListener('orientationchange', schedule);
-  vv?.addEventListener('resize', schedule);
-  vv?.addEventListener('scroll', schedule);
+  window.addEventListener('resize', onResize);
+  window.addEventListener('orientationchange', onResize);
+  vv?.addEventListener('resize', onResize);
+  vv?.addEventListener('scroll', onResize);
   // Focus decides whether a short screen can be a keyboard, so re-evaluate when it moves.
   document.addEventListener('focusin', schedule);
   document.addEventListener('focusout', schedule);
 
   return () => {
     if (frame) window.cancelAnimationFrame(frame);
-    window.removeEventListener('resize', schedule);
-    window.removeEventListener('orientationchange', schedule);
-    vv?.removeEventListener('resize', schedule);
-    vv?.removeEventListener('scroll', schedule);
+    window.removeEventListener('resize', onResize);
+    window.removeEventListener('orientationchange', onResize);
+    vv?.removeEventListener('resize', onResize);
+    vv?.removeEventListener('scroll', onResize);
     document.removeEventListener('focusin', schedule);
     document.removeEventListener('focusout', schedule);
     root.style.removeProperty(APP_HEIGHT_VAR);
