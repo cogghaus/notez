@@ -36,6 +36,8 @@ if (process.env.E2E_DESKTOP) {
 export default defineConfig({
   testDir: 'e2e',
   fullyParallel: true,
+  // A stray test.only must fail CI instead of silently running one test.
+  forbidOnly: !!process.env.CI,
   retries: 0,
   reporter: [['list']],
   use: {

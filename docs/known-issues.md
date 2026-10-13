@@ -542,6 +542,12 @@ Found while shipping Pocket ID SSO; none block v1.30.0, which is live and confir
 **Severity:** LOW
 **Status:** FIXED in v1.30.6. `.github/workflows/e2e.yml` runs the suite on GitHub-hosted Ubuntu (Chromium only, hermetic, no backend) for every pull request and push to main that touches `frontend/`, as its own check. On failure the Playwright results are uploaded as an artifact for 7 days.
 
+
+### 72. Node 20 is end of life in CI and the image
+**Location:** `Dockerfile` (three `node:20-alpine` stages), `.github/workflows/docker-build.yml` and `e2e.yml` (`node-version: '20'`)
+**Issue:** Node 20 reached end of life on 2026-04-30 and gets no security fixes. Production runs on it.
+**Severity:** MEDIUM
+**Status:** Open -- move the Dockerfile and both workflows to the current LTS together, run backend, frontend and e2e suites, and check native modules (Prisma engines) on the new base image
 ---
 
 ## Version Notes
