@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.30.6] - 2026-10-12
+
+### Testing
+
+- New `.github/workflows/e2e.yml`: the frontend Playwright e2e runs in CI on GitHub-hosted Ubuntu (Chromium only, hermetic, no backend) for pull requests and pushes to main that touch `frontend/`, as its own check. Actions pinned by commit SHA; Playwright results uploaded on failure (7 days). Closes known issue #71.
+
 ## [1.30.5] - 2026-10-12
 
 ### Fixed
