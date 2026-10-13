@@ -214,112 +214,133 @@ async function scrollEnds(page: Page) {
   });
 }
 
-test('note stays scrollable and the caret visible with the on-screen keyboard open', async ({ page }, testInfo) => {
-  await page.goto('/', { waitUntil: 'domcontentloaded' });
+/** Wait two frames, then poll until the measurements satisfy `ready` (rAF-throttled listeners). */
+async function settle(page: Page, ready: (m: Measure) => boolean) {
+  await page.evaluate(
+    () => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r()))),
+  );
+  await expect.poll(async () => ready(await measure(page)), { timeout: 3000 }).toBe(true);
+}
 
-  // Real mobile flow: the notes list is shown first; tap the note to open the editor.
-  await page.getByRole('button', { name: /Long test note/ }).click();
-  const editor = page.locator('.ProseMirror');
-  await expect(editor).toBeVisible();
-  await expect(editor.locator('p')).toHaveCount(60);
+/**
+ * The two ways a mobile browser can make room for the keyboard:
+ * - 'resizes-visual': only the visual viewport shrinks (Chrome without the meta, measured on a Pixel Fold).
+ * - 'resizes-content': the layout viewport shrinks too (our meta, interactive-widget=resizes-content,
+ *   and Gecko). Modelled by also shrinking the Playwright viewport.
+ */
+const MODES = ['resizes-visual', 'resizes-content'] as const;
 
-  // Caret at the END of the note.
-  await editor.click({ position: { x: 12, y: 12 } });
-  await page.keyboard.press('Control+End');
-  // Ctrl+End plus the browser's own caret-follow scroll is not reliable across emulated
-  // viewports, so also set the selection to the very end explicitly. ProseMirror picks it up from
-  // selectionchange. Typing at the end of a long note leaves the scroller at its end.
-  await page.evaluate(() => {
-    const pm = document.querySelector('.ProseMirror') as HTMLElement;
-    const paragraphs = pm.querySelectorAll('p');
-    const range = document.createRange();
-    const walker = document.createTreeWalker(paragraphs[paragraphs.length - 1], NodeFilter.SHOW_TEXT);
-    let lastText: Node | null = null;
-    while (walker.nextNode()) lastText = walker.currentNode;
-    range.setStart(lastText!, lastText!.textContent!.length);
-    range.collapse(true);
-    const sel = window.getSelection()!;
-    sel.removeAllRanges();
-    sel.addRange(range);
-    for (let el: HTMLElement | null = pm.parentElement; el; el = el.parentElement) {
-      const oy = getComputedStyle(el).overflowY;
-      if (oy === 'auto' || oy === 'scroll') {
-        el.scrollTop = el.scrollHeight;
-        break;
+for (const mode of MODES) {
+  test(`[${mode}] note stays scrollable and the caret visible with the on-screen keyboard open`, async ({ page }, testInfo) => {
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+
+    // Real mobile flow: the notes list is shown first; tap the note to open the editor.
+    await page.getByRole('button', { name: /Long test note/ }).click();
+    const editor = page.locator('.ProseMirror');
+    await expect(editor).toBeVisible();
+    await expect(editor.locator('p')).toHaveCount(60);
+
+    // Caret at the END of the note.
+    await editor.click({ position: { x: 12, y: 12 } });
+    await page.keyboard.press('Control+End');
+    // Ctrl+End plus the browser's own caret-follow scroll is not reliable across emulated
+    // viewports, so also set the selection to the very end explicitly. ProseMirror picks it up from
+    // selectionchange. Typing at the end of a long note leaves the scroller at its end.
+    await page.evaluate(() => {
+      const pm = document.querySelector('.ProseMirror') as HTMLElement;
+      const paragraphs = pm.querySelectorAll('p');
+      const range = document.createRange();
+      const walker = document.createTreeWalker(paragraphs[paragraphs.length - 1], NodeFilter.SHOW_TEXT);
+      let lastText: Node | null = null;
+      while (walker.nextNode()) lastText = walker.currentNode;
+      range.setStart(lastText!, lastText!.textContent!.length);
+      range.collapse(true);
+      const sel = window.getSelection()!;
+      sel.removeAllRanges();
+      sel.addRange(range);
+      for (let el: HTMLElement | null = pm.parentElement; el; el = el.parentElement) {
+        const oy = getComputedStyle(el).overflowY;
+        if (oy === 'auto' || oy === 'scroll') {
+          el.scrollTop = el.scrollHeight;
+          break;
+        }
       }
+    });
+
+    const viewport = page.viewportSize()!;
+    const viewportHeight = viewport.height;
+    const visibleHeight = Math.round(viewportHeight * 0.5);
+
+    const before = await measure(page);
+    expect(before.shellBottom, 'shell fills the screen before the keyboard opens').toBeGreaterThan(
+      viewportHeight - 2,
+    );
+    expect(before.caretBottom, 'precondition: caret is on screen before the keyboard opens').toBeGreaterThan(0);
+    expect(before.caretBottom, 'precondition: caret is on screen before the keyboard opens').toBeLessThanOrEqual(
+      viewportHeight,
+    );
+    await expect(page.locator('html'), 'keyboard closed before it opens').toHaveAttribute('data-kb', 'closed');
+
+    // Keyboard opens.
+    if (mode === 'resizes-content') {
+      await page.setViewportSize({ width: viewport.width, height: visibleHeight });
     }
+    await page.evaluate((h) => (window as unknown as { __kb: { open(h: number): void } }).__kb.open(h), visibleHeight);
+    const limit = visibleHeight + 1;
+    await settle(page, (x) => x.shellBottom <= limit);
+    await expect.soft(page.locator('html'), 'keyboard detected').toHaveAttribute('data-kb', 'open');
+
+    const m = await measure(page);
+    expect.soft(m.shellBottom, `shell bottom (${m.shellBottom}) <= visible height (${visibleHeight})`).toBeLessThanOrEqual(limit);
+    expect.soft(m.scrollerBottom, `note scroller bottom (${m.scrollerBottom}) <= visible height (${visibleHeight})`).toBeLessThanOrEqual(limit);
+    expect.soft(m.caretBottom, `caret bottom (${m.caretBottom}) <= scroller bottom (${m.scrollerBottom})`).toBeLessThanOrEqual(m.scrollerBottom + 1);
+    expect.soft(m.caretTop, `caret top (${m.caretTop}) >= scroller top (${m.scrollerTop})`).toBeGreaterThanOrEqual(m.scrollerTop - 1);
+    expect.soft(m.pageScrollTop, 'page does not pan').toBe(0);
+
+    // Minimal writing mode: below xl, with the keyboard open and focus in the editor, the app header,
+    // the folder, tag and AI rows and the bottom navigation are hidden so the note gets most of the
+    // visible area.
+    const minShare = testInfo.project.name === 'fold-inner' ? 0.5 : 0.6;
+    const share = (m.scrollerBottom - m.scrollerTop) / visibleHeight;
+    console.log(`[e2e] [${mode}] scroller ${Math.round(m.scrollerBottom - m.scrollerTop)} of ${visibleHeight} visible, share ${share.toFixed(2)} (need >= ${minShare})`);
+    expect.soft(share, `note scroller share of the visible height (${share.toFixed(2)}) >= ${minShare}`).toBeGreaterThanOrEqual(minShare);
+    await expect.soft(page.locator('nav').first(), 'app header hidden in writing mode').toBeHidden();
+    await expect.soft(aiRows(page), 'AI actions row hidden in writing mode').toHaveCount(0);
+    await expect.soft(bottomNav(page), 'bottom navigation hidden in writing mode').toBeHidden();
+    await expect.soft(page.getByPlaceholder('Untitled Note'), 'title row stays').toBeVisible();
+
+    const ends = await scrollEnds(page);
+    expect.soft(ends.top, 'scroller can reach its top').toBe(0);
+    expect.soft(ends.bottomGap, 'scroller can reach its bottom').toBeLessThanOrEqual(1);
+    expect.soft(
+      ends.lastParagraphBottom,
+      `last paragraph bottom (${ends.lastParagraphBottom}) is above the keyboard (${visibleHeight}) when scrolled to the end`,
+    ).toBeLessThanOrEqual(limit);
+    expect.soft(ends.pageScrollTop, 'page does not pan after scrolling the note').toBe(0);
+
+    // Focus leaves the editor while the keyboard is still up: everything returns at once, before
+    // the keyboard has gone.
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+    await expect.soft(page.locator('nav').first(), 'app header returns after blur').toBeVisible();
+    await expect.soft(aiRows(page), 'AI actions row returns after blur').toHaveCount(1);
+    await expect.soft(bottomNav(page), 'bottom navigation returns after blur').toBeVisible();
+
+    // Keyboard closes: the shell grows back to the full height.
+    if (mode === 'resizes-content') {
+      await page.setViewportSize(viewport);
+    }
+    await page.evaluate(() => (window as unknown as { __kb: { close(): void } }).__kb.close());
+    await settle(page, (x) => x.shellBottom > x.innerHeight - 2);
+    await expect.soft(page.locator('html'), 'keyboard closed again').toHaveAttribute('data-kb', 'closed');
   });
-
-  const viewportHeight = page.viewportSize()!.height;
-  const visibleHeight = Math.round(viewportHeight * 0.5);
-
-  const before = await measure(page);
-  expect(before.shellBottom, 'shell fills the screen before the keyboard opens').toBeGreaterThan(
-    viewportHeight - 2,
-  );
-
-  expect(before.caretBottom, 'precondition: caret is on screen before the keyboard opens').toBeGreaterThan(0);
-  expect(before.caretBottom, 'precondition: caret is on screen before the keyboard opens').toBeLessThanOrEqual(
-    viewportHeight,
-  );
-
-  await page.evaluate((h) => (window as unknown as { __kb: { open(h: number): void } }).__kb.open(h), visibleHeight);
-  // Let the app react (rAF-throttled listeners, layout, scroll-into-view).
-  await page.evaluate(
-    () => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r()))),
-  );
-  await page.waitForTimeout(150);
-
-  const m = await measure(page);
-  const limit = visibleHeight + 1;
-
-  expect.soft(m.shellBottom, `shell bottom (${m.shellBottom}) <= visible height (${visibleHeight})`).toBeLessThanOrEqual(limit);
-  expect.soft(m.scrollerBottom, `note scroller bottom (${m.scrollerBottom}) <= visible height (${visibleHeight})`).toBeLessThanOrEqual(limit);
-  expect.soft(m.caretBottom, `caret bottom (${m.caretBottom}) <= visible height (${visibleHeight})`).toBeLessThanOrEqual(limit);
-  expect.soft(m.caretTop, `caret top (${m.caretTop}) >= scroller top (${m.scrollerTop})`).toBeGreaterThanOrEqual(m.scrollerTop - 1);
-  expect.soft(m.pageScrollTop, 'page does not pan').toBe(0);
-  // Not just "inside": the scroller must keep a usable height (the metadata rows above it are
-  // compacted properly in PR4; until then this guards against it collapsing to nothing).
-  expect.soft(m.scrollerBottom - m.scrollerTop, 'note scroller keeps a usable height').toBeGreaterThanOrEqual(60);
-  console.log(`[e2e] scroller height with keyboard open: ${Math.round(m.scrollerBottom - m.scrollerTop)} of ${visibleHeight} visible`);
-
-  // Minimal writing mode: below xl, with the keyboard open and focus in the editor, the app header
-  // and the folder, tag and AI rows are hidden so the note gets most of the visible area.
-  const minShare = testInfo.project.name === 'fold-inner' ? 0.5 : 0.6;
-  const share = (m.scrollerBottom - m.scrollerTop) / visibleHeight;
-  console.log(`[e2e] scroller share of visible height: ${share.toFixed(2)} (need >= ${minShare})`);
-  expect.soft(share, `note scroller share of the visible height (${share.toFixed(2)}) >= ${minShare}`).toBeGreaterThanOrEqual(minShare);
-  await expect.soft(page.locator('nav').first(), 'app header hidden in writing mode').toBeHidden();
-  await expect.soft(aiRows(page), 'AI actions row hidden in writing mode').toHaveCount(0);
-  await expect.soft(page.getByPlaceholder('Untitled Note'), 'title row stays').toBeVisible();
-
-  const ends = await scrollEnds(page);
-  expect.soft(ends.top, 'scroller can reach its top').toBe(0);
-  expect.soft(ends.bottomGap, 'scroller can reach its bottom').toBeLessThanOrEqual(1);
-  expect.soft(
-    ends.lastParagraphBottom,
-    `last paragraph bottom (${ends.lastParagraphBottom}) is above the keyboard (${visibleHeight}) when scrolled to the end`,
-  ).toBeLessThanOrEqual(limit);
-  expect.soft(ends.pageScrollTop, 'page does not pan after scrolling the note').toBe(0);
-
-  // Keyboard closes: the shell grows back to the full height.
-  await page.evaluate(() => (window as unknown as { __kb: { close(): void } }).__kb.close());
-  await page.evaluate(
-    () => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r()))),
-  );
-  await page.waitForTimeout(150);
-  const closed = await measure(page);
-  expect.soft(closed.shellBottom, 'shell returns to full height after the keyboard closes').toBeGreaterThan(
-    closed.innerHeight - 2,
-  );
-
-  // Everything returns once focus leaves the editor.
-  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
-  await expect.soft(page.locator('nav').first(), 'app header returns after blur').toBeVisible();
-  await expect.soft(aiRows(page), 'AI actions row returns after blur').toHaveCount(1);
-});
+}
 
 /** Visible AI row label: "AI Actions" below sm, "AI:" from sm up. Counts only rendered ones. */
 function aiRows(page: Page) {
   return page.getByText(/^(AI Actions|AI:)$/).locator('visible=true');
+}
+
+/** The mobile bottom navigation bar (below xl). */
+function bottomNav(page: Page) {
+  return page.locator('[data-mobile-bottom-nav]');
 }

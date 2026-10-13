@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import Editor from '@monaco-editor/react';
+import Editor, { type OnMount } from '@monaco-editor/react';
 import { notesApi, aiApi, foldersApi, serviceAccountsApi } from '../lib/api';
 import { Save, Trash2, Sparkles, FileText as FileTextIcon, Tags, RotateCcw, Eye, Code, HelpCircle, ChevronDown, ChevronUp, Users, Shield, Share2, Bot } from 'lucide-react';
 import { TagInput } from './TagInput';
@@ -11,6 +11,7 @@ import { ShareDialog } from './ShareDialog';
 import { CollaborativeTiptapEditor } from './CollaborativeTiptapEditor';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from './Toast';
+import { useKeepMonacoCaretVisible } from '../lib/useKeepCaretVisible';
 
 interface Note {
   id: string;
@@ -92,6 +93,8 @@ export function NoteEditor({ noteId, onNoteDeleted, onTagsChanged, onNoteUpdated
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveErrorShownRef = useRef(false);
   const titleInputRef = useRef<HTMLInputElement>(null);
+  const monacoRef = useRef<Parameters<OnMount>[0] | null>(null);
+  useKeepMonacoCaretVisible(monacoRef);
 
   // Load folders on mount
   useEffect(() => {
@@ -786,6 +789,9 @@ export function NoteEditor({ noteId, onNoteDeleted, onTagsChanged, onNoteUpdated
           <Editor
             key="raw-editor"
             height="100%"
+            onMount={(editor) => {
+              monacoRef.current = editor;
+            }}
             defaultLanguage="markdown"
             value={content}
             onChange={(value) => setContent(value || '')}
@@ -807,7 +813,7 @@ export function NoteEditor({ noteId, onNoteDeleted, onTagsChanged, onNoteUpdated
       </div>
 
       {/* Word Count Footer */}
-      <div className="flex-shrink-0 px-6 py-2 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between bg-gray-50 dark:bg-gray-900 [html[data-kb=open]_&]:hidden">
+      <div className="flex-shrink-0 px-6 py-2 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between bg-gray-50 dark:bg-gray-900" data-kb-hide>
         <div className="text-xs text-gray-500 dark:text-gray-400 space-x-4">
           <span>{content.trim() ? content.trim().split(/\s+/).length : 0} words</span>
           <span>{content.length} characters</span>

@@ -17,6 +17,8 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  /* Follow the visible height (lib/viewport.ts) so the document is never taller than the shell. */
+  min-height: var(--app-h, 100dvh);
 }
 
 * {
@@ -63,13 +65,18 @@ html.dark {
 }
 
 /* Minimal writing mode (below xl): with the on-screen keyboard open (html[data-kb=open], set by
-   lib/viewport.ts) and focus inside the note editor, hide the app header and the folder, tag and AI
-   rows so the note gets the visible area. Not applied while focus is inside one of the hidden
-   regions themselves (for example the tag field), so they never vanish under the user's finger.
-   display:none also removes them from the tab order. */
+   lib/viewport.ts) and focus inside the note editor, hide the app header, the folder, tag and AI
+   rows, the word count footer and the bottom navigation ([data-kb-hide]) and drop the padding kept
+   for that navigation ([data-kb-pad]), so the note gets the visible area. Not applied while focus
+   is inside one of the hidden regions themselves (for example the tag field), so they never vanish
+   under the user's finger. display:none also removes them from the tab order. */
 @media (max-width: 1279px) {
   html[data-kb='open']:has([data-note-editor]:focus-within):not(:has([data-kb-hide]:focus-within))
     [data-kb-hide] {
     display: none;
+  }
+  html[data-kb='open']:has([data-note-editor]:focus-within):not(:has([data-kb-hide]:focus-within))
+    [data-kb-pad] {
+    padding-bottom: 0;
   }
 }

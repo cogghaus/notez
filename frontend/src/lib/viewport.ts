@@ -13,13 +13,24 @@
 export const APP_HEIGHT_VAR = '--app-h';
 export const VIEWPORT_HEIGHT_EVENT = 'app-viewport-height';
 
-/** Attribute on <html>: "open" while the visible area is much shorter than the layout viewport. */
+/** Attribute on <html>: "open" while an on-screen keyboard is taking part of the screen. */
 export const KEYBOARD_ATTR = 'data-kb';
 const KEYBOARD_MIN_INSET = 120;
 
+/**
+ * Visible height in layout CSS pixels. Pinch zoom shrinks `visualViewport.height` by the zoom
+ * factor without changing what fits on screen, so multiply it back out (scale is 1 when unzoomed).
+ */
 function currentHeight(): number {
-  const vv = typeof window !== 'undefined' ? window.visualViewport : undefined;
-  return vv ? vv.height : window.innerHeight;
+  const vv = window.visualViewport;
+  return vv ? vv.height * (vv.scale || 1) : window.innerHeight;
+}
+
+/** The keyboard can only be up while something that takes typing has focus. */
+function isTyping(): boolean {
+  const el = document.activeElement as HTMLElement | null;
+  if (!el) return false;
+  return el.isContentEditable || el.tagName === 'TEXTAREA' || el.tagName === 'INPUT';
 }
 
 /**
@@ -35,17 +46,31 @@ export function installViewportHeight(): () => void {
   const vv = window.visualViewport ?? null;
   let frame = 0;
   let lastApplied: number | null = null;
+  // Keyboard detection compares the visible height with the full-screen height at this width.
+  // Comparing with innerHeight alone only works when the browser keeps the layout viewport
+  // (Chrome's default); with interactive-widget=resizes-content (our meta) and in Gecko, innerHeight
+  // shrinks with the keyboard. The baseline is re-taken whenever nothing editable has focus (no
+  // keyboard possible) or the width changes (rotate, fold, unfold), and only grows while typing.
+  // visualViewport.offsetTop is deliberately ignored: it moves when the page pans, not when the
+  // keyboard takes height.
+  let baseWidth = -1;
+  let baseHeight = 0;
 
   const apply = () => {
     frame = 0;
     const height = Math.round(currentHeight());
+    if (window.innerWidth !== baseWidth || !isTyping()) {
+      baseWidth = window.innerWidth;
+      baseHeight = Math.max(window.innerHeight, height);
+    } else {
+      baseHeight = Math.max(baseHeight, height);
+    }
+    root.setAttribute(KEYBOARD_ATTR, baseHeight - height > KEYBOARD_MIN_INSET ? 'open' : 'closed');
+
     if (height === lastApplied) return;
     const changed = lastApplied !== null;
     lastApplied = height;
     root.style.setProperty(APP_HEIGHT_VAR, `${height}px`);
-    // Layout viewport unchanged but visible area shrunk: the on-screen keyboard (Chrome default).
-    // When the browser resizes the layout viewport instead, the inset is ~0 and this stays closed.
-    root.setAttribute(KEYBOARD_ATTR, window.innerHeight - height > KEYBOARD_MIN_INSET ? 'open' : 'closed');
     if (changed) {
       window.dispatchEvent(new CustomEvent(VIEWPORT_HEIGHT_EVENT, { detail: { height } }));
     }

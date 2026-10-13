@@ -3,11 +3,27 @@ import { installViewportHeight, APP_HEIGHT_VAR, VIEWPORT_HEIGHT_EVENT } from './
 
 class FakeVisualViewport extends EventTarget {
   height: number;
+  scale = 1;
   constructor(height: number) {
     super();
     this.height = height;
   }
 }
+
+function setInner(width: number, height: number) {
+  Object.defineProperty(window, 'innerWidth', { value: width, configurable: true, writable: true });
+  Object.defineProperty(window, 'innerHeight', { value: height, configurable: true, writable: true });
+}
+
+/** A focused text field: the keyboard can only be up while something editable has focus. */
+function focusTextField(): HTMLTextAreaElement {
+  const ta = document.createElement('textarea');
+  document.body.appendChild(ta);
+  ta.focus();
+  return ta;
+}
+
+const kb = () => document.documentElement.getAttribute('data-kb');
 
 function setVisualViewport(value: unknown) {
   Object.defineProperty(window, 'visualViewport', { value, configurable: true, writable: true });
@@ -25,13 +41,14 @@ describe('installViewportHeight', () => {
       setTimeout(() => cb(0), 16) as unknown as number,
     );
     vi.stubGlobal('cancelAnimationFrame', (id: number) => clearTimeout(id));
-    Object.defineProperty(window, 'innerHeight', { value: 700, configurable: true, writable: true });
+    setInner(400, 700);
   });
 
   afterEach(() => {
     cleanup?.();
     cleanup = undefined;
     setVisualViewport(undefined);
+    document.body.innerHTML = '';
     vi.unstubAllGlobals();
     vi.useRealTimers();
   });
@@ -96,22 +113,91 @@ describe('installViewportHeight', () => {
     window.removeEventListener(VIEWPORT_HEIGHT_EVENT, listener);
   });
 
-  it('marks the keyboard open only when the visible area is much shorter than the layout viewport', () => {
+  it('marks the keyboard open when the visible area shrinks but the layout viewport does not (resizes-visual)', () => {
     const vv = new FakeVisualViewport(700);
     setVisualViewport(vv);
     cleanup = installViewportHeight();
-    expect(document.documentElement.getAttribute('data-kb')).toBe('closed');
+    expect(kb()).toBe('closed');
+    focusTextField();
 
     vv.height = 350;
     vv.dispatchEvent(new Event('resize'));
     vi.advanceTimersByTime(20);
-    expect(document.documentElement.getAttribute('data-kb')).toBe('open');
+    expect(kb()).toBe('open');
 
     // Browser chrome showing/hiding changes the height by less than the threshold.
     vv.height = 650;
     vv.dispatchEvent(new Event('resize'));
     vi.advanceTimersByTime(20);
-    expect(document.documentElement.getAttribute('data-kb')).toBe('closed');
+    expect(kb()).toBe('closed');
+  });
+
+  it('marks the keyboard open when the layout viewport shrinks with it (interactive-widget=resizes-content)', () => {
+    const vv = new FakeVisualViewport(700);
+    setVisualViewport(vv);
+    cleanup = installViewportHeight();
+    focusTextField();
+
+    setInner(400, 350);
+    vv.height = 350;
+    window.dispatchEvent(new Event('resize'));
+    vv.dispatchEvent(new Event('resize'));
+    vi.advanceTimersByTime(20);
+    expect(appHeight()).toBe('350px');
+    expect(kb()).toBe('open');
+
+    setInner(400, 700);
+    vv.height = 700;
+    window.dispatchEvent(new Event('resize'));
+    vi.advanceTimersByTime(20);
+    expect(kb()).toBe('closed');
+  });
+
+  it('never reports the keyboard while nothing editable has focus', () => {
+    const vv = new FakeVisualViewport(700);
+    setVisualViewport(vv);
+    cleanup = installViewportHeight();
+
+    setInner(400, 350);
+    vv.height = 350;
+    window.dispatchEvent(new Event('resize'));
+    vi.advanceTimersByTime(20);
+    expect(appHeight()).toBe('350px');
+    expect(kb()).toBe('closed');
+  });
+
+  it('re-baselines when the width changes (rotate, fold, unfold)', () => {
+    const vv = new FakeVisualViewport(700);
+    setVisualViewport(vv);
+    cleanup = installViewportHeight();
+    focusTextField();
+
+    // Unfold to a wide, shorter screen while a field has focus: not a keyboard.
+    setInner(840, 520);
+    vv.height = 520;
+    window.dispatchEvent(new Event('resize'));
+    vi.advanceTimersByTime(20);
+    expect(kb()).toBe('closed');
+
+    // Keyboard on the new screen.
+    vv.height = 300;
+    vv.dispatchEvent(new Event('resize'));
+    vi.advanceTimersByTime(20);
+    expect(kb()).toBe('open');
+  });
+
+  it('ignores pinch zoom: the shell keeps the layout height and the keyboard stays closed', () => {
+    const vv = new FakeVisualViewport(700);
+    setVisualViewport(vv);
+    cleanup = installViewportHeight();
+    focusTextField();
+
+    vv.scale = 2;
+    vv.height = 350;
+    vv.dispatchEvent(new Event('resize'));
+    vi.advanceTimersByTime(20);
+    expect(appHeight()).toBe('700px');
+    expect(kb()).toBe('closed');
   });
 
   it('removes the property and stops listening after cleanup', () => {
