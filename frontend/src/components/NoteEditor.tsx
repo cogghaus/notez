@@ -452,7 +452,7 @@ export function NoteEditor({ noteId, onNoteDeleted, onTagsChanged, onNoteUpdated
   const currentUserColor = getUserColor(currentUsername);
 
   return (
-    <div className="flex-1 flex flex-col bg-white dark:bg-gray-800">
+    <div data-note-editor className="flex-1 min-h-0 flex flex-col bg-white dark:bg-gray-800">
       {/* Service Account Banner */}
       {serviceAccountMode && (
         <div className="bg-blue-50 dark:bg-blue-900/20 border-b border-blue-200 dark:border-blue-800 px-6 py-2 flex items-center gap-2">
@@ -588,7 +588,7 @@ export function NoteEditor({ noteId, onNoteDeleted, onTagsChanged, onNoteUpdated
         </div>
 
         {/* Folder Selector and Tags Row - stacked on mobile */}
-        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+        <div data-kb-hide className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
           {/* Folder Selector */}
           <FolderChip
             folders={folders}
@@ -617,7 +617,7 @@ export function NoteEditor({ noteId, onNoteDeleted, onTagsChanged, onNoteUpdated
 
         {/* AI Actions - Collapsible on mobile, horizontal on desktop; hidden in service account mode */}
         {!serviceAccountMode && (
-        <div className="border-t border-gray-100 dark:border-gray-700 pt-2">
+        <div data-kb-hide className="border-t border-gray-100 dark:border-gray-700 pt-2">
           {/* Mobile: Collapsible toggle */}
           <button
             onClick={() => setShowAiActions(!showAiActions)}
@@ -763,7 +763,7 @@ export function NoteEditor({ noteId, onNoteDeleted, onTagsChanged, onNoteUpdated
       </div>
 
       {/* Editor (Collaborative, Tiptap, or Monaco) */}
-      <div className="flex-1 min-h-0 relative">
+      <div className="flex-1 min-h-0 relative flex flex-col">
         {note?.isShared && !isDeleted && !isViewOnly ? (
           /* Collaborative mode for shared notes with EDIT access */
           <CollaborativeTiptapEditor
@@ -807,7 +807,7 @@ export function NoteEditor({ noteId, onNoteDeleted, onTagsChanged, onNoteUpdated
       </div>
 
       {/* Word Count Footer */}
-      <div className="flex-shrink-0 px-6 py-2 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between bg-gray-50 dark:bg-gray-900">
+      <div className="flex-shrink-0 px-6 py-2 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between bg-gray-50 dark:bg-gray-900 [html[data-kb=open]_&]:hidden">
         <div className="text-xs text-gray-500 dark:text-gray-400 space-x-4">
           <span>{content.trim() ? content.trim().split(/\s+/).length : 0} words</span>
           <span>{content.length} characters</span>

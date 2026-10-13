@@ -158,12 +158,14 @@ export function EditorPage() {
   };
 
   return (
-    <div className="h-screen flex flex-col bg-gray-100 dark:bg-gray-900">
+    // Height follows the visible viewport (--app-h, see lib/viewport.ts) so the on-screen keyboard
+    // never covers the bottom of the note. Falls back to 100dvh until the variable is set.
+    <div className="h-[var(--app-h,100dvh)] overflow-hidden flex flex-col bg-gray-100 dark:bg-gray-900">
       {/* Top Navigation */}
       <AppHeader />
 
       {/* Main Content Area */}
-      <div className="flex flex-1 overflow-hidden pb-20 xl:pb-0 ">
+      <div className="flex flex-1 min-h-0 overflow-hidden pb-20 xl:pb-0 [html[data-kb=open]_&]:pb-0">
         {/* Folder Sidebar - Hidden on mobile unless mobileView === 'sidebar' */}
         <div
           className={`${mobileView === 'sidebar' ? 'block' : 'hidden'} xl:block flex-shrink-0`}
