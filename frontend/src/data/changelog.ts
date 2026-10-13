@@ -12,6 +12,16 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '1.30.5',
+    date: '2026-10-12',
+    fixed: [
+      'On phones, notes keep scrolling and the cursor stays in view while the keyboard is open',
+    ],
+    changed: [
+      'On phones and small tablets, the menus and note details step aside while you type so the note gets the screen; they come back when you leave the note',
+    ],
+  },
+  {
     version: '1.30.4',
     date: '2026-10-11',
     changed: ['Behind-the-scenes documentation updates'],
