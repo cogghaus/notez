@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.30.6] - 2026-10-12
+
+### Testing
+
+- New `.github/workflows/e2e.yml`: the frontend Playwright e2e runs in CI on GitHub-hosted Ubuntu (Chromium only, hermetic, no backend) for pull requests and pushes to main that touch `frontend/`, as its own check. Actions pinned by commit SHA; Playwright results uploaded on failure (7 days). Closes known issue #71.
+- `frontend/playwright.config.ts`: `forbidOnly` when `CI` is set, so a stray `test.only` fails CI instead of running one test.
+
+### Documentation
+
+- Known issue #72: Node 20 (end of life 2026-04-30) in the Dockerfile and both workflows.
+
 ## [1.30.5] - 2026-10-12
 
 ### Fixed

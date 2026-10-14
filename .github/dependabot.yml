@@ -99,7 +99,7 @@ updates:
       prefix: chore(deps)
       prefix-development: chore(deps-dev)
 
-  # Keep the Actions used by docker-build.yml current as well.
+  # Keep the Actions used by the workflows (docker-build.yml, e2e.yml) current as well.
   - package-ecosystem: github-actions
     directory: /
     schedule:
