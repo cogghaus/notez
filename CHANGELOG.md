@@ -19,6 +19,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - New `.github/workflows/image-smoke.yml`: builds the production image (no push) and runs it against Postgres 16 and a throwaway S3 endpoint (SeaweedFS; `minio/minio` is no longer pullable from Docker Hub). It checks the Node version, that the entrypoint applies every migration, `/health` is 200, first-user setup and login work (bcrypt, plus a wrong-password 401), and an image upload is processed and read back (sharp). Credentials are generated per run.
 
+## [1.30.8] - 2026-10-13
+
+### Fixed
+
+- notez-mcp: `npm ci` failed with an ERESOLVE peer conflict because `@types/node` was ^20 while vitest 5 needs ^22 or >=24. `@types/node` is now ^24 and vitest ^5.0.4 (5.0.0 to 5.0.4, supersedes Dependabot #129). Plain `npm ci` works, no `--legacy-peer-deps`.
+
+### Testing
+
+- New `.github/workflows/notez-mcp.yml`: notez-mcp install (`npm ci`), tests and build run in CI on GitHub-hosted Ubuntu with Node 24, as its own check, for pull requests and pushes to main that touch `notez-mcp/`. Actions pinned by commit SHA.
+
 ## [1.30.7] - 2026-10-13
 
 ### Changed
