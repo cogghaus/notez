@@ -398,6 +398,9 @@ export async function createTask(userId: string, data: CreateTaskInput, createdB
           title: data.title,
           description: data.description || null,
           status: data.status || 'PENDING',
+          // A task can now be created already completed (API and MCP accept status on create),
+          // so set completedAt the same way updateTask and updateTaskStatus do
+          completedAt: data.status === 'COMPLETED' ? new Date() : null,
           priority: data.priority || 'MEDIUM',
           dueDate: data.dueDate ? new Date(data.dueDate) : null,
           startDate: data.startDate ? new Date(data.startDate) : null,

@@ -91,6 +91,26 @@ describe('task.service', () => {
       });
     });
 
+    it('sets completedAt when a task is created as COMPLETED', async () => {
+      const before = Date.now();
+      await createTask(USER, { title: 'T', status: 'COMPLETED' });
+
+      const data = tx.task.create.mock.calls[0][0].data;
+      expect(data.completedAt).toBeInstanceOf(Date);
+      expect((data.completedAt as Date).getTime()).toBeGreaterThanOrEqual(before);
+    });
+
+    it('leaves completedAt null for any other initial status', async () => {
+      for (const status of ['PENDING', 'IN_PROGRESS', 'WAITING', 'CANCELLED'] as const) {
+        tx.task.create.mockClear();
+        await createTask(USER, { title: 'T', status });
+        expect(tx.task.create.mock.calls[0][0].data.completedAt).toBeNull();
+      }
+      tx.task.create.mockClear();
+      await createTask(USER, { title: 'T' });
+      expect(tx.task.create.mock.calls[0][0].data.completedAt).toBeNull();
+    });
+
     it('writes nulls for the new fields when they are absent', async () => {
       await createTask(USER, { title: 'T' });
 
