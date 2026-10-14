@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.30.7] - 2026-10-13
+
+### Changed
+
+Dependency sweep: minor and patch updates only, replacing the open Dependabot PRs. No majors. Versions published in the last 14 days were skipped unless they are security fixes (marked "security").
+
+- backend: `@anthropic-ai/sdk` 0.124.0 to 0.129.0, `@fastify/jwt` 10.2.2 to 10.2.4 (security), `@fastify/static` 10.1.3 to 10.1.6 (security), `@fastify/websocket` 11.3.0 to 11.3.1, `@modelcontextprotocol/sdk` 1.30.0 to 1.31.0, `fastify` 5.12.3 to 5.12.5 (security), `resend` 6.26.0 to 6.31.0, `sharp` 0.35.4 to 0.35.5, `yjs` 13.6.32 to 13.6.33, `@typescript-eslint/eslint-plugin` and `@typescript-eslint/parser` 8.66.0 to 8.71.0, `tsx` 4.23.11 to 4.23.15.
+- backend, transitive (security): `fast-jwt` 6.3.4, `ip-address` 10.7.4, `@fastify/busboy` 3.2.3, `@grpc/grpc-js` 1.14.6, `source-map-js` 1.2.2, `fast-uri` 3.1.8 and 4.2.2, `proxy-addr` 2.0.8, `brace-expansion` 1.1.21; other in-range transitive packages refreshed to versions at least 14 days old.
+- frontend: `@tanstack/react-query` 5.102.8 to 5.104.0, `dompurify` 3.4.15 to 3.4.17 (security), `react` and `react-dom` 19.2.8 to 19.3.0, `react-router-dom` 7.18.3 to 7.18.4, `yjs` 13.6.32 to 13.6.33, `@testing-library/jest-dom` 6.9.1 to 6.10.0, `@types/node` 24.13.3 to 24.19.0, `@types/react` and `@types/react-dom` to 19.3.0, `autoprefixer` 10.5.5 to 10.6.1, `eslint-plugin-react-refresh` 0.5.6 to 0.5.7, `typescript-eslint` 8.69.0 to 8.71.0, `vite` 8.2.2 to 8.3.1.
+- frontend, transitive (security): `undici` 7.30.0, `brace-expansion` 1.1.21, `source-map-js` 1.2.2.
+- notez-mcp: `@modelcontextprotocol/sdk` 1.30.0 to 1.31.0; transitive (security) `ip-address` 10.7.4, `fast-uri` 3.1.8, `proxy-addr` 2.0.8, `source-map-js` 1.2.2.
+
 ## [1.30.6] - 2026-10-12
 
 ### Testing
