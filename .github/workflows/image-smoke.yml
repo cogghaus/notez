@@ -38,7 +38,7 @@ jobs:
     timeout-minutes: 25
     services:
       postgres:
-        image: postgres:16-alpine
+        image: postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
         env:
           POSTGRES_USER: notez
           POSTGRES_PASSWORD: notez
@@ -59,6 +59,11 @@ jobs:
       - name: Build the production image (no push)
         run: docker build -t notez-smoke:ci .
 
+      # Build only (not run): proves the dev/compose backend image still builds with the added
+      # debian-openssl-3.0.x Prisma target on node:24.
+      - name: Build backend/Dockerfile (build only)
+        run: docker build -f backend/Dockerfile -t notez-backend-smoke:ci backend
+
       # The app talks to S3 through the minio client. minio/minio is no longer pullable from Docker
       # Hub and the community binaries are gone (HTTP 410), so a throwaway SeaweedFS S3 endpoint
       # stands in on :9000 (auth is off when no identities are configured; the client's keys are
@@ -68,8 +73,10 @@ jobs:
           MINIO_PASS="$(openssl rand -hex 16)"
           echo "::add-mask::$MINIO_PASS"
           echo "MINIO_PASS=$MINIO_PASS" >> "$GITHUB_ENV"
-          docker run -d --name s3 --network host chrislusf/seaweedfs:latest \
-            server -s3 -s3.port=9000 -dir=/data -ip.bind=0.0.0.0
+          # chrislusf/seaweedfs:latest as of 2026-10-13, pinned by digest
+          docker run -d --name s3 --network host \
+            chrislusf/seaweedfs@sha256:4e61d15fd35994cb1e43e1e553dff106794841fd9a99ade2fc8c8bfce4d7872d \
+            server -s3 -s3.port=9000 -dir=/data -ip.bind=127.0.0.1
           for i in $(seq 1 45); do
             CODE="$(curl -s -o /dev/null -w '%{http_code}' http://localhost:9000/ || true)"
             if [ "$CODE" = "200" ]; then echo "S3 endpoint up after about $((i * 2))s"; exit 0; fi
@@ -116,7 +123,7 @@ jobs:
           echo "Node in image: $NODE_V"
           case "$NODE_V" in v24.*) ;; *) echo "Expected Node 24"; exit 1 ;; esac
           EXPECTED="$(find backend/prisma/migrations -mindepth 1 -maxdepth 1 -type d | wc -l)"
-          APPLIED="$(docker run --rm --network host -e PGPASSWORD=notez postgres:16-alpine \
+          APPLIED="$(docker run --rm --network host -e PGPASSWORD=notez postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea \
             psql -h localhost -U notez -d notez -tA \
             -c 'select count(*) from _prisma_migrations where finished_at is not null and rolled_back_at is null')"
           echo "Migrations in repo: $EXPECTED, applied: $APPLIED"
