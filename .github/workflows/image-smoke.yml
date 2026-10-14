@@ -76,7 +76,7 @@ jobs:
           # chrislusf/seaweedfs:latest as of 2026-10-13, pinned by digest
           docker run -d --name s3 --network host \
             chrislusf/seaweedfs@sha256:4e61d15fd35994cb1e43e1e553dff106794841fd9a99ade2fc8c8bfce4d7872d \
-            server -s3 -s3.port=9000 -dir=/data -ip.bind=127.0.0.1
+            server -s3 -s3.port=9000 -dir=/data -ip=127.0.0.1 -ip.bind=127.0.0.1
           for i in $(seq 1 45); do
             CODE="$(curl -s -o /dev/null -w '%{http_code}' http://localhost:9000/ || true)"
             if [ "$CODE" = "200" ]; then echo "S3 endpoint up after about $((i * 2))s"; exit 0; fi
