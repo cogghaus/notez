@@ -1,6 +1,6 @@
 name: Image smoke test
 # Builds the production image (root Dockerfile, no push) and runs it against throwaway Postgres and
-# MinIO containers to prove it really starts and works on the runtime Node version: the entrypoint's
+# S3 (SeaweedFS) containers to prove it really starts and works on the runtime Node version: the entrypoint's
 # `prisma migrate deploy` applies every migration, /health is 200, a user can be created and log in
 # (bcrypt), and an image upload is processed (sharp) through the API. Public repo: GitHub-hosted
 # runner only. All credentials below are generated per run or throwaway test values.
@@ -59,19 +59,23 @@ jobs:
       - name: Build the production image (no push)
         run: docker build -t notez-smoke:ci .
 
-      - name: Start MinIO
+      # The app talks to S3 through the minio client. minio/minio is no longer pullable from Docker
+      # Hub and the community binaries are gone (HTTP 410), so a throwaway SeaweedFS S3 endpoint
+      # stands in on :9000 (auth is off when no identities are configured; the client's keys are
+      # still sent and ignored).
+      - name: Start S3 storage (SeaweedFS)
         run: |
           MINIO_PASS="$(openssl rand -hex 16)"
           echo "::add-mask::$MINIO_PASS"
           echo "MINIO_PASS=$MINIO_PASS" >> "$GITHUB_ENV"
-          docker run -d --name minio --network host \
-            -e MINIO_ROOT_USER=notezsmoke -e MINIO_ROOT_PASSWORD="$MINIO_PASS" \
-            minio/minio:latest server /data
-          for i in $(seq 1 30); do
-            if curl -fsS http://localhost:9000/minio/health/live >/dev/null; then echo "MinIO up"; exit 0; fi
+          docker run -d --name s3 --network host chrislusf/seaweedfs:latest \
+            server -s3 -s3.port=9000 -dir=/data -ip.bind=0.0.0.0
+          for i in $(seq 1 45); do
+            CODE="$(curl -s -o /dev/null -w '%{http_code}' http://localhost:9000/ || true)"
+            if [ "$CODE" = "200" ]; then echo "S3 endpoint up after about $((i * 2))s"; exit 0; fi
             sleep 2
           done
-          echo "MinIO did not become ready"; docker logs minio; exit 1
+          echo "S3 endpoint not ready (last code $CODE)"; docker logs s3 2>&1 | tail -n 40; exit 1
 
       - name: Start Notez image
         run: |
@@ -90,6 +94,7 @@ jobs:
             -e ENCRYPTION_KEY="$ENC_KEY" \
             -e MINIO_ENDPOINT=localhost -e MINIO_PORT=9000 \
             -e MINIO_ACCESS_KEY=notezsmoke -e MINIO_SECRET_KEY="$MINIO_PASS" \
+            -e MINIO_USE_SSL=false \
             notez-smoke:ci
           echo "Node in image: $(docker exec notez node -v)"
 
@@ -161,4 +166,4 @@ jobs:
         if: always()
         run: |
           echo "--- notez ---"; docker logs notez 2>&1 | tail -n 80 || true
-          echo "--- minio ---"; docker logs minio 2>&1 | tail -n 20 || true
+          echo "--- s3 ---"; docker logs s3 2>&1 | tail -n 20 || true

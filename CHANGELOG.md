@@ -17,7 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Testing
 
-- New `.github/workflows/image-smoke.yml`: builds the production image (no push) and runs it against Postgres 16 and MinIO containers. It checks the Node version, that the entrypoint applies every migration, `/health` is 200, first-user setup and login work (bcrypt, plus a wrong-password 401), and an image upload is processed and read back (sharp). Credentials are generated per run.
+- New `.github/workflows/image-smoke.yml`: builds the production image (no push) and runs it against Postgres 16 and a throwaway S3 endpoint (SeaweedFS; `minio/minio` is no longer pullable from Docker Hub). It checks the Node version, that the entrypoint applies every migration, `/health` is 200, first-user setup and login work (bcrypt, plus a wrong-password 401), and an image upload is processed and read back (sharp). Credentials are generated per run.
 
 ## [1.30.7] - 2026-10-13
 
