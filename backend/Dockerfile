@@ -1,5 +1,5 @@
 # Build stage
-FROM node:20-alpine AS builder
+FROM node:24-alpine AS builder
 
 WORKDIR /app
 
@@ -20,7 +20,7 @@ RUN npm run prisma:generate
 RUN npm run build
 
 # Production stage - using slim (Debian) for better Prisma compatibility
-FROM node:20-slim
+FROM node:24-slim
 
 WORKDIR /app
 

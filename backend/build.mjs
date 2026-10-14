@@ -22,7 +22,7 @@ await build({
   entryPoints,
   outdir: 'dist',
   platform: 'node',
-  target: 'node20',
+  target: 'node24',
   format: 'esm',
   sourcemap: true,
   // Preserve directory structure (don't bundle)
