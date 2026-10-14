@@ -13,6 +13,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - backend: `vitest` 3.2.7 to 5.0.4 (supersedes Dependabot #177; clears the critical vitest/tinypool advisory: `npm audit` goes from 7 findings, 2 critical, to 4 moderate). No test or config changes were needed; all 644 tests pass. vitest 5 needs Node ^22.12 or >=24, so the backend and frontend CI job (`docker-build.yml`) now sets up Node 24 (the app image stays on Node 20 until the runtime PR). `@types/node` ^20 to ^24 in the backend, which vitest 5 requires as a peer (same ERESOLVE as notez-mcp). Vite (a vitest peer) moves 7.3.6 to 8.3.4 as a dev dependency only.
 
+## [1.30.8] - 2026-10-13
+
+### Fixed
+
+- notez-mcp: `npm ci` failed with an ERESOLVE peer conflict because `@types/node` was ^20 while vitest 5 needs ^22 or >=24. `@types/node` is now ^24 and vitest ^5.0.4 (5.0.0 to 5.0.4, supersedes Dependabot #129). Plain `npm ci` works, no `--legacy-peer-deps`.
+
+### Testing
+
+- New `.github/workflows/notez-mcp.yml`: notez-mcp install (`npm ci`), tests and build run in CI on GitHub-hosted Ubuntu with Node 24, as its own check, for pull requests and pushes to main that touch `notez-mcp/`. Actions pinned by commit SHA.
+
 ## [1.30.7] - 2026-10-13
 
 ### Changed
