@@ -19,6 +19,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - New `.github/workflows/image-smoke.yml`: builds the production image (no push) and runs it against Postgres 16 and a throwaway S3 endpoint (SeaweedFS; `minio/minio` is no longer pullable from Docker Hub). It checks the Node version, that the entrypoint applies every migration, `/health` is 200, first-user setup and login work (bcrypt, plus a wrong-password 401), and an image upload is processed and read back (sharp). Credentials are generated per run.
 
+## [1.30.10] - 2026-10-13
+
+### Changed
+
+- backend: `vitest` 3.2.7 to 5.0.4 (supersedes Dependabot #177; clears the critical vitest/tinypool advisory: `npm audit` goes from 7 findings, 2 critical, to 4 moderate). No test or config changes were needed; all 644 tests pass. vitest 5 needs Node ^22.12 or >=24, so the backend and frontend CI job (`docker-build.yml`) now sets up Node 24 (the app image stays on Node 20 until the runtime PR). `@types/node` ^20 to ^24 in the backend, which vitest 5 requires as a peer (same ERESOLVE as notez-mcp). Vite (a vitest peer) moves 7.3.6 to 8.3.4 as a dev dependency only.
+
 ## [1.30.9] - 2026-10-13
 
 ### Fixed
