@@ -1,7 +1,10 @@
 services:
   # MinIO Object Storage (S3-compatible)
   notez-minio:
-    image: minio/minio:latest
+    # Pinned to the exact running release; Docker Hub no longer serves minio/minio.
+    # The image is saved on accserver in /datapool/backups/images (ADAM-QUEUE 39).
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    pull_policy: never
     container_name: notez-minio
     restart: unless-stopped
     command: server /data --console-address ":9001"
