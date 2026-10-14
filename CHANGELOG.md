@@ -23,6 +23,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Database migration `20261013000000_task_waiting_source_start_parent`: additive only (one enum value, five nullable columns, one unique index, one index, one foreign key). Back up before deploying (see `DEPLOYMENT.md`).
 - Task create and update through the web app now answer 409, 400 or 404 for these rules instead of a generic 500.
+- Task list `offset` is capped at 100000 (session and external API).
+- A task link that is not http or https is shown as plain text, never as a clickable link (defence in depth; the API already refuses such links).
+
+### Fixed
+
+- A task created with status COMPLETED (now possible through the external API and MCP) gets `completedAt`, as a task completed later does.
 
 ## [1.30.7] - 2026-10-13
 

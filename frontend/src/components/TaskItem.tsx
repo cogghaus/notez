@@ -11,6 +11,19 @@ interface TaskItemProps {
   ownerLabel?: string;
 }
 
+/**
+ * Only http and https links become anchors. The API already refuses other schemes;
+ * this is defence in depth now that API clients and agents write task links.
+ */
+function isSafeLinkUrl(url: string): boolean {
+  try {
+    const { protocol } = new URL(url);
+    return protocol === 'http:' || protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 const priorityColors = {
   LOW: 'text-gray-500 dark:text-gray-400',
   MEDIUM: 'text-blue-500 dark:text-blue-400',
@@ -185,18 +198,30 @@ export default function TaskItem({
           {/* Expanded links section */}
           {hasLinks && showLinks && (
             <div className="mt-2 pl-1 space-y-1">
-              {task.links!.map((link) => (
-                <a
-                  key={link.id}
-                  href={link.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 text-xs text-blue-600 dark:text-blue-400 hover:underline"
-                >
-                  <ExternalLink className="w-3 h-3 flex-shrink-0" />
-                  <span className="truncate">{link.title || link.url}</span>
-                </a>
-              ))}
+              {task.links!.map((link) =>
+                isSafeLinkUrl(link.url) ? (
+                  <a
+                    key={link.id}
+                    href={link.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                  >
+                    <ExternalLink className="w-3 h-3 flex-shrink-0" />
+                    <span className="truncate">{link.title || link.url}</span>
+                  </a>
+                ) : (
+                  // Not http(s): shown as text, never as a clickable href
+                  <span
+                    key={link.id}
+                    className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400"
+                    title={link.url}
+                  >
+                    <Link2 className="w-3 h-3 flex-shrink-0" />
+                    <span className="truncate">{link.title || link.url}</span>
+                  </span>
+                )
+              )}
             </div>
           )}
         </div>
