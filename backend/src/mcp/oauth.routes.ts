@@ -307,7 +307,7 @@ export async function oauthRoutes(fastify: FastifyInstance) {
   // Requires authenticated session (Bearer token) + same-origin CSRF check
   fastify.post('/mcp/oauth/approve', {
     preHandler: authenticateToken,
-  }, async (request: FastifyRequest, reply: FastifyReply) => {
+  }, async (request: FastifyRequest) => {
     // CSRF defense: verify request originates from our own consent page
     const origin = request.headers.origin;
     const appUrl = getBaseUrl();

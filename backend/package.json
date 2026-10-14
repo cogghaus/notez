@@ -1,16 +1,17 @@
 {
   "name": "notez-backend",
-  "version": "1.30.8",
+  "version": "1.30.9",
   "description": "Notez backend API server",
   "main": "dist/index.js",
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "node build.mjs",
-    "build:typecheck": "tsc --noEmit",
+    "build:typecheck": "npm run typecheck",
+    "typecheck": "tsc --noEmit",
     "start": "node dist/index.js",
-    "lint": "eslint src --ext .ts",
-    "lint:fix": "eslint src --ext .ts --fix",
+    "lint": "eslint src",
+    "lint:fix": "eslint src --fix",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:migrate:prod": "prisma migrate deploy",
@@ -72,6 +73,7 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
     "@types/bcrypt": "^5.0.2",
     "@types/jsdom": "^21.1.7",
     "@types/node": "^20.19.43",
