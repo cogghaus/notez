@@ -547,7 +547,7 @@ Found while shipping Pocket ID SSO; none block v1.30.0, which is live and confir
 **Location:** `Dockerfile` (three `node:20-alpine` stages), `.github/workflows/docker-build.yml` and `e2e.yml` (`node-version: '20'`)
 **Issue:** Node 20 reached end of life on 2026-04-30 and gets no security fixes. Production runs on it.
 **Severity:** MEDIUM
-**Status:** Open -- move the Dockerfile and both workflows to the current LTS together, run backend, frontend and e2e suites, and check native modules (Prisma engines) on the new base image
+**Status:** FIXED in v1.30.11. All Dockerfiles (`Dockerfile`, `backend/Dockerfile`, `frontend/Dockerfile`, `frontend/Dockerfile.dev`), `docker-build.yml`, `e2e.yml` and the esbuild target now use Node 24 LTS; backend `@types/node` is ^24. Native modules checked at their pinned versions: sharp 0.35.5 (musl and glibc prebuilds, engines >=20.9), bcrypt 6.0.0 (N-API prebuilds incl. musl), Prisma 5.22 (needs OpenSSL, still installed in each image); no package in the three lockfiles excludes Node 24 except the Windows-only `@img/sharp-win32-ia32`.
 ---
 
 ## Version Notes

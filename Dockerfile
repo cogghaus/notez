@@ -2,7 +2,7 @@
 # Builds frontend and backend into a single optimized image
 
 # Stage 1: Build Frontend
-FROM node:20-alpine AS frontend-builder
+FROM node:24-alpine AS frontend-builder
 
 # Accept version as build argument, which can override the package.json version
 ARG APP_VERSION
@@ -35,7 +35,7 @@ RUN if [ -d "dist" ] && [ "$(ls -A dist)" ]; then \
     fi
 
 # Stage 2: Build Backend
-FROM node:20-alpine AS backend-builder
+FROM node:24-alpine AS backend-builder
 
 # Install OpenSSL for Prisma
 RUN apk add --no-cache openssl
@@ -66,7 +66,7 @@ RUN if [ -d "dist" ] && [ "$(ls -A dist)" ]; then \
 # The prisma package is required for running "npx prisma migrate deploy" in production
 
 # Stage 3: Production Image
-FROM node:20-alpine
+FROM node:24-alpine
 
 # Install runtime dependencies (dumb-init for signal handling, openssl for Prisma)
 RUN apk add --no-cache dumb-init openssl

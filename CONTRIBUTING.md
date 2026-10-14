@@ -4,7 +4,7 @@ Thanks for your interest in contributing to Notez! This guide covers the basics 
 
 ## Prerequisites
 
-- Node.js 20+
+- Node.js 24
 - PostgreSQL 16+
 - MinIO (or any S3-compatible storage)
 - Git

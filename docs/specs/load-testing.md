@@ -44,7 +44,7 @@ This specification defines the load testing strategy for Notez v1.0.0 stability 
 
 ### Prerequisites
 
-- Node.js 20+
+- Node.js 24
 - PostgreSQL 16 running locally
 - k6 installed (`brew install k6` or `choco install k6`)
 - Notez backend running in production mode
