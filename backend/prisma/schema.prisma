@@ -176,6 +176,20 @@ model Task {
   // Agent attribution
   createdByTokenId String?     @map("created_by_token_id")
 
+  // Who or what the task is waiting on (free text; meaningful with status WAITING)
+  waitingOn        String?     @map("waiting_on") @db.VarChar(255)
+
+  // Sync identity for tasks filed by another system (e.g. source "foyer").
+  // Unique per user together, so a retried create can never duplicate a task.
+  source           String?     @db.VarChar(50)
+  externalId       String?     @map("external_id") @db.VarChar(255)
+
+  // Do not start before (snooze)
+  startDate        DateTime?   @map("start_date")
+
+  // One-level subtasks: a subtask cannot have subtasks (enforced in task.service)
+  parentTaskId     String?     @map("parent_task_id")
+
   // Timestamps
   createdAt        DateTime    @default(now()) @map("created_at")
   updatedAt        DateTime    @updatedAt @map("updated_at")
@@ -186,15 +200,19 @@ model Task {
   note           Note?       @relation(fields: [noteId], references: [id], onDelete: Cascade)
   folder         Folder?     @relation(fields: [folderId], references: [id], onDelete: SetNull)
   createdByToken ApiToken?   @relation("taskCreatedByToken", fields: [createdByTokenId], references: [id], onDelete: SetNull)
+  parent         Task?       @relation("TaskSubtasks", fields: [parentTaskId], references: [id], onDelete: SetNull)
+  subtasks       Task[]      @relation("TaskSubtasks")
   tags           TaskTag[]
   links          TaskLink[]
 
+  @@unique([userId, source, externalId])
   @@index([userId, status])
   @@index([userId, dueDate])
   @@index([userId, priority])
   @@index([userId, createdAt])
   @@index([noteId])
   @@index([createdByTokenId])
+  @@index([parentTaskId])
   @@map("tasks")
 }
 
@@ -227,11 +245,13 @@ model TaskLink {
 }
 
 // Task status enum
+// WAITING is last on purpose: it matches what ALTER TYPE ... ADD VALUE produces
 enum TaskStatus {
   PENDING
   IN_PROGRESS
   COMPLETED
   CANCELLED
+  WAITING
 }
 
 // Task priority enum
