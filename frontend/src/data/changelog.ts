@@ -17,6 +17,11 @@ export const changelog: ChangelogEntry[] = [
     changed: ['Behind-the-scenes maintenance'],
   },
   {
+    version: '1.30.8',
+    date: '2026-10-13',
+    changed: ['Behind-the-scenes maintenance'],
+  },
+  {
     version: '1.30.7',
     date: '2026-10-13',
     changed: ['Behind-the-scenes maintenance'],

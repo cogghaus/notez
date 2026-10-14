@@ -19,6 +19,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - backend `typecheck` script and a CI step for it; flat ESLint config `backend/eslint.config.js` (the repo had none, so `npm run lint` could not run) and `@eslint/js` as an explicit dev dependency; lint scripts no longer pass the removed `--ext` flag. The CI lint step is a ratchet: it fails if the error count rises above the baseline of 544 pre-existing findings (513 `no-explicit-any`, 24 unused vars, 7 other).
 
+## [1.30.8] - 2026-10-13
+
+### Fixed
+
+- notez-mcp: `npm ci` failed with an ERESOLVE peer conflict because `@types/node` was ^20 while vitest 5 needs ^22 or >=24. `@types/node` is now ^24 and vitest ^5.0.4 (5.0.0 to 5.0.4, supersedes Dependabot #129). Plain `npm ci` works, no `--legacy-peer-deps`.
+
+### Testing
+
+- New `.github/workflows/notez-mcp.yml`: notez-mcp install (`npm ci`), tests and build run in CI on GitHub-hosted Ubuntu with Node 24, as its own check, for pull requests and pushes to main that touch `notez-mcp/`. Actions pinned by commit SHA.
+
 ## [1.30.7] - 2026-10-13
 
 ### Changed
