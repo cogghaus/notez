@@ -13,6 +13,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - backend: `vitest` 3.2.7 to 5.0.4 (supersedes Dependabot #177; clears the critical vitest/tinypool advisory: `npm audit` goes from 7 findings, 2 critical, to 4 moderate). No test or config changes were needed; all 644 tests pass. vitest 5 needs Node ^22.12 or >=24, so the backend and frontend CI job (`docker-build.yml`) now sets up Node 24 (the app image stays on Node 20 until the runtime PR). `@types/node` ^20 to ^24 in the backend, which vitest 5 requires as a peer (same ERESOLVE as notez-mcp). Vite (a vitest peer) moves 7.3.6 to 8.3.4 as a dev dependency only.
 
+## [1.30.9] - 2026-10-13
+
+### Fixed
+
+- backend: `tsc --noEmit` ran out of memory (more than 4 GB, about 4 minutes, then a heap crash), so the backend was never type-checked. Cause: `moduleResolution: "node"` made the root `zod` import and the `zod/v3` the MCP SDK uses resolve to different declaration files, so every `server.registerTool()` in `src/mcp/tools.ts` failed the SDK's schema check and TypeScript tried to relate the two deep type trees. `module` and `moduleResolution` `nodenext` fix it (esbuild transpiles per file and Node runs the output unbundled, so Node's own resolution rules are the right model): type-check now takes about 7 seconds and 550 MB. No heap increase needed.
+- backend telemetry: `BatchLogRecordProcessor` takes `{ exporter }` in `@opentelemetry/sdk-logs` 0.222; the exporter was being passed directly, so with OTLP enabled the log exporter was never wired. Found by the type-check; regression test in `src/telemetry.test.ts`.
+- backend: removed an unused `reply` parameter in the MCP OAuth approve handler (type-check error, no behaviour change).
+
+### Added
+
+- backend `typecheck` script and a CI step for it; flat ESLint config `backend/eslint.config.js` (the repo had none, so `npm run lint` could not run) and `@eslint/js` as an explicit dev dependency; lint scripts no longer pass the removed `--ext` flag. The CI lint step is a ratchet: it fails if the error count rises above the baseline of 544 pre-existing findings (513 `no-explicit-any`, 24 unused vars, 7 other).
+
 ## [1.30.8] - 2026-10-13
 
 ### Fixed
