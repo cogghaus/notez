@@ -806,7 +806,7 @@ GET /api/tasks
 | `sortBy` | string | priority, dueDate, createdAt, title, startDate (default: priority) |
 | `sortOrder` | string | asc, desc (default: desc) |
 | `limit` | integer | Default 50, max 100 |
-| `offset` | integer | Default 0 |
+| `offset` | integer | Default 0, max 100000 |
 
 **Response:**
 ```json
@@ -1926,7 +1926,7 @@ Rate limit: 120 requests/minute per token.
 | `sortBy` | string | `priority` (default), `dueDate`, `createdAt`, `title`, `startDate` |
 | `sortOrder` | string | `desc` (default) or `asc`; `dueDate` and `startDate` put nulls last when ascending |
 | `limit` | integer | Default 20, max 100 |
-| `offset` | integer | Default 0 |
+| `offset` | integer | Default 0, max 100000 |
 
 Response: `{ "tasks": [...], "total": n, "limit": n, "offset": n }`. List items carry `parent` (`{ id, title }` or null) but not `subtasks`.
 

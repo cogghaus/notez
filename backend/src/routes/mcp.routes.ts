@@ -15,6 +15,7 @@ import {
   TASK_SORT_FIELDS,
   TASK_EXTERNAL_ID_NEEDS_SOURCE_MESSAGE,
   TASK_SYNC_IDENTITY_IMMUTABLE_MESSAGE,
+  TASK_LIST_MAX_OFFSET,
   taskStatusSchema,
   taskSourceSchema,
   taskExternalIdSchema,
@@ -75,7 +76,7 @@ const listTasksQuery = z.object({
   sortBy: z.enum(TASK_SORT_FIELDS).default('priority'),
   sortOrder: z.enum(['asc', 'desc']).default('desc'),
   limit: z.coerce.number().int().min(1).max(100).default(20),
-  offset: z.coerce.number().int().min(0).default(0),
+  offset: z.coerce.number().int().min(0).max(TASK_LIST_MAX_OFFSET).default(0),
 }).refine((q) => q.externalId === undefined || q.source !== undefined, {
   message: TASK_EXTERNAL_ID_NEEDS_SOURCE_MESSAGE,
   path: ['externalId'],
@@ -93,7 +94,7 @@ const taskIdParam = z.object({
 const createTaskBody = z.object({
   title: z.string().min(1).max(500),
   description: z.string().max(50000).optional(),
-  status: taskStatusSchema.default('PENDING').optional(),
+  status: taskStatusSchema.optional(), // the service defaults to PENDING
   priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'URGENT']).default('MEDIUM').optional(),
   dueDate: z.string().datetime().optional(),
   startDate: taskStartDateSchema.optional(),

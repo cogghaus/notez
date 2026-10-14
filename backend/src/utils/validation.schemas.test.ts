@@ -735,6 +735,11 @@ describe('validation.schemas', () => {
     it('list query refuses externalId without source', () => {
       expectInvalid(listTasksQuerySchema, { externalId: 'x' });
     });
+
+    it('list query caps offset at 100000', () => {
+      expect(listTasksQuerySchema.parse({ offset: '100000' }).offset).toBe(100000);
+      expectInvalid(listTasksQuerySchema, { offset: '100001' });
+    });
   });
 
   // ─── changeUsernameSchema ─────────────────────────────────────────────

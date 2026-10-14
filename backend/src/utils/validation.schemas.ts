@@ -281,7 +281,7 @@ const taskSyncIdentityRefused = z.undefined({ errorMap: () => ({ message: TASK_S
 export const createTaskSchema = z.object({
   title: z.string().min(1, 'Title is required').max(500, 'Title must not exceed 500 characters'),
   description: z.string().optional(),
-  status: taskStatusSchema.default('PENDING').optional(),
+  status: taskStatusSchema.optional(), // the service defaults to PENDING
   priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'URGENT']).default('MEDIUM').optional(),
   dueDate: z.string().datetime().optional(),
   noteId: z.string().uuid('Invalid note ID').optional(),
@@ -332,6 +332,9 @@ export type TaskSortField = typeof TASK_SORT_FIELDS[number];
 
 export const TASK_EXTERNAL_ID_NEEDS_SOURCE_MESSAGE = 'externalId requires source';
 
+/** Upper bound for list offsets: bounds the work a deep OFFSET scan can ask of the database */
+export const TASK_LIST_MAX_OFFSET = 100_000;
+
 export const listTasksQuerySchema = z.object({
   status: z.union([
     taskStatusSchema,
@@ -348,7 +351,7 @@ export const listTasksQuerySchema = z.object({
   sortBy: z.enum(TASK_SORT_FIELDS).default('priority').optional(),
   sortOrder: z.enum(['asc', 'desc']).default('desc').optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
-  offset: z.coerce.number().int().min(0).default(0),
+  offset: z.coerce.number().int().min(0).max(TASK_LIST_MAX_OFFSET).default(0),
 }).refine((q) => q.externalId === undefined || q.source !== undefined, {
   message: TASK_EXTERNAL_ID_NEEDS_SOURCE_MESSAGE,
   path: ['externalId'],

@@ -124,7 +124,10 @@ describe('external API (mcp.routes) tasks', () => {
   });
 
   // ─── GET /tasks/by-external-id ──────────────────────────────────────
-  it('resolves by-external-id before /tasks/:id', async () => {
+  // Documents behaviour, it cannot catch a regression on its own: find-my-way always
+  // prefers the static segment "by-external-id" over ":id", whatever the registration order.
+  // (":id" also requires a UUID, so the old router would have answered 400, not 200.)
+  it('routes /tasks/by-external-id to the by-external-id handler, not /tasks/:id', async () => {
     mockTasks.getTaskByExternalId.mockResolvedValue({ id: TASK_ID, source: 'foyer', externalId: 'p-1' } as any);
 
     const res = await app.inject({ method: 'GET', url: '/api/v1/tasks/by-external-id?source=foyer&externalId=p-1', headers: AUTH });
