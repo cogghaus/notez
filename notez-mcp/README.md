@@ -58,11 +58,20 @@ Add the following to your Claude Code MCP settings:
 | `notez_list_recent` | read | List recently updated notes |
 | `notez_create_note` | write | Create a new note |
 | `notez_append_to_note` | write | Append content to an existing note |
-| `notez_list_tasks` | read | List tasks with optional filters |
-| `notez_get_task` | read | Get a task by ID |
-| `notez_create_task` | write | Create a new task |
-| `notez_update_task_status` | write | Update a task's status |
+| `notez_list_tasks` | read | List tasks, filtered by status, `source` + `externalId` or `parentTaskId` (limit up to 100) |
+| `notez_get_task` | read | Get a task by ID, with its parent and subtasks |
+| `notez_create_task` | write | Create a new task (status, dates, waiting-on, note, folder, parent, links, `source` + `externalId`) |
+| `notez_update_task` | write | Update a task (everything but `source` and `externalId`; links and tags are replaced) |
 | `notez_list_folders` | read | List all folders |
+
+### Task fields (1.14.0, needs Notez 1.31.0 or later)
+
+- **Status** is one of `PENDING`, `IN_PROGRESS`, `WAITING`, `COMPLETED`, `CANCELLED`. `waitingOn` says who or what a `WAITING` task waits on; it is free text and is not cleared on a status change.
+- **`startDate`** is "do not start before" (ISO 8601). It must not be after `dueDate` when both are sent.
+- **`source` + `externalId`** identify a task filed by another system (for example `source: "foyer"`). They are set together at creation, are unique per user, and cannot be changed: a second create with the same pair fails with "already exists", which makes retries safe.
+- **`parentTaskId`** makes a task a subtask. Subtasks are one level deep: a subtask cannot have subtasks, and a task with subtasks cannot become one. Deleting a parent keeps its subtasks as top-level tasks.
+
+Against an older Notez the new fields are ignored rather than refused, so check the server version (`GET /health` returns `version` from 1.31.0) before relying on them.
 
 ## Creating an API Token
 

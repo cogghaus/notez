@@ -8,6 +8,10 @@ import type {
   TaskListResponse,
   NoteListResponse,
   SuccessResponse,
+  TaskStatus,
+  CreateTaskInput,
+  UpdateTaskInput,
+  ListTasksOptions,
 } from './types.js';
 
 /**
@@ -135,9 +139,25 @@ export class NotezClient {
 
   // ─── Tasks ──────────────────────────────────────────────────────────
 
-  async listTasks(status?: string, limit = 20): Promise<TaskListResponse> {
-    const params = new URLSearchParams({ limit: String(limit) });
-    if (status) params.set('status', status);
+  /**
+   * List tasks. Takes an options object, or the older (status, limit) pair.
+   */
+  async listTasks(options?: ListTasksOptions | TaskStatus, limit = 20): Promise<TaskListResponse> {
+    const opts: ListTasksOptions = typeof options === 'string' || options === undefined
+      ? { status: options, limit }
+      : options;
+    const params = new URLSearchParams();
+    if (opts.status !== undefined) {
+      params.set('status', Array.isArray(opts.status) ? opts.status.join(',') : opts.status);
+    }
+    if (opts.source) params.set('source', opts.source);
+    if (opts.externalId) params.set('externalId', opts.externalId);
+    if (opts.parentTaskId) params.set('parentTaskId', opts.parentTaskId);
+    if (opts.folderId) params.set('folderId', opts.folderId);
+    if (opts.sortBy) params.set('sortBy', opts.sortBy);
+    if (opts.sortOrder) params.set('sortOrder', opts.sortOrder);
+    if (opts.limit !== undefined) params.set('limit', String(opts.limit));
+    if (opts.offset !== undefined) params.set('offset', String(opts.offset));
     return this.request<TaskListResponse>(`/tasks?${params}`);
   }
 
@@ -145,36 +165,27 @@ export class NotezClient {
     return this.request<NotezTask>(`/tasks/${id}`);
   }
 
-  async createTask(data: {
-    title: string;
-    description?: string;
-    priority?: string;
-    dueDate?: string;
-    folderId?: string;
-    tags?: string[];
-  }): Promise<NotezTask> {
+  /** Find a task by the id another system gave it; 404 (thrown) when absent */
+  async getTaskByExternalId(source: string, externalId: string): Promise<NotezTask> {
+    const params = new URLSearchParams({ source, externalId });
+    return this.request<NotezTask>(`/tasks/by-external-id?${params}`);
+  }
+
+  async createTask(data: CreateTaskInput): Promise<NotezTask> {
     return this.request<NotezTask>('/tasks', {
       method: 'POST',
       body: JSON.stringify(data),
     });
   }
 
-  async updateTaskStatus(id: string, status: string): Promise<NotezTask> {
+  async updateTaskStatus(id: string, status: TaskStatus): Promise<NotezTask> {
     return this.request<NotezTask>(`/tasks/${id}/status`, {
       method: 'PATCH',
       body: JSON.stringify({ status }),
     });
   }
 
-  async updateTask(id: string, data: {
-    title?: string;
-    description?: string;
-    status?: string;
-    priority?: string;
-    dueDate?: string | null;
-    folderId?: string | null;
-    tags?: string[];
-  }): Promise<NotezTask> {
+  async updateTask(id: string, data: UpdateTaskInput): Promise<NotezTask> {
     return this.request<NotezTask>(`/tasks/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
