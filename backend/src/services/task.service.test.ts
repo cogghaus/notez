@@ -34,6 +34,14 @@ import {
 import { prisma } from '../lib/db.js';
 import { NotFoundError, BadRequestError, ConflictError } from '../utils/errors.js';
 
+/** Shape of the findMany or findFirst args the tests inspect */
+interface CapturedArgs {
+  where: Record<string, unknown>;
+  orderBy: unknown[];
+  include: Record<string, unknown>;
+}
+
+
 const mockPrisma = vi.mocked(prisma);
 
 const USER = 'user-1';
@@ -56,8 +64,8 @@ describe('task.service', () => {
   beforeEach(() => {
     vi.resetAllMocks();
     // Interactive transactions run the callback against tx; array transactions resolve each promise
-    mockPrisma.$transaction.mockImplementation(async (arg: any) =>
-      typeof arg === 'function' ? arg(tx) : Promise.all(arg)
+    mockPrisma.$transaction.mockImplementation((async (arg: ((client: typeof tx) => unknown) | Promise<unknown>[]) =>
+      typeof arg === 'function' ? arg(tx) : Promise.all(arg)) as never
     );
     tx.$queryRaw.mockResolvedValue([]);
     tx.task.create.mockResolvedValue(savedTask());
@@ -252,39 +260,39 @@ describe('task.service', () => {
     it('filters by source + externalId and parentTaskId', async () => {
       await listTasks(USER, { source: 'foyer', externalId: 'proposal-1', parentTaskId: PARENT_ID });
 
-      const args = mockPrisma.task.findMany.mock.calls[0][0] as any;
+      const args = mockPrisma.task.findMany.mock.calls[0][0] as unknown as CapturedArgs;
       expect(args.where).toMatchObject({ userId: USER, source: 'foyer', externalId: 'proposal-1', parentTaskId: PARENT_ID });
     });
 
     it('filters by a status list including WAITING', async () => {
       await listTasks(USER, { status: ['PENDING', 'IN_PROGRESS', 'WAITING'] });
 
-      const args = mockPrisma.task.findMany.mock.calls[0][0] as any;
+      const args = mockPrisma.task.findMany.mock.calls[0][0] as unknown as CapturedArgs;
       expect(args.where.status).toEqual({ in: ['PENDING', 'IN_PROGRESS', 'WAITING'] });
     });
 
     it('sorts by startDate with nulls last when ascending', async () => {
       await listTasks(USER, { sortBy: 'startDate', sortOrder: 'asc' });
 
-      const args = mockPrisma.task.findMany.mock.calls[0][0] as any;
+      const args = mockPrisma.task.findMany.mock.calls[0][0] as unknown as CapturedArgs;
       expect(args.orderBy[0]).toEqual({ startDate: { sort: 'asc', nulls: 'last' } });
     });
 
     it('includes the parent (id, title) on each task', async () => {
       await listTasks(USER);
 
-      const args = mockPrisma.task.findMany.mock.calls[0][0] as any;
+      const args = mockPrisma.task.findMany.mock.calls[0][0] as unknown as CapturedArgs;
       expect(args.include.parent).toEqual({ select: { id: true, title: true } });
     });
   });
 
   describe('getTaskById', () => {
     it('includes parent and subtasks ordered by createdAt', async () => {
-      mockPrisma.task.findFirst.mockResolvedValue(savedTask({ parent: null, subtasks: [] }) as any);
+      mockPrisma.task.findFirst.mockResolvedValue(savedTask({ parent: null, subtasks: [] }) as unknown as Awaited<ReturnType<typeof prisma.task.findFirst>>);
 
       await getTaskById(TASK_ID, USER);
 
-      const args = mockPrisma.task.findFirst.mock.calls[0][0] as any;
+      const args = mockPrisma.task.findFirst.mock.calls[0][0] as unknown as CapturedArgs;
       expect(args.include.parent).toEqual({ select: { id: true, title: true } });
       expect(args.include.subtasks).toEqual({
         select: { id: true, title: true, status: true, dueDate: true },
@@ -305,7 +313,7 @@ describe('task.service', () => {
 
     it('returns the task with flattened tags on a hit', async () => {
       mockPrisma.task.findFirst.mockResolvedValue(
-        savedTask({ source: 'foyer', externalId: 'p-1', tags: [{ tag: { id: 't1', name: 'memo' } }] }) as any
+        savedTask({ source: 'foyer', externalId: 'p-1', tags: [{ tag: { id: 't1', name: 'memo' } }] }) as unknown as Awaited<ReturnType<typeof prisma.task.findFirst>>
       );
 
       const task = await getTaskByExternalId(USER, 'foyer', 'p-1');
@@ -316,8 +324,8 @@ describe('task.service', () => {
 
   describe('getTaskStats', () => {
     it('returns waitingTasks', async () => {
-      mockPrisma.task.count.mockImplementation((async (args: any) =>
-        args?.where?.status === 'WAITING' ? 3 : 1) as any);
+      mockPrisma.task.count.mockImplementation((async (args?: { where?: { status?: string } }) =>
+        args?.where?.status === 'WAITING' ? 3 : 1) as never);
 
       const stats = await getTaskStats(USER);
 

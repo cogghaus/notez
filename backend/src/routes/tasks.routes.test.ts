@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import Fastify, { type FastifyInstance } from 'fastify';
+import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 
 vi.mock('../middleware/auth.middleware.js', () => ({
-  authenticateToken: async (request: any) => {
+  authenticateToken: async (request: FastifyRequest) => {
     request.user = { userId: 'user-1', username: 'adam', role: 'user' };
   },
 }));
@@ -77,7 +77,7 @@ describe('session task routes: typed service errors', () => {
   });
 
   it('list passes the source, externalId and parentTaskId filters', async () => {
-    mockTasks.listTasks.mockResolvedValue({ tasks: [], total: 0, limit: 50, offset: 0 } as any);
+    mockTasks.listTasks.mockResolvedValue({ tasks: [], total: 0, limit: 50, offset: 0 } as unknown as Awaited<ReturnType<typeof taskService.listTasks>>);
 
     await app.inject({ method: 'GET', url: `/api/tasks?source=foyer&externalId=p-1&parentTaskId=${PARENT_ID}` });
 

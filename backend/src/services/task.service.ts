@@ -150,7 +150,7 @@ export async function getTaskByExternalId(userId: string, source: string, extern
 
   return {
     ...task,
-    tags: task.tags.map((tt: any) => tt.tag),
+    tags: task.tags.map((tt) => tt.tag),
   };
 }
 
@@ -328,7 +328,7 @@ export async function listTasks(
  */
 export async function createTask(userId: string, data: CreateTaskInput, createdByTokenId?: string) {
   try {
-    return await prisma.$transaction(async (tx: any) => {
+    return await prisma.$transaction(async (tx) => {
       // If folderId is provided, verify it belongs to the user
       if (data.folderId) {
         const folder = await tx.folder.findFirst({
@@ -367,7 +367,7 @@ export async function createTask(userId: string, data: CreateTaskInput, createdB
       }
 
       // Handle tags if provided - use upsert to prevent race conditions
-      let tagConnections: any[] = [];
+      let tagConnections: Prisma.TaskTagCreateWithoutTaskInput[] = [];
       if (data.tags && data.tags.length > 0) {
         const tagUpserts = data.tags.map((tagName) =>
           tx.tag.upsert({
@@ -384,7 +384,7 @@ export async function createTask(userId: string, data: CreateTaskInput, createdB
       }
 
       // Prepare links if provided
-      let linkConnections: any[] = [];
+      let linkConnections: Prisma.TaskLinkCreateWithoutTaskInput[] = [];
       if (data.links && data.links.length > 0) {
         linkConnections = data.links.map((link) => ({
           url: link.url,
@@ -426,7 +426,7 @@ export async function createTask(userId: string, data: CreateTaskInput, createdB
       // Transform tags to simpler format
       return {
         ...task,
-        tags: task.tags.map((tt: any) => tt.tag),
+        tags: task.tags.map((tt) => tt.tag),
       };
     });
   } catch (error) {

@@ -262,6 +262,7 @@ describe('tools', () => {
   });
 
   describe('task tools: WAITING, sync identity, startDate, subtasks', () => {
+    type ToolResult = { isError: boolean; content: { text: string }[] };
     const PARENT_ID = '22222222-2222-4222-8222-222222222222';
     const NOTE_ID = '33333333-3333-4333-8333-333333333333';
 
@@ -269,7 +270,7 @@ describe('tools', () => {
       const defs: Record<string, { inputSchema: Record<string, z.ZodTypeAny> }> = {};
       const handlers: Record<string, (args: unknown) => Promise<unknown>> = {};
       const mock = {
-        registerTool: vi.fn((name: string, def: any, handler: any) => {
+        registerTool: vi.fn((name: string, def: { inputSchema: Record<string, z.ZodTypeAny> }, handler: (args: unknown) => Promise<unknown>) => {
           defs[name] = def;
           handlers[name] = handler;
         }),
@@ -280,7 +281,7 @@ describe('tools', () => {
 
     it('notez_create_task forwards status, noteId, links, waitingOn, startDate, parentTaskId, source and externalId', async () => {
       const { handlers } = capture();
-      vi.mocked(createTask).mockResolvedValue({ id: 't1' } as any);
+      vi.mocked(createTask).mockResolvedValue({ id: 't1' } as unknown as Awaited<ReturnType<typeof createTask>>);
       const args = {
         title: 'Call the notary',
         status: 'WAITING',
@@ -293,7 +294,7 @@ describe('tools', () => {
         externalId: 'p-1',
       };
 
-      const result = await handlers['notez_create_task'](args) as any;
+      const result = await handlers['notez_create_task'](args) as ToolResult;
 
       expect(result.isError).toBe(false);
       expect(createTask).toHaveBeenCalledWith('user-1', expect.objectContaining(args));
@@ -303,7 +304,7 @@ describe('tools', () => {
       const { handlers } = capture();
       vi.mocked(createTask).mockClear();
 
-      const result = await handlers['notez_create_task']({ title: 'T', source: 'foyer' }) as any;
+      const result = await handlers['notez_create_task']({ title: 'T', source: 'foyer' }) as ToolResult;
 
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toContain('source and externalId');
@@ -312,7 +313,7 @@ describe('tools', () => {
 
     it('notez_update_task forwards the new fields and has no source or externalId input', async () => {
       const { defs, handlers } = capture();
-      vi.mocked(updateTask).mockResolvedValue({ id: 't1' } as any);
+      vi.mocked(updateTask).mockResolvedValue({ id: 't1' } as unknown as Awaited<ReturnType<typeof updateTask>>);
       const args = {
         id: '11111111-1111-4111-8111-111111111111',
         status: 'WAITING',
@@ -333,7 +334,7 @@ describe('tools', () => {
 
     it('notez_list_tasks accepts WAITING and filters by source, externalId and parentTaskId', async () => {
       const { defs, handlers } = capture();
-      vi.mocked(listTasks).mockResolvedValue({ tasks: [], total: 0, limit: 20, offset: 0 } as any);
+      vi.mocked(listTasks).mockResolvedValue({ tasks: [], total: 0, limit: 20, offset: 0 } as unknown as Awaited<ReturnType<typeof listTasks>>);
 
       expect(() => defs['notez_list_tasks'].inputSchema.status.parse('WAITING')).not.toThrow();
 

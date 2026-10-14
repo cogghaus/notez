@@ -67,10 +67,10 @@ describe('external API with real scope checks and the real task service', () => 
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    mockPrisma.$transaction.mockImplementation((async (fn: any) => fn(tx)) as any);
+    mockPrisma.$transaction.mockImplementation((async (fn: (client: typeof tx) => unknown) => fn(tx)) as never);
     mockPrisma.task.findMany.mockResolvedValue([]);
     mockPrisma.task.count.mockResolvedValue(0);
-    mockPrisma.task.findFirst.mockResolvedValue(stored as any);
+    mockPrisma.task.findFirst.mockResolvedValue(stored as unknown as Awaited<ReturnType<typeof prisma.task.findFirst>>);
     tx.task.create.mockResolvedValue(stored);
     app = Fastify();
     await app.register(mcpRoutes, { prefix: '/api/v1' });

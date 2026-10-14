@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import Fastify, { type FastifyInstance } from 'fastify';
+import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import { readFileSync } from 'fs';
 
 // Token auth has its own tests; here a request is either a read+write token or nothing
 vi.mock('../middleware/auth.middleware.js', () => ({
-  authenticateApiToken: async (request: any, reply: any) => {
+  authenticateApiToken: async (request: FastifyRequest, reply: FastifyReply) => {
     if (request.headers.authorization !== 'Bearer ntez_test') {
       return reply.status(401).send({ error: 'Unauthorized', message: 'Invalid API token' });
     }
@@ -54,7 +54,7 @@ describe('external API (mcp.routes) tasks', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    mockTasks.listTasks.mockResolvedValue({ tasks: [], total: 0, limit: 20, offset: 0 } as any);
+    mockTasks.listTasks.mockResolvedValue({ tasks: [], total: 0, limit: 20, offset: 0 } as unknown as Awaited<ReturnType<typeof taskService.listTasks>>);
     app = Fastify();
     await app.register(mcpRoutes, { prefix: '/api/v1' });
     await app.register(mcpRoutes, { prefix: '/api/mcp' });
@@ -128,7 +128,7 @@ describe('external API (mcp.routes) tasks', () => {
   // prefers the static segment "by-external-id" over ":id", whatever the registration order.
   // (":id" also requires a UUID, so the old router would have answered 400, not 200.)
   it('routes /tasks/by-external-id to the by-external-id handler, not /tasks/:id', async () => {
-    mockTasks.getTaskByExternalId.mockResolvedValue({ id: TASK_ID, source: 'foyer', externalId: 'p-1' } as any);
+    mockTasks.getTaskByExternalId.mockResolvedValue({ id: TASK_ID, source: 'foyer', externalId: 'p-1' } as unknown as Awaited<ReturnType<typeof taskService.getTaskByExternalId>>);
 
     const res = await app.inject({ method: 'GET', url: '/api/v1/tasks/by-external-id?source=foyer&externalId=p-1', headers: AUTH });
 
@@ -154,7 +154,7 @@ describe('external API (mcp.routes) tasks', () => {
 
   // ─── POST /tasks ────────────────────────────────────────────────────
   it('creates a task with every new field and answers 201', async () => {
-    mockTasks.createTask.mockResolvedValue({ id: TASK_ID, status: 'WAITING', source: 'foyer', externalId: 'p-1' } as any);
+    mockTasks.createTask.mockResolvedValue({ id: TASK_ID, status: 'WAITING', source: 'foyer', externalId: 'p-1' } as unknown as Awaited<ReturnType<typeof taskService.createTask>>);
     const body = {
       title: 'Call the notary',
       description: 'quote',
@@ -202,7 +202,7 @@ describe('external API (mcp.routes) tasks', () => {
 
   // ─── PATCH /tasks/:id and /status ───────────────────────────────────
   it('updates the new fields, clearing with null', async () => {
-    mockTasks.updateTask.mockResolvedValue({ id: TASK_ID } as any);
+    mockTasks.updateTask.mockResolvedValue({ id: TASK_ID } as unknown as Awaited<ReturnType<typeof taskService.updateTask>>);
     const body = {
       startDate: null,
       waitingOn: null,
@@ -228,7 +228,7 @@ describe('external API (mcp.routes) tasks', () => {
   });
 
   it('accepts WAITING on the status route', async () => {
-    mockTasks.updateTaskStatus.mockResolvedValue({ id: TASK_ID, status: 'WAITING' } as any);
+    mockTasks.updateTaskStatus.mockResolvedValue({ id: TASK_ID, status: 'WAITING' } as unknown as Awaited<ReturnType<typeof taskService.updateTaskStatus>>);
 
     const res = await app.inject({ method: 'PATCH', url: `/api/v1/tasks/${TASK_ID}/status`, headers: AUTH, payload: { status: 'WAITING' } });
 
