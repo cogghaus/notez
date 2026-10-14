@@ -43,7 +43,7 @@ function isSyncIdentityConflict(error: unknown): boolean {
  * checks below see committed state, so two concurrent updates cannot build a
  * two-level chain or a cycle (A under B while B goes under A).
  */
-async function lockTaskRows(tx: any, ids: string[]) {
+async function lockTaskRows(tx: Prisma.TransactionClient, ids: string[]) {
   const sorted = [...new Set(ids)].sort();
   await tx.$queryRaw(
     Prisma.sql`SELECT id FROM tasks WHERE id IN (${Prisma.join(sorted)}) ORDER BY id FOR UPDATE`
@@ -54,7 +54,7 @@ async function lockTaskRows(tx: any, ids: string[]) {
  * Check that parentTaskId can be the parent of a task: owned by the user and
  * not itself a subtask (subtasks are one level deep).
  */
-async function assertValidParent(tx: any, userId: string, parentTaskId: string) {
+async function assertValidParent(tx: Prisma.TransactionClient, userId: string, parentTaskId: string) {
   const parent = await tx.task.findFirst({
     where: { id: parentTaskId, userId },
     select: { id: true, parentTaskId: true },
