@@ -528,6 +528,20 @@ Found while shipping Pocket ID SSO; none block v1.30.0, which is live and confir
 **Severity:** LOW
 **Status:** Open -- fix the existing errors, then add lint to CI
 
+## Found During the Mobile Rework (2026-10-11)
+
+### 70. Dev compose backend never starts
+**Location:** `compose.yml` (`backend` service builds `backend/Dockerfile`)
+**Issue:** The dev stack builds the backend from the production Dockerfile, which drops dev dependencies, then runs `npm run dev` (`tsx watch`). The container exits with `tsx: not found` after migrating. Postgres and MinIO from the same file work. Workaround used for the mobile preview: run the backend on the host against the compose Postgres and MinIO.
+**Severity:** MEDIUM (blocks the documented local stack)
+**Status:** Open -- add a dev target (or `Dockerfile.dev`) that keeps dev dependencies, or run `tsx` from a dev-deps install in the container
+
+### 71. Frontend end-to-end tests do not run in CI
+**Location:** `frontend/e2e/`, `frontend/playwright.config.ts` (added in PR1 of the mobile rework)
+**Issue:** The Playwright suite (mobile keyboard and scroll regression) runs locally with `npm run test:e2e` only. CI does not install browsers or run it, so a regression would only be caught locally.
+**Severity:** LOW
+**Status:** Open -- add a CI job (Chromium only, hermetic, no backend needed)
+
 ---
 
 ## Version Notes

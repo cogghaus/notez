@@ -16,13 +16,13 @@
   background: transparent;
   max-width: 100%;
   overflow-x: hidden;
-  /* Use absolute positioning within flex container to properly constrain height */
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  /* The one vertical scroller for the note: a flex child of the editor host that may shrink
+     (min-height: 0) so it follows the visible viewport height. */
+  position: relative;
+  flex: 1 1 0;
+  min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 /* ProseMirror container needs proper height to enable scrolling */

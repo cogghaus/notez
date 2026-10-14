@@ -50,6 +50,9 @@ jobs:
       - name: Run frontend tests
         run: npx vitest run
         working-directory: frontend
+      - name: Type-check frontend e2e
+        run: npm run typecheck:e2e
+        working-directory: frontend
       - name: Build frontend
         run: npm run build
         working-directory: frontend

@@ -7,6 +7,7 @@ import { getBaseExtensions, EDITOR_PROSE_CLASS } from './editorExtensions';
 import { ReferencesPanel } from './ReferencesPanel';
 import { uploadImage } from '../api/images';
 import { ImagePlus } from 'lucide-react';
+import { useKeepCaretVisible } from '../lib/useKeepCaretVisible';
 import './TiptapEditor.css';
 
 interface TiptapEditorProps {
@@ -361,6 +362,8 @@ export function TiptapEditor({ content, onChange, disabled = false, placeholder 
   const handleUploadClick = useCallback(() => {
     fileInputRef.current?.click();
   }, []);
+
+  useKeepCaretVisible(editor);
 
   if (!editor) {
     return null;

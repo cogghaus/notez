@@ -37,6 +37,7 @@ import { CollaborationPresence } from './CollaborationPresence';
 import { getBaseExtensions, EDITOR_PROSE_CLASS } from './editorExtensions';
 import { uploadImage } from '../api/images';
 import { ImagePlus } from 'lucide-react';
+import { useKeepCaretVisible } from '../lib/useKeepCaretVisible';
 import './TiptapEditor.css';
 import './CollaborationCursors.css';
 
@@ -222,6 +223,9 @@ function CollabEditorContent({
     },
   });
 
+  // Keep the caret visible when the on-screen keyboard changes the visible height
+  useKeepCaretVisible(editor);
+
   // Update editable state without recreating editor
   useEffect(() => {
     if (editor) {
@@ -304,7 +308,7 @@ function CollabEditorContent({
       )}
 
       {/* Editor */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
         <EditorContent editor={editor} className="h-full" />
       </div>
 

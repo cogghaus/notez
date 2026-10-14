@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.30.5] - 2026-10-12
+
+### Fixed
+
+- Mobile editor: notes stay scrollable and the caret stays visible while the on-screen keyboard is open (mobile rework PR1, `docs/mobile/03-build-plan.md`). The editor shell was sized with `100vh`, which Chrome on Android does not shrink for the keyboard, so the bottom of the note and the caret ended up behind it. The shell now follows the visible height (`--app-h`, written by `frontend/src/lib/viewport.ts` from `visualViewport`), and the note body is a single shrinkable flex scroller in the formatted, collaborative and raw editors. The caret is scrolled back into view after the visible height changes (Tiptap and Monaco).
+- Keyboard detection (`html[data-kb]`) works whether the browser shrinks only the visual viewport (Chrome default) or the layout viewport too (`interactive-widget=resizes-content`, Gecko): it compares the visible height with the full height recorded per screen width, survives rotating or unfolding with the keyboard up, ignores pinch zoom, and never fires on devices without a touch screen or while no text field has focus.
+- Task form and task import dialogs cap their height at the visible height.
+
+### Changed
+
+- Minimal writing mode below 1280px: with the keyboard open and focus in the note editor, the app header, the folder, tag and AI rows, the word count footer and the bottom navigation are hidden, so the note gets the visible area (measured 76 to 88 percent of it, against 0 to 62px of note before on browsers that resize the layout viewport). Everything returns when focus leaves the editor. Status banners (view-only, shared, service account, trash), the title row and the save state stay visible. The full writing mode of the mobile spec (section 5.3) replaces this in PR4.
+- Viewport meta: `viewport-fit=cover, interactive-widget=resizes-content`.
+- `body` minimum height follows the visible height.
+
+### Testing
+
+- Playwright 1.63.0 (pinned) e2e, `frontend/e2e/editor-keyboard.spec.ts`: hermetic (API mocked), runs at the four device-matrix viewports in both keyboard modes with a controllable fake `visualViewport`. `npm run test:e2e`; type-checked in CI via `npm run typecheck:e2e` (known issue #71: the e2e itself does not run in CI yet).
+- Unit tests for the viewport module and the viewport-height hook.
+
+### Documentation
+
+- `docs/mobile/02-mobile-design-spec.md` section 2.2: as-built keyboard detection model.
+- Known issues #70 (dev compose backend lacks `tsx`) and #71 (e2e not in CI).
+
 ## [1.30.4] - 2026-10-11
 
 ### Documentation

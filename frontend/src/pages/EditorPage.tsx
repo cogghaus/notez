@@ -158,12 +158,14 @@ export function EditorPage() {
   };
 
   return (
-    <div className="h-screen flex flex-col bg-gray-100 dark:bg-gray-900">
+    // Height follows the visible viewport (--app-h, see lib/viewport.ts) so the on-screen keyboard
+    // never covers the bottom of the note. Falls back to 100dvh until the variable is set.
+    <div className="h-[var(--app-h,100dvh)] overflow-hidden flex flex-col bg-gray-100 dark:bg-gray-900">
       {/* Top Navigation */}
       <AppHeader />
 
       {/* Main Content Area */}
-      <div className="flex flex-1 overflow-hidden pb-20 xl:pb-0 ">
+      <div className="flex flex-1 min-h-0 overflow-hidden pb-20 xl:pb-0" data-kb-pad>
         {/* Folder Sidebar - Hidden on mobile unless mobileView === 'sidebar' */}
         <div
           className={`${mobileView === 'sidebar' ? 'block' : 'hidden'} xl:block flex-shrink-0`}
@@ -356,7 +358,7 @@ export function EditorPage() {
       )}
 
       {/* Mobile Bottom Navigation - Only visible on small screens */}
-      <div className="xl:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 flex justify-around py-4 px-2 min-h-[60px] z-50">
+      <div data-kb-hide data-mobile-bottom-nav className="xl:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 flex justify-around py-4 px-2 min-h-[60px] z-50">
         <button
           onClick={() => setMobileView('sidebar')}
           className={`flex flex-col items-center px-4 py-2 rounded-md ${
