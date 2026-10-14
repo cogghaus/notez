@@ -12,6 +12,14 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '1.31.0',
+    date: '2026-10-13',
+    added: [
+      'New task status Waiting, for tasks that wait on someone or something: its own Kanban lane, a Waiting count, and still listed with your open tasks',
+      'Groundwork for subtasks, start dates and tasks filed by connected apps such as Foyer',
+    ],
+  },
+  {
     version: '1.30.7',
     date: '2026-10-13',
     changed: ['Behind-the-scenes maintenance'],

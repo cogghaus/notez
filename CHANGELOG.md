@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.31.0] - 2026-10-13
+
+### Added
+
+- Task status **WAITING** (with an optional `waitingOn` note: who or what the task waits on). WAITING counts as open: it shows in the default task list, has its own Kanban lane after In Progress, a Waiting count in the task stats and an hourglass icon; clicking it moves the task back to In Progress.
+- Task **`startDate`** ("do not start before"), sortable (`sortBy=startDate`); it must not be after the due date when both are sent.
+- Task **sync identity** `source` + `externalId` for tasks filed by other systems (Foyer first). Unique per user, set together at creation, never changed; a duplicate create answers 409, so a retried create can never file a task twice. New `GET /api/v1/tasks/by-external-id?source=&externalId=`.
+- **Subtasks**, one level deep: `parentTaskId` on create and update. A subtask cannot have subtasks and a task with subtasks cannot become one; deleting a parent keeps its subtasks as top-level tasks. A single task returns its `parent` and `subtasks`; list items return `parent`.
+- External API (`/api/v1`, `/api/mcp`): `GET /tasks` takes a comma-separated `status` list, `source`, `externalId`, `parentTaskId`, `folderId`, `sortBy`, `sortOrder`, `offset` and `limit` up to 100; `POST /tasks` takes `status`, `noteId`, `links`, `waitingOn`, `startDate`, `parentTaskId`, `source`, `externalId`; `PATCH /tasks/:id` takes the same minus the sync identity, plus `links` (replace all); `PATCH /tasks/:id/status` accepts WAITING.
+- `/health` returns `version`, so API clients can check which features the server has.
+- Remote MCP tools and the `notez-mcp` package (1.14.0): WAITING everywhere; `notez_create_task` and `notez_update_task` take the new fields; `notez_list_tasks` filters by `source`, `externalId` and `parentTaskId`.
+
+### Changed
+
+- Database migration `20261013000000_task_waiting_source_start_parent`: additive only (one enum value, five nullable columns, one unique index, one index, one foreign key). Back up before deploying (see `DEPLOYMENT.md`).
+- Task create and update through the web app now answer 409, 400 or 404 for these rules instead of a generic 500.
+
 ## [1.30.7] - 2026-10-13
 
 ### Changed

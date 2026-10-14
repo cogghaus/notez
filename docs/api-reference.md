@@ -83,8 +83,10 @@ No authentication required.
 
 **Response:**
 ```json
-{ "status": "ok", "database": "connected" }
+{ "status": "ok", "database": "connected", "version": "1.31.0" }
 ```
+
+`version` is the backend version (from 1.31.0). When the database is unreachable the answer is `503` with `{ "status": "error", "database": "disconnected", "version": "..." }`.
 
 ---
 
@@ -792,13 +794,16 @@ GET /api/tasks
 
 | Param | Type | Description |
 |-------|------|-------------|
-| `status` | enum \| enum[] | PENDING, IN_PROGRESS, COMPLETED, CANCELLED (can be array) |
+| `status` | enum \| enum[] | PENDING, IN_PROGRESS, WAITING, COMPLETED, CANCELLED (can be array) |
 | `priority` | enum | LOW, MEDIUM, HIGH, URGENT |
 | `folderId` | UUID | Filter by folder |
 | `noteId` | UUID | Filter by linked note |
 | `tagId` | UUID | Filter by tag |
-| `overdue` | boolean | Filter tasks past their due date |
-| `sortBy` | string | priority, dueDate, createdAt, title (default: priority) |
+| `source` | string | Tasks filed by this system (e.g. `foyer`) |
+| `externalId` | string | With `source`: that system's id for the task (requires `source`) |
+| `parentTaskId` | UUID | The subtasks of this task |
+| `overdue` | boolean | Filter open tasks (WAITING included) past their due date |
+| `sortBy` | string | priority, dueDate, createdAt, title, startDate (default: priority) |
 | `sortOrder` | string | asc, desc (default: desc) |
 | `limit` | integer | Default 50, max 100 |
 | `offset` | integer | Default 0 |
@@ -814,6 +819,12 @@ GET /api/tasks
       "status": "PENDING",
       "priority": "MEDIUM",
       "dueDate": "2025-01-15T00:00:00Z",
+      "startDate": "2025-01-10T00:00:00Z | null",
+      "waitingOn": "string | null",
+      "source": "string | null",
+      "externalId": "string | null",
+      "parentTaskId": "uuid | null",
+      "parent": { "id": "uuid", "title": "Parent task" },
       "noteId": "uuid | null",
       "folderId": "uuid | null",
       "tags": [...],
@@ -837,11 +848,16 @@ GET /api/tasks/stats
 **Response:**
 ```json
 {
-  "total": 25,
-  "byStatus": { "PENDING": 10, "IN_PROGRESS": 5, "COMPLETED": 8, "CANCELLED": 2 },
-  "overdue": 3
+  "totalTasks": 25,
+  "pendingTasks": 10,
+  "inProgressTasks": 5,
+  "waitingTasks": 2,
+  "completedTasks": 8,
+  "overdueTasks": 3
 }
 ```
+
+`overdueTasks` counts open tasks (PENDING, IN_PROGRESS, WAITING) past their due date.
 
 ---
 
@@ -921,11 +937,16 @@ POST /api/tasks
   "noteId": "uuid",
   "folderId": "uuid",
   "tags": ["tag1"],
-  "links": [{ "url": "https://example.com", "title": "Reference" }]
+  "links": [{ "url": "https://example.com", "title": "Reference" }],
+  "startDate": "2025-01-10T00:00:00Z",
+  "waitingOn": "Bob",
+  "parentTaskId": "uuid",
+  "source": "foyer",
+  "externalId": "id-in-foyer"
 }
 ```
 
-`title` is required. Max 10 links per task. `dueDate` must be ISO 8601 datetime.
+`title` is required. Max 10 links per task. `dueDate` and `startDate` must be ISO 8601 datetimes. The rules for `startDate`, `waitingOn`, `parentTaskId`, `source` and `externalId` are those of the External API (see [External API (v1) > Tasks](#tasks-1)); typed errors answer `400`, `404` or `409` with `{ error, message }`.
 
 **Response:** `201 Created` — the created task object.
 
@@ -937,7 +958,7 @@ POST /api/tasks
 PUT /api/tasks/:id
 ```
 
-All fields optional. Set `dueDate: null`, `noteId: null`, or `folderId: null` to clear those fields.
+All fields optional. Set `dueDate`, `startDate`, `waitingOn`, `parentTaskId`, `noteId` or `folderId` to `null` to clear it. `source` and `externalId` cannot be changed (`400`).
 
 ---
 
@@ -1883,17 +1904,65 @@ Rate limit: 120 requests/minute per token.
 
 | Method | Path | Scope | Description |
 |--------|------|-------|-------------|
-| `GET` | `/api/v1/tasks?status={s}&limit={n}` | read | List tasks (sorted by priority desc) |
-| `GET` | `/api/v1/tasks/:id` | read | Get task by ID |
-| `POST` | `/api/v1/tasks` | write | Create a task |
+| `GET` | `/api/v1/tasks` | read | List tasks (query below) |
+| `GET` | `/api/v1/tasks/by-external-id?source={s}&externalId={id}` | read | Get the task with that sync identity; `404` if none (1.31.0) |
+| `GET` | `/api/v1/tasks/:id` | read | Get task by ID, with `parent` and `subtasks` |
+| `POST` | `/api/v1/tasks` | write | Create a task; `409` on a duplicate `source` + `externalId` |
 | `PATCH` | `/api/v1/tasks/:id/status` | write | Update task status |
-| `PATCH` | `/api/v1/tasks/:id` | write | Update task (title, description, priority, dueDate, folder, tags) |
-| `DELETE` | `/api/v1/tasks/:id` | write | Delete a task |
+| `PATCH` | `/api/v1/tasks/:id` | write | Update task (every field but `source` and `externalId`) |
+| `DELETE` | `/api/v1/tasks/:id` | write | Delete a task (permanent; its subtasks become top-level tasks) |
+
+**List query (1.31.0):**
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `status` | enum or comma list | `PENDING`, `IN_PROGRESS`, `WAITING`, `COMPLETED`, `CANCELLED`; e.g. `status=PENDING,IN_PROGRESS,WAITING` |
+| `source` | string | Tasks filed by this system (e.g. `foyer`) |
+| `externalId` | string | With `source`: the task with this id in that system; `400` without `source` |
+| `parentTaskId` | UUID | The subtasks of this task |
+| `folderId` | UUID | Filter by folder |
+| `createdByTokenId` | UUID | Tasks created by this token |
+| `agentCreated` | boolean | Only (true) or no (false) agent-created tasks |
+| `sortBy` | string | `priority` (default), `dueDate`, `createdAt`, `title`, `startDate` |
+| `sortOrder` | string | `desc` (default) or `asc`; `dueDate` and `startDate` put nulls last when ascending |
+| `limit` | integer | Default 20, max 100 |
+| `offset` | integer | Default 0 |
+
+Response: `{ "tasks": [...], "total": n, "limit": n, "offset": n }`. List items carry `parent` (`{ id, title }` or null) but not `subtasks`.
 
 **Create task body:**
 ```json
-{ "title": "...", "description": "...", "priority": "MEDIUM", "dueDate": "2025-01-15T00:00:00Z", "folderId": "uuid", "tags": ["tag1"] }
+{
+  "title": "Call the notary",
+  "description": "...",
+  "status": "WAITING",
+  "priority": "MEDIUM",
+  "dueDate": "2026-10-21T00:00:00.000Z",
+  "startDate": "2026-10-20T00:00:00.000Z",
+  "waitingOn": "the notary",
+  "noteId": "uuid",
+  "folderId": "uuid",
+  "parentTaskId": "uuid",
+  "source": "foyer",
+  "externalId": "proposal-id",
+  "tags": ["tag1"],
+  "links": [{ "url": "https://example.com", "title": "Reference" }]
+}
 ```
+
+Only `title` is required. Rules (each a `400` unless noted):
+
+- `source` and `externalId` come together. `source` matches `^[a-z][a-z0-9_-]{1,49}$`; `externalId` is 1 to 255 characters. The pair is unique per user: a second create with the same pair answers `409 { "error": "ConflictError", "message": "A task with this source and externalId already exists" }`. A client that cannot tell whether its create landed retries it and resolves a `409` with `by-external-id`.
+- `startDate` must not be after `dueDate` when both are sent (a lone date is not compared with the stored one).
+- `waitingOn` is at most 255 characters. It is free text the server never changes on a status change; clear it with `null`.
+- `parentTaskId` must be one of your tasks (`404 Parent task not found`) that is not itself a subtask (`Subtasks cannot have subtasks`). On update, a task cannot be its own parent and a task with subtasks cannot take a parent.
+- `links`: at most 10, http or https only.
+
+**Update task body:** the same fields, all optional, minus `source` and `externalId` (sending either answers `400 source and externalId are set at creation`). `null` clears `dueDate`, `startDate`, `waitingOn`, `parentTaskId`, `noteId` and `folderId`. `links` and `tags` replace the existing lists.
+
+**Task object (1.31.0 fields):** `waitingOn`, `source`, `externalId`, `startDate`, `parentTaskId` (all nullable), `parent` (`{ id, title }` or null) and, on a single task, `subtasks` (`[{ id, title, status, dueDate }]`, oldest first).
+
+Before 1.31.0 the server ignores unknown body fields rather than refusing them, so a client relying on these fields should check `version` from `GET /health` first.
 
 ---
 
