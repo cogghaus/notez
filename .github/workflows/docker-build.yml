@@ -36,12 +36,20 @@ jobs:
       - name: Type-check backend
         run: npm run typecheck
         working-directory: backend
-      # Non-blocking until the pre-existing findings are cleaned up (544 errors when added, 513 of them
-      # @typescript-eslint/no-explicit-any). Remove continue-on-error once the count reaches zero.
-      - name: Lint backend (non-blocking)
-        run: npm run lint
+      # Ratchet: 544 pre-existing errors (513 of them @typescript-eslint/no-explicit-any). The step
+      # fails if the error count rises above the baseline. Lower LINT_BASELINE as findings are fixed.
+      - name: Lint backend (ratchet)
+        env:
+          LINT_BASELINE: '544'
+        run: |
+          npx eslint src -f json -o eslint-report.json || true
+          COUNT=$(node -e "const r=require('./eslint-report.json');console.log(r.reduce((n,f)=>n+f.errorCount,0))")
+          echo "ESLint errors: $COUNT (baseline $LINT_BASELINE)"
+          if [ "$COUNT" -gt "$LINT_BASELINE" ]; then
+            echo "::error::ESLint errors rose above the baseline ($COUNT > $LINT_BASELINE)"
+            exit 1
+          fi
         working-directory: backend
-        continue-on-error: true
       - name: Run backend tests
         run: npx vitest run
         working-directory: backend

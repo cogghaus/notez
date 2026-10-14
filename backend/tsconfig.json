@@ -1,13 +1,15 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "ESNext",
+    // nodenext (not legacy "node"): esbuild only transpiles per file (build.mjs, bundle: false) and
+    // Node runs the output unbundled as ESM, so resolution must follow Node's rules (explicit .js
+    // extensions, package "exports"). Under legacy "node" resolution the root `zod` import and the
+    // one @modelcontextprotocol/sdk uses (`zod/v3`) are different declaration files, so every
+    // server.registerTool() call in src/mcp/tools.ts failed the AnySchema check and TypeScript
+    // spent >4 GB and minutes (OOM) trying to relate them.
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
     "lib": ["ES2022"],
-    // "bundler" (not "node"): the app is bundled by esbuild (build.mjs). Under legacy "node"
-    // resolution the root `zod` import and the one @modelcontextprotocol/sdk uses (`zod/v3`) are
-    // different declaration files, so every server.registerTool() call in src/mcp/tools.ts failed
-    // the AnySchema check and TypeScript spent >4 GB and minutes (OOM) trying to relate them.
-    "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "allowJs": true,
     "outDir": "./dist",
