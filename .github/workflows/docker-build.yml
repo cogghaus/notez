@@ -33,6 +33,15 @@ jobs:
       - name: Generate Prisma client
         run: npx prisma generate
         working-directory: backend
+      - name: Type-check backend
+        run: npm run typecheck
+        working-directory: backend
+      # Non-blocking until the pre-existing findings are cleaned up (544 errors when added, 513 of them
+      # @typescript-eslint/no-explicit-any). Remove continue-on-error once the count reaches zero.
+      - name: Lint backend (non-blocking)
+        run: npm run lint
+        working-directory: backend
+        continue-on-error: true
       - name: Run backend tests
         run: npx vitest run
         working-directory: backend

@@ -15,7 +15,7 @@ if (enabled) {
       exporter: new OTLPMetricExporter(),
       exportIntervalMillis: 30_000,
     }),
-    logRecordProcessors: [new BatchLogRecordProcessor(new OTLPLogExporter())],
+    logRecordProcessors: [new BatchLogRecordProcessor({ exporter: new OTLPLogExporter() })],
     instrumentations: [
       getNodeAutoInstrumentations({
         '@opentelemetry/instrumentation-fs': { enabled: false },
