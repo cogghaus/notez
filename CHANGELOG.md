@@ -30,6 +30,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - A task created with status COMPLETED (now possible through the external API and MCP) gets `completedAt`, as a task completed later does.
 
+## [1.30.11] - 2026-10-13
+
+### Changed
+
+- Runtime: Node 20 (end of life since 2026-04-30) to Node 24 LTS. `Dockerfile` (all three stages, the production image), `backend/Dockerfile`, `frontend/Dockerfile` and `frontend/Dockerfile.dev` now use `node:24-alpine` / `node:24-slim`; `docker-build.yml` and `e2e.yml` set up Node 24; the esbuild target is `node24`; backend `@types/node` is ^24. Native modules checked at their pinned versions (sharp 0.35.5, bcrypt 6.0.0, Prisma 5.22). Closes known issue #72.
+- Prisma `binaryTargets` now also include `debian-openssl-3.0.x`, so `backend/Dockerfile` (which builds on alpine but runs on Debian `node:24-slim`) has a matching query engine.
+- Docs that named Node 20 (`CONTRIBUTING.md`, `docs/specs/load-testing.md`, `docs/mvp-specification.md`) updated to Node 24.
+
+### Testing
+
+- New `.github/workflows/image-smoke.yml`: builds the production image (no push) and runs it against Postgres 16 and a throwaway S3 endpoint (SeaweedFS; `minio/minio` is no longer pullable from Docker Hub). It checks the Node version, that the entrypoint applies every migration, `/health` is 200, first-user setup and login work (bcrypt, plus a wrong-password 401), and an image upload is processed and read back (sharp). Credentials are generated per run.
+
+## [1.30.10] - 2026-10-13
+
+### Changed
+
+- backend: `vitest` 3.2.7 to 5.0.4 (supersedes Dependabot #177; clears the critical vitest/tinypool advisory: `npm audit` goes from 7 findings, 2 critical, to 4 moderate). No test or config changes were needed; all 644 tests pass. vitest 5 needs Node ^22.12 or >=24, so the backend and frontend CI job (`docker-build.yml`) now sets up Node 24 (the app image stays on Node 20 until the runtime PR). `@types/node` ^20 to ^24 in the backend, which vitest 5 requires as a peer (same ERESOLVE as notez-mcp). Vite (a vitest peer) moves 7.3.6 to 8.3.4 as a dev dependency only.
+
+## [1.30.9] - 2026-10-13
+
+### Fixed
+
+- backend: `tsc --noEmit` ran out of memory (more than 4 GB, about 4 minutes, then a heap crash), so the backend was never type-checked. Cause: `moduleResolution: "node"` made the root `zod` import and the `zod/v3` the MCP SDK uses resolve to different declaration files, so every `server.registerTool()` in `src/mcp/tools.ts` failed the SDK's schema check and TypeScript tried to relate the two deep type trees. `module` and `moduleResolution` `nodenext` fix it (esbuild transpiles per file and Node runs the output unbundled, so Node's own resolution rules are the right model): type-check now takes about 7 seconds and 550 MB. No heap increase needed.
+- backend telemetry: `BatchLogRecordProcessor` takes `{ exporter }` in `@opentelemetry/sdk-logs` 0.222; the exporter was being passed directly, so with OTLP enabled the log exporter was never wired. Found by the type-check; regression test in `src/telemetry.test.ts`.
+- backend: removed an unused `reply` parameter in the MCP OAuth approve handler (type-check error, no behaviour change).
+
+### Added
+
+- backend `typecheck` script and a CI step for it; flat ESLint config `backend/eslint.config.js` (the repo had none, so `npm run lint` could not run) and `@eslint/js` as an explicit dev dependency; lint scripts no longer pass the removed `--ext` flag. The CI lint step is a ratchet: it fails if the error count rises above the baseline of 544 pre-existing findings (513 `no-explicit-any`, 24 unused vars, 7 other).
+
+## [1.30.8] - 2026-10-13
+
+### Fixed
+
+- notez-mcp: `npm ci` failed with an ERESOLVE peer conflict because `@types/node` was ^20 while vitest 5 needs ^22 or >=24. `@types/node` is now ^24 and vitest ^5.0.4 (5.0.0 to 5.0.4, supersedes Dependabot #129). Plain `npm ci` works, no `--legacy-peer-deps`.
+
+### Testing
+
+- New `.github/workflows/notez-mcp.yml`: notez-mcp install (`npm ci`), tests and build run in CI on GitHub-hosted Ubuntu with Node 24, as its own check, for pull requests and pushes to main that touch `notez-mcp/`. Actions pinned by commit SHA.
+
 ## [1.30.7] - 2026-10-13
 
 ### Changed

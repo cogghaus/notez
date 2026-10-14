@@ -24,7 +24,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
 
       # Backend: install, generate, test, build
       - name: Install backend dependencies
@@ -32,6 +32,23 @@ jobs:
         working-directory: backend
       - name: Generate Prisma client
         run: npx prisma generate
+        working-directory: backend
+      - name: Type-check backend
+        run: npm run typecheck
+        working-directory: backend
+      # Ratchet: 544 pre-existing errors (513 of them @typescript-eslint/no-explicit-any). The step
+      # fails if the error count rises above the baseline. Lower LINT_BASELINE as findings are fixed.
+      - name: Lint backend (ratchet)
+        env:
+          LINT_BASELINE: '544'
+        run: |
+          npx eslint src -f json -o eslint-report.json || true
+          COUNT=$(node -e "const r=require('./eslint-report.json');console.log(r.reduce((n,f)=>n+f.errorCount,0))")
+          echo "ESLint errors: $COUNT (baseline $LINT_BASELINE)"
+          if [ "$COUNT" -gt "$LINT_BASELINE" ]; then
+            echo "::error::ESLint errors rose above the baseline ($COUNT > $LINT_BASELINE)"
+            exit 1
+          fi
         working-directory: backend
       - name: Run backend tests
         run: npx vitest run
