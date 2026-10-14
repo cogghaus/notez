@@ -10,6 +10,9 @@
 # production dependencies and one for development dependencies, rather than one
 # per package.
 #
+# cooldown: a release is only proposed once it is 14 days old (Adam, 2026-10-12), so brand-new
+# releases get time to be yanked or patched first. Security updates are not delayed by it.
+#
 # Major bumps are ignored for scheduled version updates. The groups below only
 # cover minor and patch, so without this every major fell outside a group and
 # got its own PR -- the first run opened 14 of them at once, including
@@ -29,6 +32,8 @@ updates:
     schedule:
       interval: weekly
       day: monday
+    cooldown:
+      default-days: 14
     open-pull-requests-limit: 5
     groups:
       backend-production:
@@ -54,6 +59,8 @@ updates:
     schedule:
       interval: weekly
       day: monday
+    cooldown:
+      default-days: 14
     open-pull-requests-limit: 5
     groups:
       frontend-production:
@@ -79,6 +86,8 @@ updates:
     schedule:
       interval: weekly
       day: monday
+    cooldown:
+      default-days: 14
     open-pull-requests-limit: 5
     groups:
       notez-mcp-production:
@@ -104,6 +113,8 @@ updates:
     directory: /
     schedule:
       interval: monthly
+    cooldown:
+      default-days: 14
     ignore:
       - dependency-name: '*'
         update-types:
