@@ -185,6 +185,7 @@ export default function TaskForm({ task, onClose, onSuccess }: TaskFormProps) {
               >
                 <option value="PENDING">Pending</option>
                 <option value="IN_PROGRESS">In Progress</option>
+                <option value="WAITING">Waiting</option>
                 <option value="COMPLETED">Completed</option>
                 <option value="CANCELLED">Cancelled</option>
               </select>

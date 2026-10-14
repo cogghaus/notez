@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CheckCircle2, Circle, Clock, AlertCircle, FileText, Trash2, Edit, Link2, ExternalLink, ChevronDown, ChevronUp } from 'lucide-react';
+import { CheckCircle2, Circle, Hourglass, Clock, AlertCircle, FileText, Trash2, Edit, Link2, ExternalLink, ChevronDown, ChevronUp } from 'lucide-react';
 import type { Task } from '../types';
 
 interface TaskItemProps {
@@ -43,6 +43,9 @@ export default function TaskItem({
       onStatusChange(task.id, 'IN_PROGRESS');
     } else if (task.status === 'IN_PROGRESS') {
       onStatusChange(task.id, 'COMPLETED');
+    } else if (task.status === 'WAITING') {
+      // The wait is over: back to work
+      onStatusChange(task.id, 'IN_PROGRESS');
     } else if (task.status === 'COMPLETED') {
       onStatusChange(task.id, 'PENDING');
     }
@@ -78,6 +81,8 @@ export default function TaskItem({
             <CheckCircle2 className="w-5 h-5 text-green-500 dark:text-green-400" />
           ) : task.status === 'IN_PROGRESS' ? (
             <Circle className="w-5 h-5 text-blue-500 dark:text-blue-400 fill-blue-500/20 dark:fill-blue-400/20" />
+          ) : task.status === 'WAITING' ? (
+            <Hourglass className="w-5 h-5 text-purple-500 dark:text-purple-400" />
           ) : (
             <Circle className="w-5 h-5 text-gray-400 dark:text-gray-500" />
           )}

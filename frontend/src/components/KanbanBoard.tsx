@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Loader2, Circle, PlayCircle, CheckCircle2, XCircle, Clock, AlertCircle, FileText, Link2 } from 'lucide-react';
+import { Loader2, Circle, PlayCircle, Hourglass, CheckCircle2, XCircle, Clock, AlertCircle, FileText, Link2 } from 'lucide-react';
 import { tasksApi } from '../lib/api';
 import { useToast } from './Toast';
 import type { Task, TaskStatus, TaskPriority } from '../types';
@@ -31,6 +31,14 @@ const COLUMNS: KanbanColumn[] = [
     icon: <PlayCircle className="w-4 h-4" />,
     bgColor: 'bg-blue-50 dark:bg-blue-900/20',
     headerColor: 'text-blue-600 dark:text-blue-400',
+  },
+  {
+    // Always visible (an open status), so a waiting task is never hidden
+    status: 'WAITING',
+    title: 'Waiting',
+    icon: <Hourglass className="w-4 h-4" />,
+    bgColor: 'bg-purple-50 dark:bg-purple-900/20',
+    headerColor: 'text-purple-600 dark:text-purple-400',
   },
   {
     status: 'COMPLETED',

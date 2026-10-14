@@ -59,7 +59,8 @@ export default function TaskList({ onNoteClick, serviceAccountMode, folderId }: 
         const params: any = { limit: 100, sortBy, sortOrder };
 
         if (!showCompleted) {
-          params.status = ['PENDING', 'IN_PROGRESS'];
+          // Open tasks: a WAITING task must never disappear from the default view
+          params.status = ['PENDING', 'IN_PROGRESS', 'WAITING'];
         }
 
         if (selectedPriority) {
@@ -192,7 +193,7 @@ export default function TaskList({ onNoteClick, serviceAccountMode, folderId }: 
 
         {/* Stats */}
         {stats && !serviceAccountMode && (
-          <div className="grid grid-cols-3 gap-2 mb-3 text-xs">
+          <div className="grid grid-cols-4 gap-2 mb-3 text-xs">
             <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded">
               <div className="font-medium text-blue-700 dark:text-blue-400">{stats.pendingTasks}</div>
               <div className="text-blue-600 dark:text-blue-500">Pending</div>
@@ -200,6 +201,10 @@ export default function TaskList({ onNoteClick, serviceAccountMode, folderId }: 
             <div className="p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded">
               <div className="font-medium text-yellow-700 dark:text-yellow-400">{stats.inProgressTasks}</div>
               <div className="text-yellow-600 dark:text-yellow-500">In Progress</div>
+            </div>
+            <div className="p-2 bg-purple-50 dark:bg-purple-900/20 rounded">
+              <div className="font-medium text-purple-700 dark:text-purple-400">{stats.waitingTasks ?? 0}</div>
+              <div className="text-purple-600 dark:text-purple-500">Waiting</div>
             </div>
             <div className="p-2 bg-red-50 dark:bg-red-900/20 rounded">
               <div className="font-medium text-red-700 dark:text-red-400">{stats.overdueTasks}</div>
