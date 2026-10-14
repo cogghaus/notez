@@ -1,0 +1,164 @@
+name: Image smoke test
+# Builds the production image (root Dockerfile, no push) and runs it against throwaway Postgres and
+# MinIO containers to prove it really starts and works on the runtime Node version: the entrypoint's
+# `prisma migrate deploy` applies every migration, /health is 200, a user can be created and log in
+# (bcrypt), and an image upload is processed (sharp) through the API. Public repo: GitHub-hosted
+# runner only. All credentials below are generated per run or throwaway test values.
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'Dockerfile'
+      - 'docker-entrypoint.sh'
+      - 'backend/**'
+      - 'frontend/**'
+      - '.github/workflows/image-smoke.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'Dockerfile'
+      - 'docker-entrypoint.sh'
+      - 'backend/**'
+      - 'frontend/**'
+      - '.github/workflows/image-smoke.yml'
+
+concurrency:
+  group: image-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: notez
+          POSTGRES_PASSWORD: notez
+          POSTGRES_DB: notez
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U notez -d notez"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Build the production image (no push)
+        run: docker build -t notez-smoke:ci .
+
+      - name: Start MinIO
+        run: |
+          MINIO_PASS="$(openssl rand -hex 16)"
+          echo "::add-mask::$MINIO_PASS"
+          echo "MINIO_PASS=$MINIO_PASS" >> "$GITHUB_ENV"
+          docker run -d --name minio --network host \
+            -e MINIO_ROOT_USER=notezsmoke -e MINIO_ROOT_PASSWORD="$MINIO_PASS" \
+            minio/minio:latest server /data
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:9000/minio/health/live >/dev/null; then echo "MinIO up"; exit 0; fi
+            sleep 2
+          done
+          echo "MinIO did not become ready"; docker logs minio; exit 1
+
+      - name: Start Notez image
+        run: |
+          JWT_ACCESS="$(openssl rand -hex 32)"
+          JWT_REFRESH="$(openssl rand -hex 32)"
+          ENC_KEY="$(openssl rand -hex 16)"
+          echo "::add-mask::$JWT_ACCESS"
+          echo "::add-mask::$JWT_REFRESH"
+          echo "::add-mask::$ENC_KEY"
+          docker run -d --name notez --network host \
+            -e NODE_ENV=production \
+            -e CORS_ORIGIN=http://localhost:3000 \
+            -e DATABASE_URL=postgresql://notez:notez@localhost:5432/notez \
+            -e JWT_ACCESS_SECRET="$JWT_ACCESS" \
+            -e JWT_REFRESH_SECRET="$JWT_REFRESH" \
+            -e ENCRYPTION_KEY="$ENC_KEY" \
+            -e MINIO_ENDPOINT=localhost -e MINIO_PORT=9000 \
+            -e MINIO_ACCESS_KEY=notezsmoke -e MINIO_SECRET_KEY="$MINIO_PASS" \
+            notez-smoke:ci
+          echo "Node in image: $(docker exec notez node -v)"
+
+      - name: Wait for /health (entrypoint migrates first)
+        run: |
+          for i in $(seq 1 60); do
+            CODE="$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/health || true)"
+            if [ "$CODE" = "200" ]; then echo "/health returned 200 after about $((i * 2))s"; exit 0; fi
+            if [ "$(docker inspect --format '{{.State.Running}}' notez)" != "true" ]; then
+              echo "Container exited"; docker logs notez; exit 1
+            fi
+            sleep 2
+          done
+          echo "/health never returned 200 (last code $CODE)"; docker logs notez; exit 1
+
+      - name: Check Node version and migrations
+        run: |
+          NODE_V="$(docker exec notez node -v)"
+          echo "Node in image: $NODE_V"
+          case "$NODE_V" in v24.*) ;; *) echo "Expected Node 24"; exit 1 ;; esac
+          EXPECTED="$(find backend/prisma/migrations -mindepth 1 -maxdepth 1 -type d | wc -l)"
+          APPLIED="$(docker run --rm --network host -e PGPASSWORD=notez postgres:16-alpine \
+            psql -h localhost -U notez -d notez -tA \
+            -c 'select count(*) from _prisma_migrations where finished_at is not null and rolled_back_at is null')"
+          echo "Migrations in repo: $EXPECTED, applied: $APPLIED"
+          [ "$EXPECTED" = "$APPLIED" ]
+          docker logs notez 2>&1 | grep -q "Database migrations completed successfully"
+
+      - name: Create a user and log in (bcrypt)
+        run: |
+          SETUP="$(curl -sS -w '\n%{http_code}' -X POST http://localhost:3000/api/auth/setup \
+            -H 'Content-Type: application/json' \
+            -d '{"username":"smokeuser","email":"smoke@example.com","password":"Smoke-Test-1!"}')"
+          echo "setup status: $(echo "$SETUP" | tail -n1)"
+          [ "$(echo "$SETUP" | tail -n1)" = "200" ]
+          LOGIN="$(curl -sS -w '\n%{http_code}' -X POST http://localhost:3000/api/auth/login \
+            -H 'Content-Type: application/json' \
+            -d '{"usernameOrEmail":"smokeuser","password":"Smoke-Test-1!"}')"
+          echo "login status: $(echo "$LOGIN" | tail -n1)"
+          [ "$(echo "$LOGIN" | tail -n1)" = "200" ]
+          TOKEN="$(echo "$LOGIN" | head -n1 | jq -er .accessToken)"
+          echo "::add-mask::$TOKEN"
+          echo "TOKEN=$TOKEN" >> "$GITHUB_ENV"
+          BAD="$(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:3000/api/auth/login \
+            -H 'Content-Type: application/json' \
+            -d '{"usernameOrEmail":"smokeuser","password":"Wrong-Password-1!"}')"
+          echo "wrong password status: $BAD"
+          [ "$BAD" = "401" ]
+
+      - name: Upload an image and read it back (sharp)
+        run: |
+          docker exec -w /app/backend notez node -e "require('sharp')({create:{width:200,height:100,channels:3,background:'#336699'}}).png().toFile('/tmp/smoke.png').then(()=>console.log('png generated'))"
+          docker cp notez:/tmp/smoke.png ./smoke.png
+          UP="$(curl -sS -w '\n%{http_code}' -X POST http://localhost:3000/api/images/upload \
+            -H "Authorization: Bearer $TOKEN" -F 'file=@smoke.png;type=image/png')"
+          echo "upload status: $(echo "$UP" | tail -n1)"
+          echo "upload body: $(echo "$UP" | head -n1)"
+          [ "$(echo "$UP" | tail -n1)" = "200" ]
+          [ "$(echo "$UP" | head -n1 | jq -r .success)" = "true" ]
+          [ "$(echo "$UP" | head -n1 | jq -r .width)" = "200" ]
+          ID="$(echo "$UP" | head -n1 | jq -er .id)"
+          GET="$(curl -sS -o fetched.img -w '%{http_code} %{content_type}' \
+            -H "Authorization: Bearer $TOKEN" "http://localhost:3000/api/images/$ID")"
+          echo "fetch: $GET"
+          case "$GET" in "200 image/"*) ;; *) exit 1 ;; esac
+          docker exec -w /app/backend notez node -e "console.log('sharp', require('sharp').versions.sharp, 'libvips', require('sharp').versions.vips)"
+
+      - name: Container logs
+        if: always()
+        run: |
+          echo "--- notez ---"; docker logs notez 2>&1 | tail -n 80 || true
+          echo "--- minio ---"; docker logs minio 2>&1 | tail -n 20 || true

@@ -13,7 +13,7 @@ The MVP focuses on **core functionality that works well** rather than comprehens
 ## Technology Stack (Final Decision)
 
 ### Backend
-- **Runtime:** Node.js 20 LTS
+- **Runtime:** Node.js 24 LTS (historical: this v1.0 spec was written for Node.js 20, now end of life)
 - **Framework:** Fastify (faster than Express, better TypeScript support)
 - **Language:** TypeScript
 - **Database:** PostgreSQL 16 with pgvector extension

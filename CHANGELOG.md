@@ -12,6 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Runtime: Node 20 (end of life since 2026-04-30) to Node 24 LTS. `Dockerfile` (all three stages, the production image), `backend/Dockerfile`, `frontend/Dockerfile` and `frontend/Dockerfile.dev` now use `node:24-alpine` / `node:24-slim`; `docker-build.yml` and `e2e.yml` set up Node 24; the esbuild target is `node24`; backend `@types/node` is ^24. Native modules checked at their pinned versions (sharp 0.35.5, bcrypt 6.0.0, Prisma 5.22). Closes known issue #72.
+- Prisma `binaryTargets` now also include `debian-openssl-3.0.x`, so `backend/Dockerfile` (which builds on alpine but runs on Debian `node:24-slim`) has a matching query engine.
+- Docs that named Node 20 (`CONTRIBUTING.md`, `docs/specs/load-testing.md`, `docs/mvp-specification.md`) updated to Node 24.
+
+### Testing
+
+- New `.github/workflows/image-smoke.yml`: builds the production image (no push) and runs it against Postgres 16 and MinIO containers. It checks the Node version, that the entrypoint applies every migration, `/health` is 200, first-user setup and login work (bcrypt, plus a wrong-password 401), and an image upload is processed and read back (sharp). Credentials are generated per run.
 
 ## [1.30.7] - 2026-10-13
 
