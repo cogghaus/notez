@@ -29,6 +29,7 @@ import { collaborationRoutes } from './routes/collaboration.routes.js';
 import { adminRoutes } from './routes/admin.routes.js';
 import { tokenRoutes } from './routes/token.routes.js';
 import { mcpRoutes } from './routes/mcp.routes.js';
+import { healthRoutes } from './routes/health.routes.js';
 import { webhooksRoutes } from './routes/webhooks.routes.js';
 import { oauthRoutes } from './mcp/oauth.routes.js';
 import { mcpTransportRoutes } from './mcp/transport.routes.js';
@@ -190,19 +191,9 @@ fastify.setErrorHandler((error: FastifyError, request, reply) => {
   });
 });
 
-// Health check endpoint.
-// Must return a non-2xx code when the database is unreachable: the Docker
-// HEALTHCHECK (and any upstream probe) only inspects the status code, so
-// returning 200 with an "error" body would report the container as healthy
-// through a full database outage and suppress the restart.
-fastify.get('/health', async (_request, reply) => {
-  try {
-    await prisma.$queryRaw`SELECT 1`;
-    return { status: 'ok', database: 'connected' };
-  } catch (error) {
-    return reply.code(503).send({ status: 'error', database: 'disconnected' });
-  }
-});
+// Health check endpoint: 503 when the database is down, version in the body
+// (see routes/health.routes.ts)
+await fastify.register(healthRoutes, { checkDatabase: () => prisma.$queryRaw`SELECT 1` });
 
 // Register API routes
 await fastify.register(authRoutes, { prefix: '/api' });

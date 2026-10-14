@@ -10,7 +10,35 @@ import { shareNote, listSharesForNote, unshareNote, updateSharePermission } from
 import { getNotifications, getUnreadCount, markAsRead, markAllAsRead, deleteNotification } from '../services/notification.service.js';
 import { createFeedbackWithRateLimit, getFeedbackById, listUserFeedback } from '../services/feedback.service.js';
 import { aiService, AIProviderNotConfiguredError, AIProviderConnectionError, AIProviderRateLimitError, AIModelNotFoundError, AIServiceError } from '../services/ai/index.js';
-import { FOLDER_ICONS, FEEDBACK_CATEGORIES, FEEDBACK_PRIORITIES, safeUrlSchema } from '../utils/validation.schemas.js';
+import {
+  FOLDER_ICONS,
+  FEEDBACK_CATEGORIES,
+  FEEDBACK_PRIORITIES,
+  TASK_STATUSES,
+  safeUrlSchema,
+  createTaskSchema,
+  updateTaskSchema,
+  taskSourceSchema,
+  taskExternalIdSchema,
+} from '../utils/validation.schemas.js';
+
+/**
+ * Run tool arguments through the shared task schema, so the cross-field rules the
+ * REST API enforces (source and externalId together, startDate not after dueDate,
+ * no sync identity on update) hold here too. The MCP SDK only checks each field.
+ */
+function checkTaskArgs<T extends z.ZodTypeAny>(schema: T, args: unknown):
+  { ok: true; data: z.infer<T> } | { ok: false; error: Error } {
+  const result = schema.safeParse(args);
+  if (result.success) return { ok: true, data: result.data };
+  return { ok: false, error: new Error(result.error.errors.map((e) => e.message).join('; ')) };
+}
+
+const taskStatusInput = z.enum(TASK_STATUSES);
+const taskLinkInput = z.object({
+  url: safeUrlSchema.describe('http or https URL'),
+  title: z.string().max(255).optional().describe('Link title'),
+});
 import { htmlToPlainText } from '../utils/html.js';
 
 /**
@@ -307,16 +335,22 @@ defineTool('mcp:read', (server, getUserId) => {
   server.registerTool(
     'notez_list_tasks',
     {
-      description: 'List tasks, optionally filtered by status. Returns tasks sorted by priority. Each task includes completedAt (set when status is COMPLETED, null otherwise).',
+      description: 'List tasks, optionally filtered by status, sync identity (source + externalId) or parent task. Returns tasks sorted by priority. Each task includes completedAt (set when status is COMPLETED, null otherwise), waitingOn, startDate and parent.',
       inputSchema: {
-        status: z.enum(['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']).optional()
-          .describe('Filter by task status'),
-        limit: z.number().min(1).max(50).default(20).describe('Max tasks to return'),
+        status: taskStatusInput.optional()
+          .describe('Filter by task status: PENDING, IN_PROGRESS, WAITING, COMPLETED or CANCELLED'),
+        source: taskSourceSchema.optional().describe('Filter by the system that filed the task (e.g. "foyer")'),
+        externalId: taskExternalIdSchema.optional().describe('Filter by the id the source system gave the task; requires source'),
+        parentTaskId: z.string().uuid().optional().describe('List the subtasks of this task'),
+        limit: z.number().min(1).max(100).default(20).describe('Max tasks to return'),
       },
     },
-    async ({ status, limit }) => {
+    async ({ status, source, externalId, parentTaskId, limit }) => {
       try {
-        const result = await listTasks(getUserId(), { status, limit, sortBy: 'priority', sortOrder: 'desc' });
+        if (externalId !== undefined && source === undefined) {
+          return toolError(new Error('externalId requires source'));
+        }
+        const result = await listTasks(getUserId(), { status, source, externalId, parentTaskId, limit, sortBy: 'priority', sortOrder: 'desc' });
         return toolResult(result);
       } catch (error) {
         return toolError(error);
@@ -349,19 +383,29 @@ defineTool('mcp:write', (server, getUserId) => {
   server.registerTool(
     'notez_create_task',
     {
-      description: 'Create a new task with optional priority, due date, and tags.',
+      description: 'Create a new task with optional status, priority, due and start dates, note, folder, parent task, links and tags. Dates must be ISO 8601 strings (e.g. "2026-04-20T00:00:00Z"). source and externalId go together and are unique per user: a second create with the same pair fails with "already exists".',
       inputSchema: {
         title: z.string().max(500).describe('Task title'),
         description: z.string().max(10_000).optional().describe('Task description'),
+        status: taskStatusInput.optional().describe('Initial status (default: PENDING): PENDING, IN_PROGRESS, WAITING, COMPLETED or CANCELLED'),
         priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'URGENT']).optional().describe('Task priority (default: MEDIUM)'),
         dueDate: z.string().datetime().optional().describe('Due date (ISO 8601)'),
+        startDate: z.string().datetime().optional().describe('Do not start before (ISO 8601); must not be after dueDate'),
+        waitingOn: z.string().max(255).optional().describe('Who or what the task is waiting on (use with status WAITING)'),
+        noteId: z.string().uuid().optional().describe('Note UUID the task comes from'),
         folderId: z.string().uuid().optional().describe('Folder UUID'),
+        parentTaskId: z.string().uuid().optional().describe('Parent task UUID (one level: the parent cannot be a subtask)'),
+        links: z.array(taskLinkInput).max(10).optional().describe('Up to 10 http(s) links'),
+        source: taskSourceSchema.optional().describe('System filing the task, e.g. "foyer"; requires externalId'),
+        externalId: taskExternalIdSchema.optional().describe('Id of the task in the source system; requires source'),
         tags: z.array(z.string()).optional().describe('Tag names to attach'),
       },
     },
-    async ({ title, description, priority, dueDate, folderId, tags }) => {
+    async (args) => {
       try {
-        const task = await createTask(getUserId(), { title, description, priority, dueDate, folderId, tags });
+        const checked = checkTaskArgs(createTaskSchema, args);
+        if (!checked.ok) return toolError(checked.error);
+        const task = await createTask(getUserId(), checked.data);
         return toolResult(task);
       } catch (error) {
         return toolError(error);
@@ -374,21 +418,28 @@ defineTool('mcp:write', (server, getUserId) => {
   server.registerTool(
     'notez_update_task',
     {
-      description: 'Update a task. Can change title, description, status, priority, due date, folder, or tags. Dates must be ISO 8601 strings (e.g. "2026-04-20T00:00:00Z"); priority must be one of LOW, MEDIUM, HIGH, URGENT.',
+      description: 'Update a task. Can change title, description, status, priority, due and start dates, waiting-on, note, folder, parent task, links or tags. Dates must be ISO 8601 strings (e.g. "2026-04-20T00:00:00Z"); priority must be one of LOW, MEDIUM, HIGH, URGENT. source and externalId cannot be changed.',
       inputSchema: {
         id: z.string().uuid().describe('Task UUID'),
         title: z.string().max(500).optional().describe('New title'),
         description: z.string().max(10_000).optional().describe('New description'),
-        status: z.enum(['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']).optional().describe('New status: PENDING, IN_PROGRESS, COMPLETED, or CANCELLED'),
+        status: taskStatusInput.optional().describe('New status: PENDING, IN_PROGRESS, WAITING, COMPLETED, or CANCELLED'),
         priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'URGENT']).optional().describe('New priority: LOW, MEDIUM, HIGH, or URGENT'),
         dueDate: z.string().datetime().nullable().optional().describe('Due date in ISO 8601 format e.g. "2026-04-20T00:00:00Z", or null to clear'),
+        startDate: z.string().datetime().nullable().optional().describe('Do not start before (ISO 8601), or null to clear'),
+        waitingOn: z.string().max(255).nullable().optional().describe('Who or what the task is waiting on, or null to clear (not cleared automatically on a status change)'),
+        noteId: z.string().uuid().nullable().optional().describe('Note UUID, or null to unlink'),
         folderId: z.string().uuid().nullable().optional().describe('Folder UUID or null to unfile'),
+        parentTaskId: z.string().uuid().nullable().optional().describe('Parent task UUID, or null to make it a top-level task'),
+        links: z.array(taskLinkInput).max(10).optional().describe('REPLACES all existing links (up to 10)'),
         tags: z.array(z.string()).optional().describe('REPLACES all existing tags'),
       },
     },
-    async ({ id, title, description, status, priority, dueDate, folderId, tags }) => {
+    async ({ id, ...fields }) => {
       try {
-        const task = await updateTask(id, getUserId(), { title, description, status, priority, dueDate, folderId, tags });
+        const checked = checkTaskArgs(updateTaskSchema, fields);
+        if (!checked.ok) return toolError(checked.error);
+        const task = await updateTask(id, getUserId(), checked.data);
         return toolResult(task);
       } catch (error) {
         return toolError(error);

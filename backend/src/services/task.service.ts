@@ -1,5 +1,71 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/db.js';
-import type { CreateTaskInput, UpdateTaskInput } from '../utils/validation.schemas.js';
+import { NotFoundError, BadRequestError, ConflictError } from '../utils/errors.js';
+import type { CreateTaskInput, UpdateTaskInput, TaskSortField } from '../utils/validation.schemas.js';
+
+/** Selected for the parent of a task (list and detail) */
+const parentSelect = { select: { id: true, title: true } } as const;
+
+/** Selected for the subtasks of a task (detail only) */
+const subtasksSelect = {
+  select: { id: true, title: true, status: true, dueDate: true },
+  orderBy: { createdAt: 'asc' },
+} as const;
+
+/** Relations returned with a single task */
+const taskDetailInclude = {
+  folder: { select: { id: true, name: true } },
+  note: { select: { id: true, title: true } },
+  tags: { include: { tag: { select: { id: true, name: true } } } },
+  links: {
+    select: { id: true, url: true, title: true, createdAt: true },
+    orderBy: { createdAt: 'asc' },
+  },
+  parent: parentSelect,
+  subtasks: subtasksSelect,
+} as const;
+
+/**
+ * True when a Prisma error is the (user_id, source, external_id) unique index.
+ * Other unique violations (e.g. the same tag twice, which hits task_tags' key)
+ * also surface as P2002 on Task, so the target columns are checked.
+ */
+function isSyncIdentityConflict(error: unknown): boolean {
+  if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2002') return false;
+  const target = (error.meta as { target?: unknown } | undefined)?.target;
+  if (Array.isArray(target)) return target.includes('external_id') || target.includes('externalId');
+  return typeof target === 'string' && target.includes('external_id');
+}
+
+/**
+ * Lock task rows for the rest of the transaction, always in id order so two
+ * concurrent re-parentings cannot deadlock. With the rows locked, the one-level
+ * checks below see committed state, so two concurrent updates cannot build a
+ * two-level chain or a cycle (A under B while B goes under A).
+ */
+async function lockTaskRows(tx: any, ids: string[]) {
+  const sorted = [...new Set(ids)].sort();
+  await tx.$queryRaw(
+    Prisma.sql`SELECT id FROM tasks WHERE id IN (${Prisma.join(sorted)}) ORDER BY id FOR UPDATE`
+  );
+}
+
+/**
+ * Check that parentTaskId can be the parent of a task: owned by the user and
+ * not itself a subtask (subtasks are one level deep).
+ */
+async function assertValidParent(tx: any, userId: string, parentTaskId: string) {
+  const parent = await tx.task.findFirst({
+    where: { id: parentTaskId, userId },
+    select: { id: true, parentTaskId: true },
+  });
+  if (!parent) {
+    throw new NotFoundError('Parent task not found');
+  }
+  if (parent.parentTaskId) {
+    throw new BadRequestError('Subtasks cannot have subtasks');
+  }
+}
 
 /**
  * Build orderBy array for task queries based on sort options
@@ -25,6 +91,11 @@ function buildTaskOrderBy(sortBy: string, sortOrder: 'asc' | 'desc'): any[] {
     case 'title':
       orderBy.push({ title: sortOrder });
       break;
+    case 'startDate':
+      // Start date: nulls last for asc, nulls first for desc (same as dueDate)
+      orderBy.push({ startDate: { sort: sortOrder, nulls: sortOrder === 'asc' ? 'last' : 'first' } });
+      orderBy.push({ priority: 'desc' });
+      break;
     default:
       // Default: priority desc, then due date asc
       orderBy.push({ priority: 'desc' });
@@ -49,41 +120,7 @@ export async function getTaskById(taskId: string, userId: string) {
       id: taskId,
       userId,
     },
-    include: {
-      folder: {
-        select: {
-          id: true,
-          name: true,
-        },
-      },
-      note: {
-        select: {
-          id: true,
-          title: true,
-        },
-      },
-      tags: {
-        include: {
-          tag: {
-            select: {
-              id: true,
-              name: true,
-            },
-          },
-        },
-      },
-      links: {
-        select: {
-          id: true,
-          url: true,
-          title: true,
-          createdAt: true,
-        },
-        orderBy: {
-          createdAt: 'asc',
-        },
-      },
-    },
+    include: taskDetailInclude,
   });
 
   if (!task) {
@@ -91,6 +128,26 @@ export async function getTaskById(taskId: string, userId: string) {
   }
 
   // Transform tags to simpler format
+  return {
+    ...task,
+    tags: task.tags.map((tt: any) => tt.tag),
+  };
+}
+
+/**
+ * Get a task by its sync identity (source + externalId), unique per user.
+ * Lets a client that timed out after Notez committed find the task it created.
+ */
+export async function getTaskByExternalId(userId: string, source: string, externalId: string) {
+  const task = await prisma.task.findFirst({
+    where: { userId, source, externalId },
+    include: taskDetailInclude,
+  });
+
+  if (!task) {
+    throw new NotFoundError('Task not found');
+  }
+
   return {
     ...task,
     tags: task.tags.map((tt: any) => tt.tag),
@@ -109,16 +166,19 @@ export async function listTasks(
     folderId?: string;
     noteId?: string;
     tagId?: string;
+    source?: string;
+    externalId?: string;
+    parentTaskId?: string;
     overdue?: boolean;
     createdByTokenId?: string;
     agentCreated?: boolean;
-    sortBy?: 'priority' | 'dueDate' | 'createdAt' | 'title';
+    sortBy?: TaskSortField;
     sortOrder?: 'asc' | 'desc';
     limit?: number;
     offset?: number;
   }
 ) {
-  const { status, priority, folderId, noteId, tagId, overdue, createdByTokenId, agentCreated, sortBy = 'priority', sortOrder = 'desc', limit = 50, offset = 0 } = options || {};
+  const { status, priority, folderId, noteId, tagId, source, externalId, parentTaskId, overdue, createdByTokenId, agentCreated, sortBy = 'priority', sortOrder = 'desc', limit = 50, offset = 0 } = options || {};
 
   // Build where clause
   const where: any = { userId };
@@ -154,6 +214,19 @@ export async function listTasks(
         tagId,
       },
     };
+  }
+
+  // Filter by sync identity (externalId is only meaningful with a source)
+  if (source) {
+    where.source = source;
+  }
+  if (externalId) {
+    where.externalId = externalId;
+  }
+
+  // Filter by parent (the subtasks of one task)
+  if (parentTaskId) {
+    where.parentTaskId = parentTaskId;
   }
 
   // Filter by specific agent token
@@ -223,6 +296,7 @@ export async function listTasks(
             createdAt: 'asc',
           },
         },
+        parent: parentSelect,
       },
       orderBy: buildTaskOrderBy(sortBy, sortOrder),
       take: limit,
@@ -247,129 +321,117 @@ export async function listTasks(
 
 /**
  * Create a new task
+ *
+ * A duplicate (source, externalId) for the user becomes ConflictError (409),
+ * so a client retrying a create it cannot confirm gets "already there"
+ * instead of a second task.
  */
 export async function createTask(userId: string, data: CreateTaskInput, createdByTokenId?: string) {
-  return prisma.$transaction(async (tx: any) => {
-    // If folderId is provided, verify it belongs to the user
-    if (data.folderId) {
-      const folder = await tx.folder.findFirst({
-        where: {
-          id: data.folderId,
-          userId,
-        },
-      });
+  try {
+    return await prisma.$transaction(async (tx: any) => {
+      // If folderId is provided, verify it belongs to the user
+      if (data.folderId) {
+        const folder = await tx.folder.findFirst({
+          where: {
+            id: data.folderId,
+            userId,
+          },
+        });
 
-      if (!folder) {
-        throw new Error('Folder not found');
-      }
-    }
-
-    // If noteId is provided, verify it belongs to the user
-    let noteTitle: string | undefined;
-    if (data.noteId) {
-      const note = await tx.note.findFirst({
-        where: {
-          id: data.noteId,
-          userId,
-        },
-      });
-
-      if (!note) {
-        throw new Error('Note not found');
+        if (!folder) {
+          throw new Error('Folder not found');
+        }
       }
 
-      noteTitle = note.title;
-    }
+      // If noteId is provided, verify it belongs to the user
+      let noteTitle: string | undefined;
+      if (data.noteId) {
+        const note = await tx.note.findFirst({
+          where: {
+            id: data.noteId,
+            userId,
+          },
+        });
 
-    // Handle tags if provided - use upsert to prevent race conditions
-    let tagConnections: any[] = [];
-    if (data.tags && data.tags.length > 0) {
-      const tagUpserts = data.tags.map((tagName) =>
-        tx.tag.upsert({
-          where: { userId_name: { userId, name: tagName } },
-          update: {},
-          create: { name: tagName, userId, createdByTokenId: createdByTokenId || null },
-        })
-      );
+        if (!note) {
+          throw new Error('Note not found');
+        }
 
-      const tags = await Promise.all(tagUpserts);
-      tagConnections = tags.map((tag) => ({
-        tag: { connect: { id: tag.id } },
-      }));
-    }
+        noteTitle = note.title;
+      }
 
-    // Prepare links if provided
-    let linkConnections: any[] = [];
-    if (data.links && data.links.length > 0) {
-      linkConnections = data.links.map((link) => ({
-        url: link.url,
-        title: link.title || null,
-      }));
-    }
+      // If parentTaskId is provided, lock the parent and check it can take a subtask
+      if (data.parentTaskId) {
+        await lockTaskRows(tx, [data.parentTaskId]);
+        await assertValidParent(tx, userId, data.parentTaskId);
+      }
 
-    // Create task with tags and links
-    const task = await tx.task.create({
-      data: {
-        title: data.title,
-        description: data.description || null,
-        status: data.status || 'PENDING',
-        priority: data.priority || 'MEDIUM',
-        dueDate: data.dueDate ? new Date(data.dueDate) : null,
-        userId,
-        noteId: data.noteId || null,
-        noteTitle: noteTitle || null,
-        folderId: data.folderId || null,
-        createdByTokenId: createdByTokenId || null,
-        tags: {
-          create: tagConnections,
-        },
-        links: {
-          create: linkConnections,
-        },
-      },
-      include: {
-        folder: {
-          select: {
-            id: true,
-            name: true,
+      // Handle tags if provided - use upsert to prevent race conditions
+      let tagConnections: any[] = [];
+      if (data.tags && data.tags.length > 0) {
+        const tagUpserts = data.tags.map((tagName) =>
+          tx.tag.upsert({
+            where: { userId_name: { userId, name: tagName } },
+            update: {},
+            create: { name: tagName, userId, createdByTokenId: createdByTokenId || null },
+          })
+        );
+
+        const tags = await Promise.all(tagUpserts);
+        tagConnections = tags.map((tag) => ({
+          tag: { connect: { id: tag.id } },
+        }));
+      }
+
+      // Prepare links if provided
+      let linkConnections: any[] = [];
+      if (data.links && data.links.length > 0) {
+        linkConnections = data.links.map((link) => ({
+          url: link.url,
+          title: link.title || null,
+        }));
+      }
+
+      // Create task with tags and links
+      const task = await tx.task.create({
+        data: {
+          title: data.title,
+          description: data.description || null,
+          status: data.status || 'PENDING',
+          priority: data.priority || 'MEDIUM',
+          dueDate: data.dueDate ? new Date(data.dueDate) : null,
+          startDate: data.startDate ? new Date(data.startDate) : null,
+          waitingOn: data.waitingOn ?? null,
+          source: data.source ?? null,
+          externalId: data.externalId ?? null,
+          parentTaskId: data.parentTaskId ?? null,
+          userId,
+          noteId: data.noteId || null,
+          noteTitle: noteTitle || null,
+          folderId: data.folderId || null,
+          createdByTokenId: createdByTokenId || null,
+          tags: {
+            create: tagConnections,
+          },
+          links: {
+            create: linkConnections,
           },
         },
-        note: {
-          select: {
-            id: true,
-            title: true,
-          },
-        },
-        tags: {
-          include: {
-            tag: {
-              select: {
-                id: true,
-                name: true,
-              },
-            },
-          },
-        },
-        links: {
-          select: {
-            id: true,
-            url: true,
-            title: true,
-            createdAt: true,
-          },
-          orderBy: {
-            createdAt: 'asc',
-          },
-        },
-      },
+        include: taskDetailInclude,
+      });
+
+      // Transform tags to simpler format
+      return {
+        ...task,
+        tags: task.tags.map((tt: any) => tt.tag),
+      };
     });
-
-    // Transform tags to simpler format
-    return {
-      ...task,
-      tags: task.tags.map((tt: any) => tt.tag),
-    };
-  });
+  } catch (error) {
+    if (isSyncIdentityConflict(error)) {
+      throw new ConflictError('A task with this source and externalId already exists');
+    }
+    throw error;
+  }
 }
 
 /**
@@ -387,6 +449,20 @@ export async function updateTask(taskId: string, userId: string, data: UpdateTas
 
     if (!existingTask) {
       throw new Error('Task not found');
+    }
+
+    // If a parent is being set: one level only, so the parent must not be a subtask
+    // and this task must not have subtasks of its own. Both rows are locked first.
+    if (data.parentTaskId) {
+      if (data.parentTaskId === taskId) {
+        throw new BadRequestError('A task cannot be its own parent');
+      }
+      await lockTaskRows(tx, [taskId, data.parentTaskId]);
+      await assertValidParent(tx, userId, data.parentTaskId);
+      const subtaskCount = await tx.task.count({ where: { parentTaskId: taskId } });
+      if (subtaskCount > 0) {
+        throw new BadRequestError('A task with subtasks cannot become a subtask');
+      }
     }
 
     // If folderId is being updated, verify it belongs to the user
@@ -492,12 +568,20 @@ export async function updateTask(taskId: string, userId: string, data: UpdateTas
     if (data.folderId !== undefined) updateData.folderId = data.folderId;
     if (data.noteId !== undefined) updateData.noteId = data.noteId;
     if (noteTitle !== undefined) updateData.noteTitle = noteTitle;
+    // waitingOn is free text the server never touches on a status change; the client clears it
+    if (data.waitingOn !== undefined) updateData.waitingOn = data.waitingOn;
+    if (data.startDate !== undefined) {
+      updateData.startDate = data.startDate ? new Date(data.startDate) : null;
+    }
+    if (data.parentTaskId !== undefined) updateData.parentTaskId = data.parentTaskId;
 
     // Update task
     const task = await tx.task.update({
       where: { id: taskId },
       data: updateData,
       include: {
+        parent: parentSelect,
+        subtasks: subtasksSelect,
         folder: {
           select: {
             id: true,
@@ -607,12 +691,13 @@ export async function deleteTask(taskId: string, userId: string) {
 export async function getTaskStats(userId: string) {
   const now = new Date();
 
-  const [totalTasks, pendingTasks, inProgressTasks, completedTasks, overdueTasks] =
+  const [totalTasks, pendingTasks, inProgressTasks, completedTasks, overdueTasks, waitingTasks] =
     await prisma.$transaction([
       prisma.task.count({ where: { userId } }),
       prisma.task.count({ where: { userId, status: 'PENDING' } }),
       prisma.task.count({ where: { userId, status: 'IN_PROGRESS' } }),
       prisma.task.count({ where: { userId, status: 'COMPLETED' } }),
+      // WAITING counts as open, so a waiting task past its due date is overdue
       prisma.task.count({
         where: {
           userId,
@@ -620,12 +705,14 @@ export async function getTaskStats(userId: string) {
           dueDate: { lt: now },
         },
       }),
+      prisma.task.count({ where: { userId, status: 'WAITING' } }),
     ]);
 
   return {
     totalTasks,
     pendingTasks,
     inProgressTasks,
+    waitingTasks,
     completedTasks,
     overdueTasks,
   };

@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import * as taskService from '../services/task.service.js';
 import * as taskExtractionService from '../services/task-extraction.service.js';
@@ -20,6 +20,18 @@ import {
   type ImportTasksInput,
 } from '../utils/validation.schemas.js';
 import { safeEmitWebhookEvent } from '../services/webhook.service.js';
+import { AppError } from '../utils/errors.js';
+
+/**
+ * Typed service errors (ConflictError 409, BadRequestError 400, NotFoundError 404)
+ * keep their status and message; returns null for anything else.
+ */
+function sendAppError(error: unknown, reply: FastifyReply) {
+  if (error instanceof AppError && error.statusCode >= 400 && error.statusCode < 500) {
+    return reply.status(error.statusCode).send({ error: error.name, message: error.message });
+  }
+  return null;
+}
 
 // Param schemas
 const taskIdParamSchema = z.object({
@@ -52,6 +64,9 @@ export async function tasksRoutes(fastify: FastifyInstance) {
           folderId: query.folderId,
           noteId: query.noteId,
           tagId: query.tagId,
+          source: query.source,
+          externalId: query.externalId,
+          parentTaskId: query.parentTaskId,
           overdue: query.overdue,
           sortBy: query.sortBy,
           sortOrder: query.sortOrder,
@@ -194,6 +209,9 @@ export async function tasksRoutes(fastify: FastifyInstance) {
       } catch (error: any) {
         fastify.log.error(error);
 
+        const sent = sendAppError(error, reply);
+        if (sent) return sent;
+
         if (error.message === 'Folder not found' || error.message === 'Note not found') {
           return reply.status(404).send({
             error: 'Not Found',
@@ -226,6 +244,9 @@ export async function tasksRoutes(fastify: FastifyInstance) {
         return task;
       } catch (error: any) {
         fastify.log.error(error);
+
+        const sent = sendAppError(error, reply);
+        if (sent) return sent;
 
         if (error.message === 'Task not found') {
           return reply.status(404).send({

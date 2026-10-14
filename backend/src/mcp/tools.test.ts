@@ -87,6 +87,7 @@ vi.mock('../services/ai/index.js', () => ({
 
 import { registerNotezTools, __resetAiRateLimiterForTesting__, __resetToolDefsForTesting__ } from './tools.js';
 import { getNoteById } from '../services/note.service.js';
+import { createTask, updateTask, listTasks } from '../services/task.service.js';
 import { aiService, AIProviderNotConfiguredError, AIProviderRateLimitError, AIModelNotFoundError, AIProviderConnectionError, AIServiceError } from '../services/ai/index.js';
 import { prisma } from '../lib/db.js';
 
@@ -257,6 +258,96 @@ describe('tools', () => {
       expect(capturedDescription).toContain('ISO 8601');
       expect(capturedDescription).toContain('LOW');
       expect(capturedDescription).toContain('URGENT');
+    });
+  });
+
+  describe('task tools: WAITING, sync identity, startDate, subtasks', () => {
+    const PARENT_ID = '22222222-2222-4222-8222-222222222222';
+    const NOTE_ID = '33333333-3333-4333-8333-333333333333';
+
+    function capture() {
+      const defs: Record<string, { inputSchema: Record<string, z.ZodTypeAny> }> = {};
+      const handlers: Record<string, (args: unknown) => Promise<unknown>> = {};
+      const mock = {
+        registerTool: vi.fn((name: string, def: any, handler: any) => {
+          defs[name] = def;
+          handlers[name] = handler;
+        }),
+      } as unknown as McpServer;
+      registerNotezTools(mock, () => 'user-1', ['mcp:read', 'mcp:write']);
+      return { defs, handlers };
+    }
+
+    it('notez_create_task forwards status, noteId, links, waitingOn, startDate, parentTaskId, source and externalId', async () => {
+      const { handlers } = capture();
+      vi.mocked(createTask).mockResolvedValue({ id: 't1' } as any);
+      const args = {
+        title: 'Call the notary',
+        status: 'WAITING',
+        noteId: NOTE_ID,
+        links: [{ url: 'https://example.com/a', title: 'A' }],
+        waitingOn: 'the notary',
+        startDate: '2026-10-20T00:00:00.000Z',
+        parentTaskId: PARENT_ID,
+        source: 'foyer',
+        externalId: 'p-1',
+      };
+
+      const result = await handlers['notez_create_task'](args) as any;
+
+      expect(result.isError).toBe(false);
+      expect(createTask).toHaveBeenCalledWith('user-1', expect.objectContaining(args));
+    });
+
+    it('notez_create_task refuses source without externalId before calling the service', async () => {
+      const { handlers } = capture();
+      vi.mocked(createTask).mockClear();
+
+      const result = await handlers['notez_create_task']({ title: 'T', source: 'foyer' }) as any;
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('source and externalId');
+      expect(createTask).not.toHaveBeenCalled();
+    });
+
+    it('notez_update_task forwards the new fields and has no source or externalId input', async () => {
+      const { defs, handlers } = capture();
+      vi.mocked(updateTask).mockResolvedValue({ id: 't1' } as any);
+      const args = {
+        id: '11111111-1111-4111-8111-111111111111',
+        status: 'WAITING',
+        waitingOn: null,
+        startDate: '2026-10-20T00:00:00.000Z',
+        parentTaskId: null,
+        noteId: NOTE_ID,
+        links: [{ url: 'https://example.com/b' }],
+      };
+
+      await handlers['notez_update_task'](args);
+
+      const { id, ...rest } = args;
+      expect(updateTask).toHaveBeenCalledWith(id, 'user-1', expect.objectContaining(rest));
+      expect(defs['notez_update_task'].inputSchema).not.toHaveProperty('source');
+      expect(defs['notez_update_task'].inputSchema).not.toHaveProperty('externalId');
+    });
+
+    it('notez_list_tasks accepts WAITING and filters by source, externalId and parentTaskId', async () => {
+      const { defs, handlers } = capture();
+      vi.mocked(listTasks).mockResolvedValue({ tasks: [], total: 0, limit: 20, offset: 0 } as any);
+
+      expect(() => defs['notez_list_tasks'].inputSchema.status.parse('WAITING')).not.toThrow();
+
+      await handlers['notez_list_tasks']({ status: 'WAITING', source: 'foyer', externalId: 'p-1', parentTaskId: PARENT_ID, limit: 20 });
+
+      expect(listTasks).toHaveBeenCalledWith('user-1', expect.objectContaining({
+        status: 'WAITING', source: 'foyer', externalId: 'p-1', parentTaskId: PARENT_ID,
+      }));
+    });
+
+    it('every task status enum accepts WAITING', () => {
+      const { defs } = capture();
+      expect(() => defs['notez_create_task'].inputSchema.status.parse('WAITING')).not.toThrow();
+      expect(() => defs['notez_update_task'].inputSchema.status.parse('WAITING')).not.toThrow();
     });
   });
 
