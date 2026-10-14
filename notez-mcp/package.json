@@ -1,6 +1,6 @@
 {
   "name": "notez-mcp",
-  "version": "1.13.0",
+  "version": "1.14.0",
   "description": "MCP server for Notez — allows Claude Code to read and manage notes and tasks",
   "type": "module",
   "main": "build/index.js",

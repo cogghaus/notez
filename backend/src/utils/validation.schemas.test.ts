@@ -30,6 +30,7 @@ import {
   createAgentTokenSchema,
   updateAgentTokenSchema,
   AGENT_ICONS,
+  TASK_STATUSES,
 } from './validation.schemas.js';
 
 // Helper: expect schema to parse successfully
@@ -632,6 +633,112 @@ describe('validation.schemas', () => {
     it('should coerce boolean for overdue', () => {
       const result = listTasksQuerySchema.parse({ overdue: 'true' });
       expect(result.overdue).toBe(true);
+    });
+  });
+
+  // ─── Task schema extensions (WAITING, sync identity, startDate, subtasks) ──
+  describe('task schema extensions', () => {
+    const UUID = '550e8400-e29b-41d4-a716-446655440000';
+
+    it('TASK_STATUSES lists all five statuses, WAITING included', () => {
+      expect([...TASK_STATUSES]).toEqual(['PENDING', 'IN_PROGRESS', 'WAITING', 'COMPLETED', 'CANCELLED']);
+    });
+
+    it('accepts WAITING in the create, update, status and list schemas', () => {
+      expectValid(createTaskSchema, { title: 'T', status: 'WAITING' });
+      expectValid(updateTaskSchema, { status: 'WAITING' });
+      expectValid(updateTaskStatusSchema, { status: 'WAITING' });
+      expect(listTasksQuerySchema.parse({ status: 'WAITING' }).status).toBe('WAITING');
+      expect(listTasksQuerySchema.parse({ status: ['PENDING', 'WAITING'] }).status).toEqual(['PENDING', 'WAITING']);
+    });
+
+    it('accepts the new fields on create', () => {
+      const parsed = createTaskSchema.parse({
+        title: 'T',
+        waitingOn: 'the notary',
+        source: 'foyer',
+        externalId: 'proposal-123',
+        startDate: '2026-10-20T00:00:00.000Z',
+        dueDate: '2026-10-21T00:00:00.000Z',
+        parentTaskId: UUID,
+      });
+      expect(parsed).toMatchObject({
+        waitingOn: 'the notary',
+        source: 'foyer',
+        externalId: 'proposal-123',
+        startDate: '2026-10-20T00:00:00.000Z',
+        parentTaskId: UUID,
+      });
+    });
+
+    it('refuses source without externalId and externalId without source', () => {
+      expectInvalid(createTaskSchema, { title: 'T', source: 'foyer' });
+      expectInvalid(createTaskSchema, { title: 'T', externalId: 'x' });
+    });
+
+    it('enforces the source pattern', () => {
+      expectValid(createTaskSchema, { title: 'T', source: 'github_issues-2', externalId: 'x' });
+      expectInvalid(createTaskSchema, { title: 'T', source: 'Foyer', externalId: 'x' });
+      expectInvalid(createTaskSchema, { title: 'T', source: '1foyer', externalId: 'x' });
+      expectInvalid(createTaskSchema, { title: 'T', source: 'f', externalId: 'x' });
+      expectInvalid(createTaskSchema, { title: 'T', source: 'a'.repeat(51), externalId: 'x' });
+      expectInvalid(createTaskSchema, { title: 'T', source: 'foy er', externalId: 'x' });
+    });
+
+    it('bounds externalId and waitingOn', () => {
+      expectInvalid(createTaskSchema, { title: 'T', source: 'foyer', externalId: '' });
+      expectInvalid(createTaskSchema, { title: 'T', source: 'foyer', externalId: 'x'.repeat(256) });
+      expectInvalid(createTaskSchema, { title: 'T', waitingOn: 'x'.repeat(256) });
+    });
+
+    it('refuses startDate after dueDate on create and update', () => {
+      const bad = { startDate: '2026-10-22T00:00:00.000Z', dueDate: '2026-10-21T00:00:00.000Z' };
+      expectInvalid(createTaskSchema, { title: 'T', ...bad });
+      expectInvalid(updateTaskSchema, bad);
+      expectValid(createTaskSchema, { title: 'T', startDate: '2026-10-21T00:00:00.000Z', dueDate: '2026-10-21T00:00:00.000Z' });
+    });
+
+    it('requires startDate to be an ISO datetime', () => {
+      expectInvalid(createTaskSchema, { title: 'T', startDate: 'next week' });
+      expectInvalid(createTaskSchema, { title: 'T', startDate: '2026-10-21' });
+    });
+
+    it('requires parentTaskId to be a UUID', () => {
+      expectInvalid(createTaskSchema, { title: 'T', parentTaskId: 'not-a-uuid' });
+      expectInvalid(updateTaskSchema, { parentTaskId: 'not-a-uuid' });
+    });
+
+    it('lets update clear startDate, waitingOn and parentTaskId with null', () => {
+      const parsed = updateTaskSchema.parse({ startDate: null, waitingOn: null, parentTaskId: null });
+      expect(parsed).toMatchObject({ startDate: null, waitingOn: null, parentTaskId: null });
+    });
+
+    it('refuses source and externalId on update', () => {
+      const result = updateTaskSchema.safeParse({ source: 'foyer', externalId: 'x' });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.errors[0].message).toBe('source and externalId are set at creation');
+      }
+      expectInvalid(updateTaskSchema, { externalId: 'x' });
+    });
+
+    it('list query accepts source, externalId, parentTaskId and sortBy startDate', () => {
+      const parsed = listTasksQuerySchema.parse({
+        source: 'foyer',
+        externalId: 'x',
+        parentTaskId: UUID,
+        sortBy: 'startDate',
+      });
+      expect(parsed).toMatchObject({ source: 'foyer', externalId: 'x', parentTaskId: UUID, sortBy: 'startDate' });
+    });
+
+    it('list query refuses externalId without source', () => {
+      expectInvalid(listTasksQuerySchema, { externalId: 'x' });
+    });
+
+    it('list query caps offset at 100000', () => {
+      expect(listTasksQuerySchema.parse({ offset: '100000' }).offset).toBe(100000);
+      expectInvalid(listTasksQuerySchema, { offset: '100001' });
     });
   });
 

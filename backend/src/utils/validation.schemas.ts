@@ -220,30 +220,97 @@ const taskLinkSchema = z.object({
   title: z.string().max(255, 'Link title must not exceed 255 characters').optional(),
 });
 
+// Task statuses: the single list every task schema (session API, external API, MCP) uses.
+// Ordered as a workflow; the database enum order differs (WAITING was appended last).
+export const TASK_STATUSES = ['PENDING', 'IN_PROGRESS', 'WAITING', 'COMPLETED', 'CANCELLED'] as const;
+export const taskStatusSchema = z.enum(TASK_STATUSES);
+export type TaskStatusValue = typeof TASK_STATUSES[number];
+
+// Task field schemas shared by the session routes, the external API and the MCP tools
+export { taskLinkSchema };
+export const taskWaitingOnSchema = z.string().max(255, 'waitingOn must not exceed 255 characters');
+export const taskSourceSchema = z.string().regex(
+  /^[a-z][a-z0-9_-]{1,49}$/,
+  'source must be 2 to 50 characters: lowercase letters, digits, "_" or "-", starting with a letter'
+);
+export const taskExternalIdSchema = z.string()
+  .min(1, 'externalId must not be empty')
+  .max(255, 'externalId must not exceed 255 characters');
+export const taskStartDateSchema = z.string().datetime();
+export const taskParentIdSchema = z.string().uuid('Invalid parent task ID');
+
+export const TASK_SOURCE_PAIR_MESSAGE = 'source and externalId must be given together';
+export const TASK_START_AFTER_DUE_MESSAGE = 'startDate must not be after dueDate';
+export const TASK_SYNC_IDENTITY_IMMUTABLE_MESSAGE = 'source and externalId are set at creation';
+
+/**
+ * Cross-field rules for a task create body: the sync identity is all or nothing,
+ * and a task cannot start after it is due.
+ */
+export function refineTaskCreate(
+  data: { source?: string; externalId?: string; startDate?: string | null; dueDate?: string | null },
+  ctx: z.RefinementCtx
+) {
+  if ((data.source === undefined) !== (data.externalId === undefined)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: TASK_SOURCE_PAIR_MESSAGE,
+      path: [data.source === undefined ? 'source' : 'externalId'],
+    });
+  }
+  refineTaskDates(data, ctx);
+}
+
+/**
+ * Cross-field rule for an update body. Only checks dates sent together;
+ * a lone startDate or dueDate is not compared with the stored value.
+ */
+export function refineTaskDates(
+  data: { startDate?: string | null; dueDate?: string | null },
+  ctx: z.RefinementCtx
+) {
+  if (data.startDate && data.dueDate && new Date(data.startDate) > new Date(data.dueDate)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: TASK_START_AFTER_DUE_MESSAGE, path: ['startDate'] });
+  }
+}
+
+// Present on update bodies only to refuse them with a clear message (zod would otherwise strip them silently)
+const taskSyncIdentityRefused = z.undefined({ errorMap: () => ({ message: TASK_SYNC_IDENTITY_IMMUTABLE_MESSAGE }) });
+
 // Task schemas
 export const createTaskSchema = z.object({
   title: z.string().min(1, 'Title is required').max(500, 'Title must not exceed 500 characters'),
   description: z.string().optional(),
-  status: z.enum(['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']).default('PENDING').optional(),
+  status: taskStatusSchema.optional(), // the service defaults to PENDING
   priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'URGENT']).default('MEDIUM').optional(),
   dueDate: z.string().datetime().optional(),
   noteId: z.string().uuid('Invalid note ID').optional(),
   folderId: z.string().uuid('Invalid folder ID').optional(),
   tags: z.array(z.string().min(1).max(100)).optional(),
   links: z.array(taskLinkSchema).max(10, 'Maximum 10 links per task').optional(),
-});
+  waitingOn: taskWaitingOnSchema.nullable().optional(),
+  source: taskSourceSchema.optional(),
+  externalId: taskExternalIdSchema.optional(),
+  startDate: taskStartDateSchema.nullable().optional(),
+  parentTaskId: taskParentIdSchema.nullable().optional(),
+}).superRefine(refineTaskCreate);
 
 export const updateTaskSchema = z.object({
   title: z.string().min(1, 'Title is required').max(500, 'Title must not exceed 500 characters').optional(),
   description: z.string().optional(),
-  status: z.enum(['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']).optional(),
+  status: taskStatusSchema.optional(),
   priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'URGENT']).optional(),
   dueDate: z.string().datetime().nullable().optional(),
   noteId: z.string().uuid('Invalid note ID').nullable().optional(),
   folderId: z.string().uuid('Invalid folder ID').nullable().optional(),
   tags: z.array(z.string().min(1).max(100)).optional(),
   links: z.array(taskLinkSchema).max(10, 'Maximum 10 links per task').optional(),
-});
+  waitingOn: taskWaitingOnSchema.nullable().optional(),
+  startDate: taskStartDateSchema.nullable().optional(),
+  parentTaskId: taskParentIdSchema.nullable().optional(),
+  source: taskSyncIdentityRefused,
+  externalId: taskSyncIdentityRefused,
+}).superRefine(refineTaskDates);
 
 // Task link management schemas
 export const addTaskLinkSchema = z.object({
@@ -257,23 +324,37 @@ export const updateTaskLinkSchema = z.object({
 });
 
 export const updateTaskStatusSchema = z.object({
-  status: z.enum(['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']),
+  status: taskStatusSchema,
 });
+
+export const TASK_SORT_FIELDS = ['priority', 'dueDate', 'createdAt', 'title', 'startDate'] as const;
+export type TaskSortField = typeof TASK_SORT_FIELDS[number];
+
+export const TASK_EXTERNAL_ID_NEEDS_SOURCE_MESSAGE = 'externalId requires source';
+
+/** Upper bound for list offsets: bounds the work a deep OFFSET scan can ask of the database */
+export const TASK_LIST_MAX_OFFSET = 100_000;
 
 export const listTasksQuerySchema = z.object({
   status: z.union([
-    z.enum(['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']),
-    z.array(z.enum(['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'])),
+    taskStatusSchema,
+    z.array(taskStatusSchema),
   ]).optional(),
   priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'URGENT']).optional(),
   folderId: z.string().uuid('Invalid folder ID').optional(),
   noteId: z.string().uuid('Invalid note ID').optional(),
   tagId: z.string().uuid('Invalid tag ID').optional(),
+  source: taskSourceSchema.optional(),
+  externalId: taskExternalIdSchema.optional(),
+  parentTaskId: taskParentIdSchema.optional(),
   overdue: z.coerce.boolean().optional(),
-  sortBy: z.enum(['priority', 'dueDate', 'createdAt', 'title']).default('priority').optional(),
+  sortBy: z.enum(TASK_SORT_FIELDS).default('priority').optional(),
   sortOrder: z.enum(['asc', 'desc']).default('desc').optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
-  offset: z.coerce.number().int().min(0).default(0),
+  offset: z.coerce.number().int().min(0).max(TASK_LIST_MAX_OFFSET).default(0),
+}).refine((q) => q.externalId === undefined || q.source !== undefined, {
+  message: TASK_EXTERNAL_ID_NEEDS_SOURCE_MESSAGE,
+  path: ['externalId'],
 });
 
 export const scanTasksSchema = z.object({

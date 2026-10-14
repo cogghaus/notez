@@ -328,16 +328,20 @@ export const referencesApi = {
     api.get('/api/notes/keywords'),
 };
 
-export type TaskSortBy = 'priority' | 'dueDate' | 'createdAt' | 'title';
+export type TaskSortBy = 'priority' | 'dueDate' | 'createdAt' | 'title' | 'startDate';
 export type TaskSortOrder = 'asc' | 'desc';
+type TaskStatusValue = 'PENDING' | 'IN_PROGRESS' | 'WAITING' | 'COMPLETED' | 'CANCELLED';
 
 export const tasksApi = {
   list: (params?: {
-    status?: string | string[];
+    status?: TaskStatusValue | TaskStatusValue[];
     priority?: string;
     folderId?: string;
     noteId?: string;
     tagId?: string;
+    source?: string;
+    externalId?: string;
+    parentTaskId?: string;
     overdue?: boolean;
     sortBy?: TaskSortBy;
     sortOrder?: TaskSortOrder;
@@ -350,23 +354,30 @@ export const tasksApi = {
   create: (data: {
     title: string;
     description?: string;
-    status?: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+    status?: TaskStatusValue;
     priority?: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
     dueDate?: string;
+    startDate?: string | null;
+    waitingOn?: string | null;
+    parentTaskId?: string | null;
     noteId?: string;
     folderId?: string;
     tags?: string[];
     links?: Array<{ url: string; title?: string }>;
   }) => api.post('/api/tasks', data),
 
+  // source and externalId are set at creation (by API clients) and cannot be updated
   update: (
     id: string,
     data: {
       title?: string;
       description?: string;
-      status?: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+      status?: TaskStatusValue;
       priority?: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
       dueDate?: string | null;
+      startDate?: string | null;
+      waitingOn?: string | null;
+      parentTaskId?: string | null;
       noteId?: string | null;
       folderId?: string | null;
       tags?: string[];
@@ -374,7 +385,7 @@ export const tasksApi = {
     }
   ) => api.put(`/api/tasks/${id}`, data),
 
-  updateStatus: (id: string, status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED') =>
+  updateStatus: (id: string, status: TaskStatusValue) =>
     api.patch(`/api/tasks/${id}/status`, { status }),
 
   delete: (id: string) => api.delete(`/api/tasks/${id}`),

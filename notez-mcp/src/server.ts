@@ -1,6 +1,18 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { createRequire } from 'module';
 import * as z from 'zod/v4';
 import { NotezClient } from './client.js';
+import { TASK_STATUSES } from './types.js';
+
+/** Read from package.json (one level above src/ and build/), so it cannot drift */
+export const SERVER_VERSION: string = createRequire(import.meta.url)('../package.json').version;
+
+const taskStatus = z.enum(TASK_STATUSES);
+const taskSource = z.string().regex(/^[a-z][a-z0-9_-]{1,49}$/);
+const taskLink = z.object({
+  url: z.string().url().describe('http or https URL'),
+  title: z.string().max(255).optional().describe('Link title'),
+});
 
 /**
  * Create and configure the Notez MCP server with all tools
@@ -8,7 +20,7 @@ import { NotezClient } from './client.js';
 export function createNotezServer(client: NotezClient): McpServer {
   const server = new McpServer({
     name: 'notez',
-    version: '1.10.1',
+    version: SERVER_VERSION,
   });
 
   // ─── Notes (read) ───────────────────────────────────────────────────
@@ -190,16 +202,19 @@ export function createNotezServer(client: NotezClient): McpServer {
   server.registerTool(
     'notez_list_tasks',
     {
-      description: 'List tasks, optionally filtered by status. Returns tasks sorted by priority.',
+      description: 'List tasks, optionally filtered by status, sync identity (source + externalId) or parent task. Returns tasks sorted by priority, each with waitingOn, startDate and parent.',
       inputSchema: {
-        status: z.enum(['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']).optional()
-          .describe('Filter by task status'),
-        limit: z.number().min(1).max(50).default(20).describe('Max tasks to return'),
+        status: taskStatus.optional()
+          .describe('Filter by task status: PENDING, IN_PROGRESS, WAITING, COMPLETED or CANCELLED'),
+        source: taskSource.optional().describe('Filter by the system that filed the task (e.g. "foyer")'),
+        externalId: z.string().min(1).max(255).optional().describe('Filter by the id the source system gave the task; requires source'),
+        parentTaskId: z.string().uuid().optional().describe('List the subtasks of this task'),
+        limit: z.number().min(1).max(100).default(20).describe('Max tasks to return'),
       },
     },
-    async ({ status, limit }) => {
+    async ({ status, source, externalId, parentTaskId, limit }) => {
       try {
-        const result = await client.listTasks(status, limit);
+        const result = await client.listTasks({ status, source, externalId, parentTaskId, limit });
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
         };
@@ -240,20 +255,28 @@ export function createNotezServer(client: NotezClient): McpServer {
   server.registerTool(
     'notez_create_task',
     {
-      description: 'Create a new task with optional priority, due date, and tags.',
+      description: 'Create a new task with optional status, priority, due and start dates, note, folder, parent task, links and tags. source and externalId go together and are unique per user: a second create with the same pair fails with "already exists".',
       inputSchema: {
         title: z.string().describe('Task title'),
         description: z.string().optional().describe('Task description'),
+        status: taskStatus.optional().describe('Initial status (default: PENDING): PENDING, IN_PROGRESS, WAITING, COMPLETED or CANCELLED'),
         priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'URGENT']).optional()
           .describe('Task priority (default: MEDIUM)'),
         dueDate: z.string().datetime().optional().describe('Due date (ISO 8601 datetime, e.g. "2026-03-15T09:00:00Z")'),
+        startDate: z.string().datetime().optional().describe('Do not start before (ISO 8601 datetime); must not be after dueDate'),
+        waitingOn: z.string().max(255).optional().describe('Who or what the task is waiting on (use with status WAITING)'),
+        noteId: z.string().uuid().optional().describe('Note UUID the task comes from'),
         folderId: z.string().uuid().optional().describe('Folder UUID'),
+        parentTaskId: z.string().uuid().optional().describe('Parent task UUID (one level: the parent cannot be a subtask)'),
+        links: z.array(taskLink).max(10).optional().describe('Up to 10 http(s) links'),
+        source: taskSource.optional().describe('System filing the task, e.g. "foyer"; requires externalId'),
+        externalId: z.string().min(1).max(255).optional().describe('Id of the task in the source system; requires source'),
         tags: z.array(z.string()).optional().describe('Tag names to attach'),
       },
     },
-    async ({ title, description, priority, dueDate, folderId, tags }) => {
+    async (args) => {
       try {
-        const task = await client.createTask({ title, description, priority, dueDate, folderId, tags });
+        const task = await client.createTask(args);
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(task, null, 2) }],
         };
@@ -346,23 +369,28 @@ export function createNotezServer(client: NotezClient): McpServer {
   server.registerTool(
     'notez_update_task',
     {
-      description: 'Update a task. Can change title, description, status, priority, due date, folder, or tags.',
+      description: 'Update a task. Can change title, description, status, priority, due and start dates, waiting-on, note, folder, parent task, links or tags. source and externalId cannot be changed.',
       inputSchema: {
         id: z.string().uuid().describe('Task UUID'),
         title: z.string().optional().describe('New title'),
         description: z.string().optional().describe('New description'),
-        status: z.enum(['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']).optional()
-          .describe('New status'),
+        status: taskStatus.optional()
+          .describe('New status: PENDING, IN_PROGRESS, WAITING, COMPLETED or CANCELLED'),
         priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'URGENT']).optional()
           .describe('New priority'),
         dueDate: z.string().datetime().nullable().optional().describe('Due date (ISO 8601 datetime, e.g. "2026-03-15T09:00:00Z") or null to clear'),
+        startDate: z.string().datetime().nullable().optional().describe('Do not start before (ISO 8601 datetime), or null to clear'),
+        waitingOn: z.string().max(255).nullable().optional().describe('Who or what the task is waiting on, or null to clear (not cleared automatically on a status change)'),
+        noteId: z.string().uuid().nullable().optional().describe('Note UUID, or null to unlink'),
         folderId: z.string().uuid().nullable().optional().describe('Folder UUID, or null to remove from folder'),
+        parentTaskId: z.string().uuid().nullable().optional().describe('Parent task UUID, or null to make it a top-level task'),
+        links: z.array(taskLink).max(10).optional().describe('REPLACES all existing links (up to 10)'),
         tags: z.array(z.string()).optional().describe('REPLACES all existing tags — pass the full desired tag list. To add a tag, first read the task to get current tags, then include them all plus the new one.'),
       },
     },
-    async ({ id, title, description, status, priority, dueDate, folderId, tags }) => {
+    async ({ id, ...fields }) => {
       try {
-        const task = await client.updateTask(id, { title, description, status, priority, dueDate, folderId, tags });
+        const task = await client.updateTask(id, fields);
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(task, null, 2) }],
         };

@@ -4,13 +4,28 @@ import { validateQuery, validateParams, validateBody } from '../middleware/valid
 import { z } from 'zod';
 import { searchService } from '../services/search.service.js';
 import { getNoteById, getNoteByTitle, listNotes, createNote, updateNote, deleteNote, restoreNote } from '../services/note.service.js';
-import { getTaskById, listTasks, createTask, updateTaskStatus, updateTask, deleteTask } from '../services/task.service.js';
+import { getTaskById, getTaskByExternalId, listTasks, createTask, updateTaskStatus, updateTask, deleteTask } from '../services/task.service.js';
 import { listFolders, createFolder, updateFolder, deleteFolder } from '../services/folder.service.js';
 import { listTags, renameTag, deleteTag } from '../services/tag.service.js';
 import { shareNote, listSharesForNote, unshareNote, updateSharePermission } from '../services/share.service.js';
 import { hashToken } from '../services/token.service.js';
 import { BadRequestError } from '../utils/errors.js';
-import { FOLDER_ICONS } from '../utils/validation.schemas.js';
+import {
+  FOLDER_ICONS,
+  TASK_SORT_FIELDS,
+  TASK_EXTERNAL_ID_NEEDS_SOURCE_MESSAGE,
+  TASK_SYNC_IDENTITY_IMMUTABLE_MESSAGE,
+  TASK_LIST_MAX_OFFSET,
+  taskStatusSchema,
+  taskSourceSchema,
+  taskExternalIdSchema,
+  taskParentIdSchema,
+  taskStartDateSchema,
+  taskWaitingOnSchema,
+  taskLinkSchema,
+  refineTaskCreate,
+  refineTaskDates,
+} from '../utils/validation.schemas.js';
 import { htmlToPlainText } from '../utils/html.js';
 
 // --- Query/Body schemas for MCP routes ---
@@ -44,11 +59,32 @@ const appendNoteBody = z.object({
   content: z.string().min(1).max(50000),
 });
 
+// status: one value, or a comma-separated list (?status=PENDING,IN_PROGRESS,WAITING)
+const statusListParam = z.preprocess(
+  (val) => (typeof val === 'string' && val.includes(',') ? val.split(',').map((s) => s.trim()) : val),
+  z.union([taskStatusSchema, z.array(taskStatusSchema).min(1)])
+);
+
 const listTasksQuery = z.object({
-  status: z.enum(['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']).optional(),
+  status: statusListParam.optional(),
+  source: taskSourceSchema.optional(),
+  externalId: taskExternalIdSchema.optional(),
+  parentTaskId: taskParentIdSchema.optional(),
+  folderId: z.string().uuid().optional(),
   createdByTokenId: z.string().uuid().optional(),
   agentCreated: z.coerce.boolean().optional(),
-  limit: z.coerce.number().int().min(1).max(50).default(20),
+  sortBy: z.enum(TASK_SORT_FIELDS).default('priority'),
+  sortOrder: z.enum(['asc', 'desc']).default('desc'),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  offset: z.coerce.number().int().min(0).max(TASK_LIST_MAX_OFFSET).default(0),
+}).refine((q) => q.externalId === undefined || q.source !== undefined, {
+  message: TASK_EXTERNAL_ID_NEEDS_SOURCE_MESSAGE,
+  path: ['externalId'],
+});
+
+const taskByExternalIdQuery = z.object({
+  source: taskSourceSchema,
+  externalId: taskExternalIdSchema,
 });
 
 const taskIdParam = z.object({
@@ -58,14 +94,22 @@ const taskIdParam = z.object({
 const createTaskBody = z.object({
   title: z.string().min(1).max(500),
   description: z.string().max(50000).optional(),
+  status: taskStatusSchema.optional(), // the service defaults to PENDING
   priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'URGENT']).default('MEDIUM').optional(),
   dueDate: z.string().datetime().optional(),
+  startDate: taskStartDateSchema.optional(),
   folderId: z.string().uuid().optional(),
+  noteId: z.string().uuid().optional(),
+  parentTaskId: taskParentIdSchema.optional(),
+  waitingOn: taskWaitingOnSchema.optional(),
+  source: taskSourceSchema.optional(),
+  externalId: taskExternalIdSchema.optional(),
   tags: z.array(z.string().min(1).max(100)).max(50).optional(),
-});
+  links: z.array(taskLinkSchema).max(10, 'Maximum 10 links per task').optional(),
+}).superRefine(refineTaskCreate);
 
 const updateTaskStatusBody = z.object({
-  status: z.enum(['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']),
+  status: taskStatusSchema,
 });
 
 const listNotesQuery = z.object({
@@ -94,12 +138,21 @@ const updateNoteBody = z.object({
 const updateTaskBody = z.object({
   title: z.string().min(1).max(500).optional(),
   description: z.string().max(50000).optional(),
-  status: z.enum(['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']).optional(),
+  status: taskStatusSchema.optional(),
   priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'URGENT']).optional(),
   dueDate: z.string().datetime().nullable().optional(),
+  startDate: taskStartDateSchema.nullable().optional(),
   folderId: z.string().uuid().nullable().optional(),
+  noteId: z.string().uuid().nullable().optional(),
+  parentTaskId: taskParentIdSchema.nullable().optional(),
+  waitingOn: taskWaitingOnSchema.nullable().optional(),
   tags: z.array(z.string().min(1).max(100)).max(50).optional(),
-}).refine(
+  // Replaces all links, as the session route does
+  links: z.array(taskLinkSchema).max(10, 'Maximum 10 links per task').optional(),
+  // Refused: the sync identity is fixed at creation so de-duplication stays honest
+  source: z.undefined({ errorMap: () => ({ message: TASK_SYNC_IDENTITY_IMMUTABLE_MESSAGE }) }),
+  externalId: z.undefined({ errorMap: () => ({ message: TASK_SYNC_IDENTITY_IMMUTABLE_MESSAGE }) }),
+}).superRefine(refineTaskDates).refine(
   (data) => Object.values(data).some(v => v !== undefined),
   { message: 'At least one field must be provided' }
 );
@@ -355,22 +408,41 @@ export async function mcpRoutes(fastify: FastifyInstance) {
 
   // ─── Tasks (read scope) ───────────────────────────────────────────────
 
-  // List tasks (optionally filter by status)
+  // List tasks: status (one or a comma list), sync identity, parent and folder
+  // filters, sorting and paging
   fastify.get(
     '/tasks',
     { config: perTokenRateLimit, preHandler: [requireScope('read'), validateQuery(listTasksQuery)] },
     async (request: FastifyRequest) => {
       const userId = request.user!.userId;
-      const { status, createdByTokenId, agentCreated, limit } = request.query as z.infer<typeof listTasksQuery>;
+      const query = request.query as z.infer<typeof listTasksQuery>;
 
       return listTasks(userId, {
-        status,
-        createdByTokenId,
-        agentCreated,
-        limit,
-        sortBy: 'priority',
-        sortOrder: 'desc',
+        status: query.status,
+        source: query.source,
+        externalId: query.externalId,
+        parentTaskId: query.parentTaskId,
+        folderId: query.folderId,
+        createdByTokenId: query.createdByTokenId,
+        agentCreated: query.agentCreated,
+        sortBy: query.sortBy,
+        sortOrder: query.sortOrder,
+        limit: query.limit,
+        offset: query.offset,
       });
+    }
+  );
+
+  // Get task by sync identity. Declared before /tasks/:id (find-my-way also
+  // prefers the static segment, but the order documents the intent).
+  fastify.get(
+    '/tasks/by-external-id',
+    { config: perTokenRateLimit, preHandler: [requireScope('read'), validateQuery(taskByExternalIdQuery)] },
+    async (request: FastifyRequest) => {
+      const userId = request.user!.userId;
+      const { source, externalId } = request.query as z.infer<typeof taskByExternalIdQuery>;
+
+      return getTaskByExternalId(userId, source, externalId);
     }
   );
 
@@ -415,7 +487,7 @@ export async function mcpRoutes(fastify: FastifyInstance) {
     }
   );
 
-  // Update a task (title, description, priority, due date, folder, tags)
+  // Update a task (everything but the sync identity; links and tags are replaced)
   fastify.patch(
     '/tasks/:id',
     { config: perTokenRateLimit, preHandler: [requireScope('write'), validateParams(taskIdParam), validateBody(updateTaskBody)] },

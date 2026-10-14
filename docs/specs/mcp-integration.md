@@ -185,6 +185,15 @@ All MCP endpoints require `Authorization: Bearer ntez_xxx...` header.
 | GET | `/api/mcp/folders` | read | List folders |
 | POST | `/api/mcp/notes` | write | Create new note |
 | PATCH | `/api/mcp/notes/:id/append` | write | Append to existing note |
+| GET | `/api/mcp/tasks` | read | List tasks (status list, sync identity, parent, sort, paging) |
+| GET | `/api/mcp/tasks/by-external-id` | read | Get a task by `source` + `externalId` (1.31.0) |
+| GET | `/api/mcp/tasks/:id` | read | Get task with parent and subtasks |
+| POST | `/api/mcp/tasks` | write | Create task (409 on a duplicate sync identity) |
+| PATCH | `/api/mcp/tasks/:id` | write | Update task (not the sync identity) |
+| PATCH | `/api/mcp/tasks/:id/status` | write | Update status |
+| DELETE | `/api/mcp/tasks/:id` | write | Delete task |
+
+This table predates the full surface; `docs/api-reference.md` > External API (v1) is the complete, current list. `/api/v1` and `/api/mcp` serve the same routes.
 
 #### Endpoint Specifications
 
@@ -290,6 +299,35 @@ All MCP endpoints require `Authorization: Bearer ntez_xxx...` header.
   ]
 }
 ```
+
+##### Tasks: WAITING, sync identity, start date, subtasks (1.31.0)
+
+Added for Foyer (Foyer ADR 0002), which files tasks into Notez through an agent token on the owner's account.
+
+- **Statuses:** `PENDING`, `IN_PROGRESS`, `WAITING`, `COMPLETED`, `CANCELLED`, from one `TASK_STATUSES` constant (`backend/src/utils/validation.schemas.ts`) used by the session API, the external API and the remote MCP tools. `notez-mcp` mirrors it in `src/types.ts`. `waitingOn` (255) names who or what a waiting task waits on.
+- **Sync identity:** `source` (`^[a-z][a-z0-9_-]{1,49}$`) + `externalId` (1..255), both or neither, set at creation and never updated, unique per user. A duplicate create answers `409`; the client resolves it with `GET /tasks/by-external-id`. This makes a retried create idempotent without an idempotency table.
+- **`startDate`:** do not start before; not after `dueDate` when both are sent; `sortBy=startDate`.
+- **Subtasks:** `parentTaskId`, one level deep, rows locked during the check; deleting a parent frees its subtasks (SET NULL).
+- **List:** `status` takes a comma list (`PENDING,IN_PROGRESS,WAITING`); `limit` up to 100 with `offset`.
+- **Version gate:** `GET /health` returns `version`. Older servers strip unknown body fields silently (non-strict zod), so a client must check `version >= 1.31.0` before relying on `externalId`.
+
+```typescript
+// POST /api/v1/tasks
+{
+  "title": "Call the notary",
+  "status": "PENDING",
+  "dueDate": "2026-10-21T00:00:00.000Z",
+  "noteId": "memo-note-uuid",
+  "links": [{ "url": "https://foyer.example/captures/c1#proposal-p1", "title": "Open in Foyer" }],
+  "source": "foyer",
+  "externalId": "p1"
+}
+// 201: the task. Same body again: 409 { "error": "ConflictError", "message": "A task with this source and externalId already exists" }
+
+// GET /api/v1/tasks/by-external-id?source=foyer&externalId=p1  -> 200 task | 404
+```
+
+MCP tools (`backend/src/mcp/tools.ts` and `notez-mcp` 1.14.0): `notez_create_task` takes `status`, `noteId`, `links`, `waitingOn`, `startDate`, `parentTaskId`, `source`, `externalId`; `notez_update_task` the same minus `source` and `externalId`; `notez_list_tasks` filters by `status` (WAITING included), `source`, `externalId` and `parentTaskId`. The remote tools run their arguments through the shared schemas, so the cross-field rules hold there too.
 
 ---
 

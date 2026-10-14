@@ -236,26 +236,44 @@ model Task {
   noteId      String?     @map("note_id")
   noteTitle   String?     @map("note_title") @db.VarChar(500)
   folderId    String?     @map("folder_id")
+  createdByTokenId String? @map("created_by_token_id")
+  waitingOn   String?     @map("waiting_on") @db.VarChar(255)
+  source      String?     @db.VarChar(50)
+  externalId  String?     @map("external_id") @db.VarChar(255)
+  startDate   DateTime?   @map("start_date")
+  parentTaskId String?    @map("parent_task_id")
   createdAt   DateTime    @default(now()) @map("created_at")
   updatedAt   DateTime    @updatedAt @map("updated_at")
   completedAt DateTime?   @map("completed_at")
 
-  user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  note   Note?    @relation(fields: [noteId], references: [id], onDelete: Cascade)
-  folder Folder?  @relation(fields: [folderId], references: [id], onDelete: SetNull)
-  tags   TaskTag[]
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  note           Note?     @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  folder         Folder?   @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  createdByToken ApiToken? @relation("taskCreatedByToken", fields: [createdByTokenId], references: [id], onDelete: SetNull)
+  parent         Task?     @relation("TaskSubtasks", fields: [parentTaskId], references: [id], onDelete: SetNull)
+  subtasks       Task[]    @relation("TaskSubtasks")
+  tags           TaskTag[]
+  links          TaskLink[]
 
+  @@unique([userId, source, externalId])
   @@index([userId, status])
   @@index([userId, dueDate])
+  @@index([userId, priority])
+  @@index([userId, createdAt])
   @@index([noteId])
+  @@index([createdByTokenId])
+  @@index([parentTaskId])
   @@map("tasks")
 }
 
+// WAITING was appended last (ALTER TYPE ... ADD VALUE); APIs list statuses in
+// workflow order: PENDING, IN_PROGRESS, WAITING, COMPLETED, CANCELLED
 enum TaskStatus {
   PENDING
   IN_PROGRESS
   COMPLETED
   CANCELLED
+  WAITING
 }
 
 enum Priority {
@@ -278,12 +296,24 @@ enum Priority {
 | noteId | UUID? | FK → Note | Linked note (optional) |
 | noteTitle | VARCHAR(500)? | Cached | Note title cache |
 | folderId | UUID? | FK → Folder | Organization folder |
+| createdByTokenId | UUID? | FK → ApiToken, SET NULL | Agent attribution (token that created it) |
+| waitingOn | VARCHAR(255)? | Nullable | Who or what a WAITING task waits on; free text, never cleared by the server |
+| source | VARCHAR(50)? | With externalId | System that filed the task (e.g. `foyer`); `^[a-z][a-z0-9_-]{1,49}$` |
+| externalId | VARCHAR(255)? | With source | The task's id in that system; set at creation, never updated |
+| startDate | Timestamp? | Nullable, not after dueDate | Do not start before (snooze) |
+| parentTaskId | UUID? | FK → Task, SET NULL | Parent task; one level only (enforced in `task.service.ts`) |
 | completedAt | Timestamp? | Auto-set | When completed |
 
-**Indexes:**
+**Indexes and constraints:**
+- `(userId, source, externalId)` UNIQUE - De-duplicates synced tasks; rows with NULLs never collide
 - `(userId, status)` - Fast status filtering
 - `(userId, dueDate)` - Due date queries
+- `(userId, priority)`, `(userId, createdAt)` - Sorting
 - `(noteId)` - Find tasks by note
+- `(createdByTokenId)` - Agent attribution
+- `(parentTaskId)` - Subtasks of a task
+
+**Subtask rules** (service layer, inside the write transaction, rows locked with `SELECT ... FOR UPDATE`): a task cannot be its own parent; the parent must belong to the same user and must not itself have a parent; a task that has subtasks cannot take a parent. So the hierarchy is one level deep and cannot cycle. Deleting a parent sets its subtasks' `parentTaskId` to NULL (they become top-level tasks).
 
 ### TaskTag (Junction)
 
@@ -360,6 +390,9 @@ model UserAISettings {
 | `20251017022124_add_fulltext_search` | 2024-10-17 | PostgreSQL tsvector for search |
 | `20251024154646_add_soft_delete` | 2024-10-24 | Soft delete for notes (trash) |
 | `20251108112012_add_task_system` | 2024-11-08 | Task management system |
+| `20261013000000_task_waiting_source_start_parent` | 2026-10-13 | WAITING status; `waiting_on`, `source`, `external_id`, `start_date`, `parent_task_id`; unique `(user_id, source, external_id)`; parent index and FK (additive) |
+
+Migrations between these two are listed in `backend/prisma/migrations/`.
 
 ## Database Indexes
 
@@ -369,6 +402,8 @@ model UserAISettings {
 | tasks | (userId, status) | B-tree | Status filtering |
 | tasks | (userId, dueDate) | B-tree | Due date queries |
 | tasks | (noteId) | B-tree | Note-task lookup |
+| tasks | (userId, source, externalId) | B-tree, UNIQUE | Synced-task de-duplication |
+| tasks | (parentTaskId) | B-tree | Subtask lookup |
 
 ## Cascade Delete Rules
 
@@ -387,6 +422,7 @@ model UserAISettings {
 | Tag | NoteTag | CASCADE |
 | Tag | TaskTag | CASCADE |
 | Task | TaskTag | CASCADE |
+| Task | Task (subtasks) | SET NULL |
 
 ## Full-Text Search Implementation
 
