@@ -38,9 +38,14 @@ The project as a whole is a minor bump. Proposed mapping:
 
 | PR | Bump | Reason |
 | --- | --- | --- |
-| PR1, PR2 | patch (1.30.x) | Bug fixes, no new experience |
-| PR3 | **minor -> 1.31.0** | First PR that ships the new mobile experience (new navigation) |
-| PR4 to PR9 | patch (1.31.x) | Increments within the 1.31 mobile release |
+| PR1 | patch (1.30.5) | Bug fix, no new experience |
+| PR2 | patch (1.31.1) | Bug fixes, no new experience |
+| PR3 | **minor -> 1.32.0 (re-proposed, awaiting Adam)** | First PR that ships the new mobile experience (new navigation) |
+| PR4 to PR9 | patch (1.32.x) | Increments within the mobile release |
+
+Updated 2026-10-14: 1.31.0 went to the Foyer task schema (#190) between PR1 and PR2, so PR2 is a
+1.31.x patch and PR3's minor moves to 1.32.0. The 2026-10-11 approval covered 1.31.0 for PR3; the
+new number needs Adam's nod.
 
 Alternative: an integration branch with all phases, one merge to `main` as 1.31.0. Rejected for now
 because real-device testing and the cron deploy both run from `main`, and a long-lived branch would
@@ -116,7 +121,7 @@ strip function). Monaco follows the app theme.
 
 **Acceptance criteria:** tests above pass; Settings usable at 360px; desktop unchanged.
 
-## PR3: Mobile shell and navigation (`feature/mobile-shell-nav`) -> 1.31.0
+## PR3: Mobile shell and navigation (`feature/mobile-shell-nav`) -> 1.32.0 (pending approval)
 
 - `useLayoutClass()` from `matchMedia` (Compact <600, Medium 600-1279, Expanded >=1280), live on
   resize, replacing the one-time `innerWidth` checks.
@@ -127,6 +132,11 @@ strip function). Monaco follows the app theme.
 - Avatar menu holds Settings, theme and sign out; notifications stay in the header.
 - Search tab: shell plus note search (task search arrives in PR6).
 - Header touch targets 44px.
+- Carried from PR2 review: give `e2e/support/mockApi.ts` a fixtures-override parameter, point
+  `editor-keyboard.spec.ts` at it and delete its inline fixture copy (one hermetic API for all specs).
+- Carried from PR2: SettingsHub's `md:` breakpoints (`md:flex-row`, `hidden md:block`, `md:hidden`)
+  become `medium:` once the `medium` screen exists, and the phone `<select>` gives way to the
+  Compact list -> page render branch (spec 8).
 
 **Acceptance criteria:** Playwright: Android back from editor returns to the list with scroll
 position kept; every tab reachable; no control under 44px in the shell (automated target-size
@@ -156,6 +166,8 @@ closing it.
 
 - Folder and tag filter sheet replacing the Folders tab; active filter chip on the list.
 - List row anatomy per spec; new-note action per spec; virtual folders reachable from the sheet.
+- Empty preview shows "No content" (spec 4.2); deferred from PR2 to keep desktop rows unchanged (D7).
+- The mobile Search tab decides between the server `snippet` (desktop SearchBar) and `previewText()`.
 
 **Acceptance criteria:** every folder, tag and virtual folder reachable in two taps from Notes;
 previews never show HTML; Pixel review approved.

@@ -249,8 +249,10 @@ Right: `Bell` (48px target). Icons `w-5 h-5`, text `text-gray-700 dark:text-gray
 
 `previewText(content, 120)`: strip HTML tags, then markdown syntax (`#`, `*`, `_`, `>`, backticks,
 `- [ ]`, link brackets keeping the label, image syntax removed), collapse whitespace, trim, cut at
-120 chars on a word boundary. Used by NoteList on every layout and by Search results. Empty result:
-row shows "No content" in `italic text-gray-500`.
+120 chars on a word boundary, marking a cut with `…`. Only the first 4096 characters of the note are
+stripped (several patterns are quadratic on hostile input; as built in PR2, `src/lib/previewText.ts`).
+Used by NoteList on every layout and by Search results. Empty result: row shows "No content" in
+`italic text-gray-500` (PR5).
 
 ### 4.3 Title chip and filter sheet
 
@@ -831,7 +833,9 @@ chips.
 | gray-500 on white | 4.8:1 | muted text, pending circle, chip borders (3:1 needed for the boundaries) |
 | white on gray-900 | 17.7:1 | dark titles |
 | gray-400 on gray-900 | 7.0:1 | dark muted text |
-| gray-500 on gray-900 | 3.9:1 | dark chip borders (3:1 needed) |
+| gray-500 on gray-900 | 3.7:1 | dark chip borders (3:1 needed) |
+| gray-500 on gray-800 | 3.0:1 | dark input and chip borders on bars and sheets (at the 3:1 line; decorative for inputs) |
+| gray-300 on gray-700 | 6.8:1 | dark input placeholder (gray-400 there is 3.9:1, fails) |
 | gray-100 on white | 1.1:1 | input fill; it does not identify the field, the label and placeholder do |
 | amber-700 on white | 4.8:1 | Today (amber-600 was 3.2:1, failed) |
 | green-700 on white | 5.0:1 | Completed, done check (green-600 was 3.3:1, failed) |
@@ -1010,7 +1014,7 @@ Ratios are WCAG luminance on the Tailwind 3.4 hex values.
    dark:border-gray-500`. The border is decorative: gray-400 on white is 2.5:1 and the `bg-gray-100`
    fill is 1.1:1, so neither identifies the field; inputs are identified by their visible label and
    placeholder, and by the focus ring when active. Where a boundary is the only cue (pending circle,
-   checkbox outline, chips) the token is gray-500 (4.8:1 light, 3.9:1 on gray-900).
+   checkbox outline, chips) the token is gray-500 (4.8:1 light, 3.7:1 on gray-900).
 8. Section 8 icons: add "Status glyphs that act as control boundaries (pending circle, checkbox
    outlines) use gray-500 minimum in light mode."
 9. Section 11 accessibility, Color contrast paragraph: replace "Muted text uses gray-600 /

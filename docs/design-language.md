@@ -226,7 +226,7 @@ A small set of conventions, no shared component yet:
 
 Inputs use `border border-gray-300 dark:border-gray-600 rounded-md` with `bg-white dark:bg-gray-700` fills and `focus:ring-2 focus:ring-blue-500` accents. Helper text is `text-xs text-gray-500 dark:text-gray-400`. Error text is `text-xs text-red-600 dark:text-red-400`.
 
-Mobile surfaces (below `xl`) use `border-gray-400 dark:border-gray-500` for the input border. The border is decorative: gray-400 on white is 2.5:1 and the `bg-gray-100` fill is 1.1:1, so neither identifies the field; inputs are identified by their visible label and placeholder, and by the focus ring when active. Where a boundary is the only cue (pending circle, checkbox outline, chips) the token is `gray-500` (4.8:1 light, 3.9:1 on gray-900). Desktop keeps `border-gray-300 dark:border-gray-600`.
+Mobile surfaces (below `xl`) use `border-gray-400 dark:border-gray-500` for the input border. The border is decorative: gray-400 on white is 2.5:1 and the `bg-gray-100` fill is 1.1:1, so neither identifies the field; inputs are identified by their visible label and placeholder, and by the focus ring when active. Where a boundary is the only cue (pending circle, checkbox outline, chips) the token is `gray-500` (4.8:1 light, 3.7:1 on gray-900, 3.0:1 on gray-800). Dark placeholders use `gray-300` on gray-700 (6.8:1). Desktop keeps `border-gray-300 dark:border-gray-600`.
 
 ### 7.3 Cards and panels
 

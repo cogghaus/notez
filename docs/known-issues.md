@@ -554,6 +554,12 @@ Found while shipping Pocket ID SSO; none block v1.30.0, which is live and confir
 **Issue:** On white, green-600 is 3.3:1, amber-600 3.2:1 and orange-600 3.6:1, below WCAG 1.4.3 (4.5:1 for text). White on yellow-500 is 1.9:1, on yellow-600 2.4:1 and on green-600 3.3:1. Decision D13 of the mobile rework moves mobile surfaces to the -700 shades (`docs/design-language.md`, v1.31.1); D7 keeps desktop untouched during the rework, so these stay for now.
 **Severity:** MEDIUM (accessibility, WCAG 2.1 AA)
 **Status:** Open -- sweep after the mobile rework: status text on white from -600 to -700 (dark keeps the -400 shades); toasts to `bg-green-700` / `bg-amber-700` / `bg-red-700` / `bg-blue-700` with white text. Ratios: `docs/mobile/02-mobile-design-spec.md` section 9.5.
+
+### 74. Floating image button covers the end of the note's first line
+**Location:** `frontend/src/components/TiptapEditor.tsx` (`absolute top-2 right-2` upload button); `CollaborativeTiptapEditor.tsx` has the same button
+**Issue:** The button floats over the editor content, so a first line long enough to reach the right edge is hidden under it (seen at 360px: the last word of a one-line note). Happens at every width; predates the mobile rework. WCAG 1.4.10 (no loss of information).
+**Severity:** LOW
+**Status:** Open -- planned for mobile PR4: the image action moves into the formatting strip (spec 5.4) or the editor header; interim option is top padding on `.ProseMirror` below `xl`. Found by the PR2 UX review.
 ---
 
 ## Version Notes

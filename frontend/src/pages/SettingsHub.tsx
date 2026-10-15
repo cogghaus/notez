@@ -184,7 +184,7 @@ export function SettingsHub() {
             name="settings-section"
             value={activeSection}
             onChange={(e) => navigateToSection(e.target.value as SettingsSection)}
-            className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-white"
+            className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-400 dark:border-gray-500 rounded-md text-gray-900 dark:text-white"
           >
             {availableSections.map(([key, config]) => (
               <option key={key} value={key}>

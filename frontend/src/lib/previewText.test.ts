@@ -18,6 +18,18 @@ describe('previewText', () => {
     );
   });
 
+  it('drops a tag left open by the length cap', () => {
+    expect(previewText(`<p>Hi</p><img src="data:image/png;base64,${'A'.repeat(10_000)}">`)).toBe('Hi');
+  });
+
+  it('keeps a lone less-than sign in plain text', () => {
+    expect(previewText('if a < b then')).toBe('if a < b then');
+  });
+
+  it('leaves invalid numeric entities (lone surrogates) as written', () => {
+    expect(previewText('a &#xD800; b')).toBe('a &#xD800; b');
+  });
+
   it('strips markdown headings, quotes, emphasis and code', () => {
     expect(previewText('# Title\n\n> quoted **bold** and *italic* and `code` and _under_')).toBe(
       'Title quoted bold and italic and code and under',
@@ -55,6 +67,19 @@ describe('previewText', () => {
 
   it('defaults to 120 characters', () => {
     expect(previewText('a '.repeat(200)).length).toBeLessThanOrEqual(121);
+  });
+
+  // Notes can be large and can come from other users or the API: no input may stall the list (ReDoS).
+  it.each([
+    ['unclosed angle brackets', '<'.repeat(1_000_000)],
+    ['unclosed script openers', '<script '.repeat(125_000)],
+    ['unclosed link brackets', '['.repeat(1_000_000)],
+    ['unclosed link targets', '[a]('.repeat(250_000)],
+    ['underscore run inside a word', `a${'_'.repeat(1_000_000)}b`],
+  ])('stays fast on hostile input: %s', (_name, input) => {
+    const start = performance.now();
+    previewText(input);
+    expect(performance.now() - start).toBeLessThan(100);
   });
 
   it('returns an empty string for empty or markup-only content', () => {

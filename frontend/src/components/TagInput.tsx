@@ -194,7 +194,7 @@ export function TagInput({ tags, onChange, disabled = false }: TagInputProps) {
               onKeyDown={handleKeyDown}
               onFocus={() => inputValue.trim().length > 0 && setShowSuggestions(true)}
               placeholder={tags.length === 0 ? 'Add tags...' : ''}
-              className="w-full outline-none text-sm bg-transparent text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
+              className="w-full outline-none text-sm bg-transparent text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-300"
             />
           </div>
         )}
@@ -223,7 +223,7 @@ export function TagInput({ tags, onChange, disabled = false }: TagInputProps) {
               type="button"
               onClick={() => addTag(inputValue)}
               className={`w-full text-left px-3 py-2 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700 ${
-                selectedIndex === 0 ? 'bg-blue-50 dark:bg-blue-900/30' : ''
+                selectedIndex === 0 ? 'bg-blue-50 dark:bg-blue-900/30 ring-2 ring-inset ring-blue-500' : ''
               }`}
             >
               <div className="flex items-center gap-2">
@@ -243,7 +243,7 @@ export function TagInput({ tags, onChange, disabled = false }: TagInputProps) {
                   type="button"
                   onClick={() => addTag(tag.name)}
                   className={`w-full text-left px-3 py-2 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700 ${
-                    index === selectedIndex ? 'bg-blue-50 dark:bg-blue-900/30' : ''
+                    index === selectedIndex ? 'bg-blue-50 dark:bg-blue-900/30 ring-2 ring-inset ring-blue-500' : ''
                   }`}
                 >
                   <div className="flex items-center gap-2">
@@ -260,7 +260,7 @@ export function TagInput({ tags, onChange, disabled = false }: TagInputProps) {
                     type="button"
                     onClick={() => addTag(inputValue)}
                     className={`w-full text-left px-3 py-2 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700 border-t border-gray-200 dark:border-gray-700 ${
-                      selectedIndex === suggestions.length ? 'bg-blue-50 dark:bg-blue-900/30' : ''
+                      selectedIndex === suggestions.length ? 'bg-blue-50 dark:bg-blue-900/30 ring-2 ring-inset ring-blue-500' : ''
                     }`}
                   >
                     <div className="flex items-center gap-2">
