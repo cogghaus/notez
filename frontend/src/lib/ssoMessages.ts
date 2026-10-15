@@ -15,6 +15,8 @@ export const SSO_ERROR_MESSAGES: Record<string, string> = {
     'This account needs a one-time setup first. Sign in with your password, then go to Settings, Profile and choose Connect under "Sign in with Pocket ID".',
   invalid_claims: 'Pocket ID sent back an incomplete answer. Please try again.',
   not_configured: 'Signing in with Pocket ID is not available right now.',
+  wrong_host:
+    'Connecting Pocket ID only works from the main Notez address. Open Notez at its main web address, sign in there, and choose Connect again.',
   unavailable: 'Signing in with Pocket ID is not available right now. Please try again later.',
 };
 

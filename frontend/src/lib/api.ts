@@ -104,8 +104,15 @@ export const authApi = {
   // /login land on the SPA (set APP_URL to the Vite origin when testing SSO locally).
   oidcLoginUrl: '/api/auth/oidc/login',
 
-  // Signed-in user connects their account; returns the provider URL to navigate to
-  oidcLink: () => api.post<{ url: string }>('/api/auth/oidc/link'),
+  // Signed-in user connects their account; returns the provider URL to navigate to.
+  // A 409 wrong_host names the main address to connect from; `canonical` tells the server this
+  // page already is on that address (a proxy hid it), so it starts here instead.
+  oidcLink: (canonical = false) =>
+    api.post<{ url: string }>(
+      '/api/auth/oidc/link',
+      undefined,
+      canonical ? { params: { canonical: '1' } } : undefined
+    ),
 
   // After the provider redirect, link the pending identity to the signed-in user
   oidcLinkConfirm: () => api.post<{ linked: boolean }>('/api/auth/oidc/link/confirm'),

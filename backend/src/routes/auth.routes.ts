@@ -87,6 +87,25 @@ function setTransactionCookie(reply: FastifyReply, transaction: OidcTransaction)
   });
 }
 
+/**
+ * The APP_URL callback URL when this request reached us under another host name (a LAN name),
+ * else null. The transaction cookie is host-only and the provider always returns to the APP_URL
+ * host, so a flow started elsewhere can never finish. Host names are compared without port, case
+ * or a trailing dot; the result comes from config, never from the request.
+ */
+function callbackHostIfElsewhere(request: FastifyRequest): URL | null {
+  const callback = oidcService.getOidcSettings()?.redirectUri;
+  if (!callback) return null;
+  const canonical = new URL(callback);
+  const requestHost = request.hostname.replace(/\.$/, '').toLowerCase();
+  return requestHost === canonical.hostname.toLowerCase() ? null : canonical;
+}
+
+/** ?canonical=1: this request already is the one move to the APP_URL host (or claims to be). */
+function isCanonicalRetry(request: FastifyRequest): boolean {
+  return (request.query as { canonical?: string }).canonical === '1';
+}
+
 // Rate limit configuration for auth endpoints
 // These are stricter than the global rate limit to prevent brute force attacks
 const authRateLimitConfig = {
@@ -241,16 +260,11 @@ export async function authRoutes(fastify: FastifyInstance) {
       // host. The target comes from config, never from the request. Host names are compared
       // without port, case or a trailing dot, and the bounce is marked so it happens at most once:
       // a proxy that presents another Host must degrade to "start here", never to a redirect loop.
-      const callback = oidcService.getOidcSettings()?.redirectUri;
-      const alreadyBounced = (request.query as { canonical?: string }).canonical === '1';
-      if (callback && !alreadyBounced) {
-        const canonical = new URL(callback);
-        const requestHost = request.hostname.replace(/\.$/, '').toLowerCase();
-        if (requestHost !== canonical.hostname.toLowerCase()) {
-          const target = new URL('/api/auth/oidc/login', canonical.origin);
-          target.searchParams.set('canonical', '1');
-          return reply.redirect(target.toString(), 302);
-        }
+      const canonical = isCanonicalRetry(request) ? null : callbackHostIfElsewhere(request);
+      if (canonical) {
+        const target = new URL('/api/auth/oidc/login', canonical.origin);
+        target.searchParams.set('canonical', '1');
+        return reply.redirect(target.toString(), 302);
       }
       try {
         const { url, transaction } = await oidcService.beginLogin();
@@ -276,6 +290,20 @@ export async function authRoutes(fastify: FastifyInstance) {
     async (request, reply) => {
       if (!request.user) {
         return reply.status(401).send({ error: 'Unauthorized', message: 'Authentication required' });
+      }
+      // Same host-only cookie problem as the login bounce, but this is an XHR carrying a bearer
+      // token for a session that only exists on this host name, so it cannot be redirected. Name
+      // the APP_URL Settings page instead. The page sends ?canonical=1 when the browser already
+      // is on that address and a proxy hides it from us, so a misreported Host degrades to
+      // "start here", never to a Connect that always fails.
+      const canonical = isCanonicalRetry(request) ? null : callbackHostIfElsewhere(request);
+      if (canonical) {
+        return reply.status(409).send({
+          error: 'Conflict',
+          code: 'wrong_host',
+          message: 'Connect from the main Notez address',
+          url: new URL('/settings/profile', canonical.origin).toString(),
+        });
       }
       try {
         const { url, transaction } = await oidcService.beginLogin(request.user.userId);

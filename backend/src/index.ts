@@ -60,12 +60,16 @@ if (isProduction) {
   }
 }
 
+// Only the proxies in front of us may set X-Forwarded-*: see utils/trustProxy.ts
+const trustProxy = resolveTrustProxy(process.env.TRUST_PROXY);
+
 const fastify = Fastify({
   logger: {
     level: process.env.LOG_LEVEL || 'info',
   },
-  trustProxy: resolveTrustProxy(process.env.TRUST_PROXY),
+  trustProxy,
 });
+fastify.log.info({ trustProxy }, 'Forwarded headers trusted from these peers only');
 
 // Register plugins
 await fastify.register(cors, {

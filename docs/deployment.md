@@ -49,7 +49,29 @@ You need a GitHub Personal Access Token with `read:packages` scope.
 docker compose -f compose.prod.yml -p notez up -d
 ```
 
-The app will be available on port `5173`. Point your reverse proxy at it.
+The app will be available on port `5173` (IPv4). Point your reverse proxy at it.
+
+### Reverse proxy and TRUST_PROXY
+
+Rate limits are keyed on the client address, and Pocket ID sign-in checks which host name the
+request came in on. Behind a proxy both come from `X-Forwarded-For` / `X-Forwarded-Host`, which
+anyone can send, so the backend only believes them from the peers in `TRUST_PROXY`.
+
+- Default `loopback,172.16.0.0/12`: a proxy on the same machine, or a proxy or tunnel container
+  on the same Docker host (Docker's default bridge range). A client that reaches port `5173`
+  directly from the LAN keeps its own address and cannot forge either header.
+- Your proxy runs elsewhere (another LAN host): set `TRUST_PROXY` to its address, e.g.
+  `TRUST_PROXY=192.168.1.10`.
+- Nothing but the proxy can reach the backend: `TRUST_PROXY=true` (trust every peer).
+- No proxy at all: `TRUST_PROXY=false`.
+
+An invalid value stops the backend at startup. The startup log line "Forwarded headers trusted
+from these peers only" shows the value in effect.
+
+The port is published on IPv4 only (`0.0.0.0:5173:3000`). Docker relays IPv6 connections to a
+published port through its userland proxy, so they reach the backend from the Docker gateway
+address, which is a trusted peer; publishing on IPv6 as well would let any IPv6 client forge the
+forwarded headers.
 
 ### 5. First-time setup
 
