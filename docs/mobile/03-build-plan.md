@@ -137,6 +137,9 @@ strip function). Monaco follows the app theme.
 - Carried from PR2: SettingsHub's `md:` breakpoints (`md:flex-row`, `hidden md:block`, `md:hidden`)
   become `medium:` once the `medium` screen exists, and the phone `<select>` gives way to the
   Compact list -> page render branch (spec 8).
+- Carried from PR2: a persisted collapsed sidebar (`notez-sidebar-collapsed`) now shows its icon
+  rail at full width in the phone Folders view (before PR2 it was a 48px strip). Ignore `collapsed`
+  below xl once `useLayoutClass()` exists.
 
 **Acceptance criteria:** Playwright: Android back from editor returns to the list with scroll
 position kept; every tab reachable; no control under 44px in the shell (automated target-size

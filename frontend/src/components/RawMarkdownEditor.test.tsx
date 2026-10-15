@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
 import { ThemeProvider, useTheme } from '../contexts/ThemeContext';
 import { RawMarkdownEditor } from './RawMarkdownEditor';
@@ -26,13 +26,16 @@ function renderEditor() {
 describe('RawMarkdownEditor', () => {
   beforeEach(() => {
     // jsdom has no matchMedia; ThemeProvider subscribes to prefers-color-scheme.
-    window.matchMedia = vi.fn().mockReturnValue({
-      matches: false,
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-    }) as unknown as typeof window.matchMedia;
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn().mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }),
+    );
     localStorage.clear();
     document.documentElement.classList.remove('light', 'dark');
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it('uses the light Monaco theme in light mode', () => {

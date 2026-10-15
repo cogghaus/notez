@@ -156,8 +156,9 @@ test('note search and tag inputs follow dark mode', async ({ page }) => {
     };
   });
   const WHITE = 'rgb(255, 255, 255)';
-  expect.soft(colours.search, 'search input background').not.toBe(WHITE);
+  const GRAY_700 = 'rgb(55, 65, 81)';
+  expect.soft(colours.search, 'search input background').toBe(GRAY_700);
   expect.soft(colours.searchText, 'search input text').toBe(WHITE);
-  expect.soft(colours.tagBox, 'tag input background').not.toBe(WHITE);
+  expect.soft(colours.tagBox, 'tag input background').toBe(GRAY_700);
   expect.soft(colours.tagText, 'tag input text').toBe(WHITE);
 });

@@ -238,59 +238,59 @@ export const NoteList = forwardRef<NoteListHandle, NoteListProps>(({ folderId, t
           notes.map((note) => {
             const preview = previewText(note.content);
             return (
-            <button
-              key={note.id}
-              onClick={() => onSelectNote(note.id)}
-              draggable={folderId !== 'trash' && folderId !== 'shared' && folderId !== 'my-shares' && folderId !== 'service-accounts'}
-              onDragStart={(e) => {
-                e.dataTransfer.effectAllowed = 'move';
-                e.dataTransfer.setData('application/json', JSON.stringify({ noteId: note.id, noteTitle: note.title }));
-              }}
-              className={`w-full px-4 py-3 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 text-left ${
-                folderId !== 'trash' && folderId !== 'shared' && folderId !== 'my-shares' && folderId !== 'service-accounts' ? 'cursor-move' : 'cursor-pointer'
-              } ${
-                selectedNoteId === note.id ? 'bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-600' : ''
-              }`}
-            >
-              <div className="flex items-start space-x-2">
-                {folderId === 'service-accounts' ? (
-                  <Bot className="w-4 h-4 text-purple-500 dark:text-purple-400 mt-0.5 flex-shrink-0" />
-                ) : (note.isShared || note.shareInfo) ? (
-                  <Files className="w-4 h-4 text-blue-500 dark:text-blue-400 mt-0.5 flex-shrink-0" />
-                ) : (
-                  <FileText className="w-4 h-4 text-gray-400 dark:text-gray-500 mt-0.5 flex-shrink-0" />
-                )}
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate">{note.title}</h3>
-                  {/* Show owner name for shared-with-me and service account notes */}
-                  {note.shareInfo && (
-                    <p className="text-xs text-blue-600 dark:text-blue-400 mt-0.5">
-                      by {note.shareInfo.owner.username}{folderId !== 'service-accounts' ? ` \u00B7 ${note.shareInfo.permission.toLowerCase()}` : ''}
-                    </p>
+              <button
+                key={note.id}
+                onClick={() => onSelectNote(note.id)}
+                draggable={folderId !== 'trash' && folderId !== 'shared' && folderId !== 'my-shares' && folderId !== 'service-accounts'}
+                onDragStart={(e) => {
+                  e.dataTransfer.effectAllowed = 'move';
+                  e.dataTransfer.setData('application/json', JSON.stringify({ noteId: note.id, noteTitle: note.title }));
+                }}
+                className={`w-full px-4 py-3 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 text-left ${
+                  folderId !== 'trash' && folderId !== 'shared' && folderId !== 'my-shares' && folderId !== 'service-accounts' ? 'cursor-move' : 'cursor-pointer'
+                } ${
+                  selectedNoteId === note.id ? 'bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-600' : ''
+                }`}
+              >
+                <div className="flex items-start space-x-2">
+                  {folderId === 'service-accounts' ? (
+                    <Bot className="w-4 h-4 text-purple-500 dark:text-purple-400 mt-0.5 flex-shrink-0" />
+                  ) : (note.isShared || note.shareInfo) ? (
+                    <Files className="w-4 h-4 text-blue-500 dark:text-blue-400 mt-0.5 flex-shrink-0" />
+                  ) : (
+                    <FileText className="w-4 h-4 text-gray-400 dark:text-gray-500 mt-0.5 flex-shrink-0" />
                   )}
-                  {preview && (
-                    <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2 mt-1">
-                      {preview}
-                    </p>
-                  )}
-                  <div className="flex items-center justify-between mt-2">
-                    <span className="text-xs text-gray-500 dark:text-gray-400">{formatDate(note.updatedAt)}</span>
-                    {note.tags.length > 0 && (
-                      <div className="flex space-x-1">
-                        {note.tags.slice(0, 2).map((tag) => (
-                          <span
-                            key={tag.id}
-                            className="text-xs px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded"
-                          >
-                            {tag.name}
-                          </span>
-                        ))}
-                      </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate">{note.title}</h3>
+                    {/* Show owner name for shared-with-me and service account notes */}
+                    {note.shareInfo && (
+                      <p className="text-xs text-blue-600 dark:text-blue-400 mt-0.5">
+                        by {note.shareInfo.owner.username}{folderId !== 'service-accounts' ? ` \u00B7 ${note.shareInfo.permission.toLowerCase()}` : ''}
+                      </p>
                     )}
+                    {preview && (
+                      <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2 mt-1">
+                        {preview}
+                      </p>
+                    )}
+                    <div className="flex items-center justify-between mt-2">
+                      <span className="text-xs text-gray-500 dark:text-gray-400">{formatDate(note.updatedAt)}</span>
+                      {note.tags.length > 0 && (
+                        <div className="flex space-x-1">
+                          {note.tags.slice(0, 2).map((tag) => (
+                            <span
+                              key={tag.id}
+                              className="text-xs px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded"
+                            >
+                              {tag.name}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            </button>
+              </button>
             );
           })
         )}

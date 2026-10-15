@@ -26,6 +26,28 @@ describe('previewText', () => {
     expect(previewText('if a < b then')).toBe('if a < b then');
   });
 
+  it('keeps comparison signs in raw markdown', () => {
+    expect(previewText('a < b and c > d')).toBe('a < b and c > d');
+    expect(previewText('if x<y then y>z')).toBe('if x<y then y>z');
+  });
+
+  it('strips table pipes and separator rows', () => {
+    expect(previewText('| a | b |\n|---|:--:|\n| 1 | 2 |')).toBe('a b 1 2');
+  });
+
+  it('strips code fences with their language tag, and rules', () => {
+    expect(previewText('```js\nconst x = 1;\n```\n---\nafter')).toBe('const x = 1; after');
+  });
+
+  it('keeps a spaced asterisk and a lone tilde', () => {
+    expect(previewText('2 * 3 in ~/dev, ~~gone~~ ok')).toBe('2 * 3 in ~/dev, gone ok');
+  });
+
+  it('never ends on half a surrogate pair', () => {
+    const out = previewText(`a${'\u{1F600}'.repeat(100)}`, 10);
+    expect(out.endsWith('\u{1F600}…')).toBe(true);
+  });
+
   it('leaves invalid numeric entities (lone surrogates) as written', () => {
     expect(previewText('a &#xD800; b')).toBe('a &#xD800; b');
   });

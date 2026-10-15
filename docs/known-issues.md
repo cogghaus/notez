@@ -560,6 +560,7 @@ Found while shipping Pocket ID SSO; none block v1.30.0, which is live and confir
 **Issue:** The button floats over the editor content, so a first line long enough to reach the right edge is hidden under it (seen at 360px: the last word of a one-line note). Happens at every width; predates the mobile rework. WCAG 1.4.10 (no loss of information).
 **Severity:** LOW
 **Status:** Open -- planned for mobile PR4: the image action moves into the formatting strip (spec 5.4) or the editor header; interim option is top padding on `.ProseMirror` below `xl`. Found by the PR2 UX review.
+
 ---
 
 ## Version Notes

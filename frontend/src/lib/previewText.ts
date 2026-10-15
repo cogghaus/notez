@@ -27,13 +27,20 @@ function decodeEntities(text: string): string {
 }
 
 function stripHtml(text: string): string {
-  return text
-    .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, ' ')
-    // Block boundaries become spaces; inline tags (<strong>, <a>) vanish so "milk</em>." stays "milk."
-    .replace(/<\/?(p|div|h[1-6]|li|ul|ol|blockquote|pre|table|tr|td|th|section|article|br|hr)\b[^>]*>/gi, ' ')
-    .replace(/<[^>]*>/g, '')
-    // A tag cut open by the length cap (e.g. a long data: URL) is dropped, not shown as text.
-    .replace(/<[a-z/!][^>]*$/i, '');
+  // TipTap HTML always starts with a tag. Raw markdown (API notes) may use < and > as comparison
+  // signs, so there only unambiguous tags go: <b>, </b>, <br/>, or a tag with an attribute.
+  if (!/^\s*</.test(text)) {
+    return text.replace(/<\/?[a-z][a-z0-9]*\s*\/?>|<[a-z][a-z0-9]*\s[^<>]*=[^<>]*>/gi, '');
+  }
+  return (
+    text
+      .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, ' ')
+      // Block boundaries become spaces; inline tags (<strong>, <a>) vanish so "milk</em>." stays "milk."
+      .replace(/<\/?(p|div|h[1-6]|li|ul|ol|blockquote|pre|table|tr|td|th|section|article|br|hr)\b[^>]*>/gi, ' ')
+      .replace(/<[^>]*>/g, '')
+      // A tag cut open by the length cap (e.g. a long data: URL) is dropped, not shown as text.
+      .replace(/<[a-z/!][^>]*$/i, '')
+  );
 }
 
 function stripMarkdown(text: string): string {
@@ -42,12 +49,18 @@ function stripMarkdown(text: string): string {
       // Images go entirely; links keep their label.
       .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
       .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+      // Whole-line syntax: code fences (with their language tag), rules, table separator rows.
+      .replace(/^[ \t]*```.*$/gm, ' ')
+      .replace(/^[ \t]*([-*_])([ \t]*\1){2,}[ \t]*$/gm, ' ')
+      .replace(/^(?=.*\|)[ \t:|-]+$/gm, ' ')
+      .replace(/\|/g, ' ')
       // Line-leading block syntax: headings, quotes, task and list markers.
       .replace(/^[ \t]*#{1,6}[ \t]+/gm, '')
       .replace(/^[ \t]*(>[ \t]?)+/gm, '')
       .replace(/^[ \t]*([-*+]|\d+[.)])[ \t]+(\[[ xX]\][ \t]+)?/gm, '')
-      // Inline emphasis and code. Underscores inside words (snake_case) stay.
-      .replace(/[*`~]+/g, '')
+      // Inline emphasis, strikethrough and code. A spaced "2 * 3", "~/dev" and snake_case stay.
+      .replace(/(?<!\s)\*+|\*+(?!\s)/g, '')
+      .replace(/~~|`+/g, '')
       .replace(/(?<!\w)_+|_+(?!\w)/g, '')
   );
 }
@@ -67,7 +80,9 @@ export function previewText(content: string | null | undefined, max = 120): stri
     .trim();
   if (text.length <= max) return text;
 
-  const cut = text.slice(0, max);
+  let cut = text.slice(0, max);
+  // Never end on the first half of a surrogate pair (an emoji at the cut).
+  if (/[\ud800-\udbff]$/.test(cut)) cut = cut.slice(0, -1);
   const lastSpace = cut.lastIndexOf(' ');
   return `${(lastSpace > 0 ? cut.slice(0, lastSpace) : cut).trimEnd()}…`;
 }
