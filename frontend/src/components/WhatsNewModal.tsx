@@ -45,7 +45,7 @@ function ReleaseSection({ entry, isLatest = false }: { entry: ChangelogEntry; is
 
       {hasAdded && (
         <div className="mb-3">
-          <div className="flex items-center gap-1.5 text-green-600 dark:text-green-400 text-sm font-medium mb-1.5">
+          <div className="flex items-center gap-1.5 text-green-700 xl:text-green-600 dark:text-green-400 text-sm font-medium mb-1.5">
             <Plus className="w-3.5 h-3.5" />
             <span>Added</span>
           </div>
@@ -79,7 +79,7 @@ function ReleaseSection({ entry, isLatest = false }: { entry: ChangelogEntry; is
 
       {hasChanged && (
         <div className="mb-3">
-          <div className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400 text-sm font-medium mb-1.5">
+          <div className="flex items-center gap-1.5 text-amber-700 xl:text-amber-600 dark:text-amber-400 text-sm font-medium mb-1.5">
             <RefreshCw className="w-3.5 h-3.5" />
             <span>Changed</span>
           </div>
