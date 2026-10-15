@@ -12,8 +12,8 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
-    version: '1.31.1',
-    date: '2026-10-14',
+    version: '1.31.2',
+    date: '2026-10-15',
     fixed: [
       'Notes, folders and tasks now fill the whole screen on phones and the Pixel Fold',
       'The note editor fits on narrow phones, so every button in its header is reachable',
@@ -21,6 +21,11 @@ export const changelog: ChangelogEntry[] = [
       'Note previews in the list show plain text instead of formatting code',
       'Dark mode for note search, tags and the raw markdown editor',
     ],
+  },
+  {
+    version: '1.31.1',
+    date: '2026-10-15',
+    fixed: ['Signing in, with Pocket ID or a password, could stay on the sign-in page until you reloaded'],
   },
   {
     version: '1.31.0',

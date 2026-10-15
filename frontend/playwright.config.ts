@@ -43,8 +43,10 @@ export default defineConfig({
   use: {
     baseURL: 'http://localhost:5174',
   },
+  // A production build, not the dev server: dev-only StrictMode runs effects twice and masked a
+  // login redirect bug that only production showed (2026-10-15).
   webServer: {
-    command: 'npx vite --port 5174 --strictPort',
+    command: 'npm run e2e:serve',
     url: 'http://localhost:5174',
     reuseExistingServer: false,
     timeout: 120_000,

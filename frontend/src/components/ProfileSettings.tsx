@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { authApi, profileApi } from '../lib/api';
 import { User, Mail, Lock, Loader2, Check, Camera, Trash2, Pencil, X, KeyRound } from 'lucide-react';
 import { useConfirm } from './ConfirmDialog';
-import { SSO_ERROR_MESSAGES, SSO_ERROR_FALLBACK } from '../lib/ssoMessages';
+import { ssoErrorMessage, SSO_ERROR_MESSAGES } from '../lib/ssoMessages';
 
 export function ProfileSettings() {
   const { user, updateUser, refreshAuth } = useAuth();
@@ -42,7 +42,7 @@ export function ProfileSettings() {
     setSearchParams({}, { replace: true });
 
     if (ssoError) {
-      setError(SSO_ERROR_MESSAGES[ssoError] ?? SSO_ERROR_FALLBACK);
+      setError(ssoErrorMessage(ssoError));
       return;
     }
     if (linkStep === 'confirm') {
@@ -55,7 +55,7 @@ export function ProfileSettings() {
         })
         .catch((err) => {
           const code = (err as { response?: { data?: { code?: string } } }).response?.data?.code;
-          setError((code && SSO_ERROR_MESSAGES[code]) || SSO_ERROR_FALLBACK);
+          setError(ssoErrorMessage(code));
         })
         .finally(() => setIsLinkingSso(false));
     }

@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.31.1] - 2026-10-14
+## [1.31.2] - 2026-10-15
 
 Mobile rework PR2 (`docs/mobile/03-build-plan.md`): width and Settings bugs on phones and the Fold.
 
@@ -24,6 +24,20 @@ Mobile rework PR2 (`docs/mobile/03-build-plan.md`): width and Settings bugs on p
 
 - `docs/design-language.md` is now in the repo, with the D13 contrast rules for mobile surfaces (-700 status text on white, -700 toast surfaces, input and chip border tokens). Desktop is unchanged; its -600 status text is known issue #73. Known issue #74 (floating image button covers a long first line) opened for PR4.
 - New Playwright spec `e2e/pane-widths.spec.ts` (all four mobile projects, plus the optional desktop project asserting the desktop widths) with a hermetic mock API in `e2e/support/mockApi.ts`.
+
+## [1.31.1] - 2026-10-15
+
+Hotfix: sign-in could stay on the login page.
+
+### Fixed
+
+- Signing in with Pocket ID looped back to the login page and password sign-in could stay on "Signing in..." until a reload, though the server had signed the user in. When a valid token was already in the browser, the login page's redirect home and its clearing of `?sso=complete` navigated in the same pass and the second won. The page now never navigates twice at once, a password sign-in leaves explicitly, and a Pocket ID return always adopts the new session, even over another account's token on a shared browser.
+- A Pocket ID sign-in started on another host name for the server (the LAN name) never finished: the host-only transaction cookie stayed on that host and the callback on the `APP_URL` host answered `sso_error=expired`. `GET /api/auth/oidc/login` now moves to the `APP_URL` host first (host names compared without port, case or trailing dot; at most one move, so a proxy can never cause a redirect loop). The target comes from config, never the request.
+- `?sso_error=` codes are looked up as own keys only (`__proto__` and the like show the generic message).
+
+### Changed
+
+- The Playwright suite runs against a production build (`npm run e2e:serve`: `vite build` + `vite preview`) instead of the dev server. Dev-only StrictMode runs effects twice, which hid this bug from the tests.
 
 ## [1.31.0] - 2026-10-13
 

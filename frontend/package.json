@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "e2e:serve": "vite build && vite preview --port 5174 --strictPort",
     "typecheck:e2e": "tsc -p tsconfig.e2e.json"
   },
   "dependencies": {
