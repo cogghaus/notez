@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.33.0] - 2026-10-15
+
+Mobile rework PR3 (`docs/mobile/03-build-plan.md`): the new mobile shell and navigation. Below 1280px (phones, and the Pixel Fold inner screen until PR8 brings its two-pane layout); desktop is unchanged.
+
+### Added
+
+- Bottom tab bar with Notes, Tasks and Search (`nav` "Primary", 56px plus the safe area), and a top bar with the account menu, the screen title and notifications. The old Folders and Editor tabs are gone; the Notes title opens a Folders screen (interim, until the filter sheet in PR5).
+- History-backed navigation through React Router: the in-app Back arrow and Android back follow the same rules (spec 3.3). Back from a note returns to the list at its scroll position with focus on the row; after a reload or a deep link the arrow still reaches the parent screen; a deep-linked note pushes its entry on the first interaction so system back shows the list.
+- Account menu (bottom sheet): theme (Light / Dark), Settings, What's New, Share feedback, Sign out. What's New and Share feedback open as their own overlays, so back closes one layer at a time.
+- Search tab (notes; tasks arrive in PR6) with recent searches, a status line read by screen readers, Retry on errors.
+- Settings on phones: a list of sections, each a page with Back.
+- Accessibility gates in the Playwright suite: axe at 360x800, 411x693 and 841x627 in light and dark (zero serious or critical), 200% text at 360px, a keyboard-only pass; `@axe-core/playwright` 4.13.0 (pinned, dev only).
+
+### Changed
+
+- Focus handling: a shared `useFocusTrap()` (from `ConfirmDialog`) now also serves What's New and Share feedback, on desktop too: they trap focus, focus their heading and close on Escape; Share feedback keeps its draft until it is sent.
+- Contrast below 1280px (D13): task stats labels, priority and overdue text use the -700 shades in light mode; the Folders "NEW" badge, the Profile avatar caption and the What's New "Latest" badge are darker (the last two on desktop too).
+- `?note=` deep links accept note ids only; notification links are encoded.
+- The e2e harness has one hermetic mock API for every spec (`e2e/support/mockApi.ts`, with per-spec overrides).
+
+
 ## [1.32.0] - 2026-10-15
 
 Follow-ups to the 1.31.1 sign-in hotfix. **Upgrade note: new `TRUST_PROXY` setting with a changed default; read it before deploying if your reverse proxy is not on the same Docker host.**
