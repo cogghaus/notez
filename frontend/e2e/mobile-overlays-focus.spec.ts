@@ -250,7 +250,7 @@ test('Folders footer What\'s New is a history entry: back closes it, Tab still m
   await page.setViewportSize({ width: 841, height: 627 });
   await page.goto('/', { waitUntil: 'domcontentloaded' });
   await page.getByRole('button', { name: /All notes/ }).click();
-  const version = page.getByRole('button', { name: /What's New, version/ });
+  const version = page.getByRole('button', { name: /^What's New: (NEW )?v\d/ });
   await version.click();
   const modal = page.getByRole('dialog', { name: /What's New in Notez/ });
   await expect(modal).toBeVisible();
@@ -273,7 +273,7 @@ test('Folders footer What\'s New is a history entry: back closes it, Tab still m
 test('the Folders version button says it opens What\'s New', async ({ page }) => {
   await page.goto('/', { waitUntil: 'domcontentloaded' });
   await page.getByRole('button', { name: /All notes/ }).click();
-  await expect(page.getByRole('button', { name: /^What's New, version \d/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /^What's New: (NEW )?v\d/ })).toBeVisible();
 });
 
 test('Previous Releases in What\'s New is a disclosure with its state exposed', async ({ page }) => {
@@ -455,4 +455,27 @@ test('Retry returns focus to the search box', async ({ page }) => {
   await page.getByRole('searchbox', { name: 'Search notes' }).fill('milk');
   await page.getByRole('button', { name: 'Retry' }).click();
   await expect(page.getByRole('searchbox', { name: 'Search notes' })).toBeFocused();
+});
+
+test('reopening Feedback while a send is still in flight cannot send it twice', async ({ page }) => {
+  let posts = 0;
+  await page.route('**/api/feedback', async (route) => {
+    posts++;
+    await new Promise((r) => setTimeout(r, 1500));
+    await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+  });
+  await openFromSheet(page, 'Share feedback');
+  await page.getByLabel('What would help?').fill('Once');
+  await page.getByLabel('Describe your idea').fill('Only once');
+  await page.getByRole('button', { name: 'Send Feedback' }).click();
+  await page.goBack();
+  await expect(page.getByRole('dialog', { name: 'Share Your Feedback' })).toBeHidden();
+
+  await accountButton(page).click();
+  await sheet(page).getByRole('button', { name: 'Share feedback' }).click();
+  await expect(page.getByRole('dialog', { name: 'Share Your Feedback' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Send Feedback|Sending/ })).toBeDisabled();
+  // The first request finishes while the modal is open again, so its thanks screen shows
+  await expect(page.getByRole('heading', { name: 'Thanks for your feedback!' })).toBeVisible();
+  expect(posts).toBe(1);
 });

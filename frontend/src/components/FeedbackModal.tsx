@@ -64,6 +64,9 @@ export function FeedbackModal({ isOpen, onClose, returnFocusTo }: FeedbackModalP
   isOpenRef.current = isOpen;
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
+  // A request still in flight after the modal was closed and reopened: closing resets the mutation
+  // (no stale error), which clears isPending, so this keeps Send disabled until it settles
+  const [inFlight, setInFlight] = useState(false);
 
   // Cleanup timer on unmount to prevent memory leak
   useEffect(() => {
@@ -75,6 +78,8 @@ export function FeedbackModal({ isOpen, onClose, returnFocusTo }: FeedbackModalP
   }, []);
 
   const submitMutation = useMutation({
+    onMutate: () => setInFlight(true),
+    onSettled: () => setInFlight(false),
     mutationFn: () =>
       feedbackApi.submit({
         type,
@@ -112,6 +117,8 @@ export function FeedbackModal({ isOpen, onClose, returnFocusTo }: FeedbackModalP
     },
   });
 
+  const sending = submitMutation.isPending || inFlight;
+
   const resetForm = () => {
     setType('FEATURE');
     setTitle('');
@@ -125,7 +132,7 @@ export function FeedbackModal({ isOpen, onClose, returnFocusTo }: FeedbackModalP
   // Closing without sending (X, Escape, backdrop, back) keeps the draft for the session; it is
   // cleared only after a successful send
   const handleClose = () => {
-    if (submitMutation.isPending) return;
+    if (sending) return;
     if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
     if (showSuccess) resetForm();
     else submitMutation.reset();
@@ -134,7 +141,7 @@ export function FeedbackModal({ isOpen, onClose, returnFocusTo }: FeedbackModalP
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (title.trim() && description.trim()) {
+    if (!sending && title.trim() && description.trim()) {
       submitMutation.mutate();
     }
   };
@@ -143,7 +150,7 @@ export function FeedbackModal({ isOpen, onClose, returnFocusTo }: FeedbackModalP
     // Using mousedown instead of click prevents issues with text selection
     // When user drags to select text and mouseup lands on backdrop, click fires
     // but mousedown only fires if the click started on the backdrop
-    if (e.target === e.currentTarget && !submitMutation.isPending) {
+    if (e.target === e.currentTarget && !sending) {
       handleClose();
     }
   };
@@ -230,7 +237,7 @@ export function FeedbackModal({ isOpen, onClose, returnFocusTo }: FeedbackModalP
               </div>
               <button
                 onClick={handleClose}
-                disabled={submitMutation.isPending}
+                disabled={sending}
                 aria-label="Close"
                 className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
               >
@@ -287,7 +294,7 @@ export function FeedbackModal({ isOpen, onClose, returnFocusTo }: FeedbackModalP
                   placeholder={isBug ? 'e.g., Editor crashes when pasting images' : 'e.g., Add dark mode scheduling'}
                   className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   required
-                  disabled={submitMutation.isPending}
+                  disabled={sending}
                 />
                 <div className="text-xs text-gray-500 dark:text-gray-400 text-right mt-1">
                   {title.length}/100
@@ -312,7 +319,7 @@ export function FeedbackModal({ isOpen, onClose, returnFocusTo }: FeedbackModalP
                   }
                   className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
                   required
-                  disabled={submitMutation.isPending}
+                  disabled={sending}
                 />
                 <div className="text-xs text-gray-500 dark:text-gray-400 text-right mt-1">
                   {description.length}/1000
@@ -330,7 +337,7 @@ export function FeedbackModal({ isOpen, onClose, returnFocusTo }: FeedbackModalP
                     value={category}
                     onChange={(e) => setCategory(e.target.value as FeedbackCategory)}
                     className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    disabled={submitMutation.isPending}
+                    disabled={sending}
                   >
                     <option value="">Select...</option>
                     {CATEGORIES.map((cat) => (
@@ -350,7 +357,7 @@ export function FeedbackModal({ isOpen, onClose, returnFocusTo }: FeedbackModalP
                     value={priority}
                     onChange={(e) => setPriority(e.target.value as FeedbackPriority)}
                     className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    disabled={submitMutation.isPending}
+                    disabled={sending}
                   >
                     <option value="">Select...</option>
                     {PRIORITIES.map((pri) => (
@@ -373,10 +380,10 @@ export function FeedbackModal({ isOpen, onClose, returnFocusTo }: FeedbackModalP
               {/* Submit Button */}
               <button
                 type="submit"
-                disabled={!title.trim() || !description.trim() || submitMutation.isPending}
+                disabled={!title.trim() || !description.trim() || sending}
                 className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-medium rounded-lg transition-colors"
               >
-                {submitMutation.isPending ? (
+                {sending ? (
                   <>
                     <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                     <span>Sending...</span>
