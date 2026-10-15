@@ -12,6 +12,14 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '1.32.0',
+    date: '2026-10-15',
+    fixed: [
+      'Connecting Pocket ID in Settings now tells you which address to open when it cannot work from the one you are on',
+      'Stability and security improvements',
+    ],
+  },
+  {
     version: '1.31.2',
     date: '2026-10-15',
     fixed: [

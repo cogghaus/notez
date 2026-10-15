@@ -49,7 +49,44 @@ You need a GitHub Personal Access Token with `read:packages` scope.
 docker compose -f compose.prod.yml -p notez up -d
 ```
 
-The app will be available on port `5173`. Point your reverse proxy at it.
+The app will be available on port `5173` (IPv4). Point your reverse proxy at it.
+
+### Reverse proxy and TRUST_PROXY
+
+Rate limits are keyed on the client address, and Pocket ID sign-in checks which host name the
+request came in on. Behind a proxy both come from `X-Forwarded-For` / `X-Forwarded-Host`, which
+anyone can send, so the backend only believes them from the peers in `TRUST_PROXY`.
+
+- Default `loopback,172.16.0.0/12`: a proxy on the same machine, or a proxy or tunnel container
+  on the same Docker host (Docker's first default address pools, 172.17-172.31). A client that
+  reaches port `5173` directly from the LAN keeps its own address and cannot forge either header.
+  Every container on that Docker host is trusted too; to narrow it, list your proxy's network,
+  e.g. `TRUST_PROXY=172.18.0.0/24`. Make sure that covers every path in: Docker relays a
+  connection to the published port from the gateway of whichever network it picks for the
+  backend, so a backend on two networks can arrive from either gateway.
+- Docker networks outside 172.16.0.0/12 (once those pools run out Docker hands out
+  192.168.x.0/20) or rootless Docker: set `TRUST_PROXY` explicitly.
+- Docker with `iptables: false`: LAN clients then arrive from the same gateway address as a
+  proxy relayed through the published port, so trusting that gateway lets them forge the headers.
+  The only safe values are `false`, or the address of a proxy that reaches the backend directly
+  over a Docker network (not through the published port).
+- Your proxy runs elsewhere (another LAN host): set `TRUST_PROXY` to its address, e.g.
+  `TRUST_PROXY=192.168.1.10`.
+- Nothing but the proxy can reach the backend: `TRUST_PROXY=true` (trust every peer).
+- No proxy at all: `TRUST_PROXY=false`.
+
+The client address is the rightmost `X-Forwarded-For` entry not sent by a trusted peer. Behind
+Cloudflare (tunnel or proxy) that is the address Cloudflare appends, so a client-supplied
+`X-Forwarded-For` cannot win; this relies on Cloudflare appending, and on nothing between it and
+the backend adding a hop outside the trusted list.
+
+An invalid value stops the backend at startup. The startup log line "Forwarded headers trusted
+from these peers only" shows the value in effect.
+
+The port is published on IPv4 only (`0.0.0.0:5173:3000`). Docker relays IPv6 connections to a
+published port through its userland proxy, so they reach the backend from the Docker gateway
+address, which is a trusted peer; publishing on IPv6 as well would let any IPv6 client forge the
+forwarded headers.
 
 ### 5. First-time setup
 
