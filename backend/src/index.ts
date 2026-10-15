@@ -37,6 +37,7 @@ import { prisma, disconnectPrisma } from './lib/db.js';
 import { storageService } from './services/storage.service.js';
 import { hocuspocusServer } from './services/collaboration.service.js';
 import { startWebhookWorker, stopWebhookWorker } from './services/webhook-worker.service.js';
+import { resolveTrustProxy } from './utils/trustProxy.js';
 
 // Configure DATABASE_URL from components if not explicitly set
 // This allows using POSTGRES_USER, POSTGRES_PASSWORD, etc. instead of hardcoded URL
@@ -63,7 +64,7 @@ const fastify = Fastify({
   logger: {
     level: process.env.LOG_LEVEL || 'info',
   },
-  trustProxy: true, // Required for Cloudflare Tunnel, nginx, etc.
+  trustProxy: resolveTrustProxy(process.env.TRUST_PROXY),
 });
 
 // Register plugins
