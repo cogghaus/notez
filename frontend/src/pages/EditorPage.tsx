@@ -1,5 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, type CSSProperties } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { FolderSidebar, type FolderSidebarHandle } from '../components/FolderSidebar';
 import { NoteList, type NoteListHandle } from '../components/NoteList';
 import { NoteEditor } from '../components/NoteEditor';
@@ -15,10 +16,10 @@ import { MobileTopBar } from '../components/mobile/MobileTopBar';
 import { MobileBackBar } from '../components/mobile/MobileBackBar';
 import { MobileTabBar } from '../components/mobile/MobileTabBar';
 import { MobileSearch } from '../components/mobile/MobileSearch';
-import { AccountSheet } from '../components/mobile/AccountSheet';
-import { useLayoutClass } from '../lib/useLayoutClass';
+import { MobileOverlays } from '../components/mobile/MobileOverlays';
+import { useShell } from '../lib/useLayoutClass';
 import { useMobileNav } from '../lib/useMobileNav';
-import { useNotesFilterLabel } from '../lib/useNotesFilterLabel';
+import { FILTER_LABEL_QUERY_KEY, useNotesFilterLabel } from '../lib/useNotesFilterLabel';
 import type { Task } from '../types';
 
 const VIRTUAL_FOLDER_IDS = new Set(['shared', 'my-shares', 'unfiled', 'trash', 'service-accounts']);
@@ -88,13 +89,14 @@ export function EditorPage() {
   });
   const noteListRef = useRef<NoteListHandle>(null);
   const sidebarRef = useRef<FolderSidebarHandle>(null);
-  const listPaneRef = useRef<HTMLDivElement>(null);
+  const mainRowRef = useRef<HTMLDivElement>(null);
+  const queryClient = useQueryClient();
 
   // Below xl (Compact, and Medium until the rail lands in PR8) the mobile shell applies: navigation
   // state (tab, open note, Folders screen, account sheet) lives in the URL and history, not here.
-  const shell = useLayoutClass() !== 'expanded';
+  const shell = useShell();
   const nav = useMobileNav(shell);
-  const filterLabel = useNotesFilterLabel(selectedFolderId, selectedTagId);
+  const filterLabel = useNotesFilterLabel(selectedFolderId, selectedTagId, shell);
 
   const activeNoteId = shell ? nav.noteId : selectedNoteId;
   const activeView: 'notes' | 'tasks' = shell ? (nav.tab === 'tasks' ? 'tasks' : 'notes') : selectedView;
@@ -181,33 +183,59 @@ export function EditorPage() {
   }, [shell, nav.noteId, nav.tab]);
 
   // Closing the editor returns to the list where the user left it: same scroll position, focus on
-  // the row that was open. The list stays mounted (hidden) while the editor shows. Scroll position
-  // is tracked while the list is visible and put back when it reappears.
-  const listScrollRef = useRef(0);
+  // the row that was open. The lists (Notes, Tasks, Search) stay mounted, hidden, while the editor
+  // shows. Scrollers carry data-scroll-key; positions are tracked while visible and put back when
+  // the list reappears. A different list (tab, folder or tag) starts at the top.
+  const scrollPosRef = useRef<Record<string, number>>({});
+  const scrollSigRef = useRef('');
   const editorOpenRef = useRef(false);
   editorOpenRef.current = showEditor;
   const lastNoteIdRef = useRef<string | null>(null);
+  const openerRef = useRef<Element | null>(null);
+  const closeFocusRef = useRef<{ deleted: boolean; neighbourId: string | null } | null>(null);
 
   useLayoutEffect(() => {
     if (!shell || showEditor) return;
-    const scroller = listPaneRef.current?.querySelector<HTMLElement>('[data-note-list-scroll]');
-    if (scroller && listScrollRef.current > 0) scroller.scrollTop = listScrollRef.current;
-  }, [shell, showEditor]);
+    const sig = `${nav.tab}|${selectedFolderId}|${selectedTagId}`;
+    if (sig !== scrollSigRef.current) {
+      scrollSigRef.current = sig;
+      scrollPosRef.current = {};
+      return;
+    }
+    const y = scrollPosRef.current[nav.tab];
+    const scroller = mainRowRef.current?.querySelector<HTMLElement>(`[data-scroll-key="${nav.tab}"]`);
+    if (scroller && y > 0) scroller.scrollTop = y;
+  }, [shell, showEditor, nav.tab, selectedFolderId, selectedTagId]);
 
-  useEffect(() => {
-    // A different list (folder, tag or tab) starts at the top
-    listScrollRef.current = 0;
-  }, [selectedFolderId, selectedTagId, nav.tab]);
-
+  // Focus lands somewhere sensible whenever the editor closes: the control that opened it, else the
+  // row that was open; after a delete or restore the neighbouring row; the title as the last resort
   useEffect(() => {
     const prev = lastNoteIdRef.current;
     lastNoteIdRef.current = nav.noteId;
     if (!shell || !prev || nav.noteId) return;
-    const row = Array.from(document.querySelectorAll<HTMLElement>(`[data-note-id="${CSS.escape(prev)}"]`)).find(
-      (el) => el.getClientRects().length > 0,
-    );
-    row?.focus({ preventScroll: true });
+    const visible = (el: Element | null): el is HTMLElement =>
+      el instanceof HTMLElement && el.isConnected && el.getClientRects().length > 0;
+    const rowFor = (id: string) =>
+      Array.from(document.querySelectorAll<HTMLElement>(`[data-note-id="${CSS.escape(id)}"]`)).find(visible) ?? null;
+    const close = closeFocusRef.current;
+    closeFocusRef.current = null;
+    const opener = openerRef.current;
+    openerRef.current = null;
+    let target: HTMLElement | null = null;
+    if (close?.deleted) target = close.neighbourId ? rowFor(close.neighbourId) : null;
+    else target = (visible(opener) ? opener : null) ?? rowFor(prev);
+    target ??= document.querySelector<HTMLElement>('[data-mobile-title]') ?? document.querySelector<HTMLElement>('[data-account-button]');
+    target?.focus({ preventScroll: true });
   }, [shell, nav.noteId]);
+
+  // Back from the Folders screen (a pick or the arrow) returns focus to the Notes title that opened it
+  const wasFoldersOpenRef = useRef(false);
+  useEffect(() => {
+    if (wasFoldersOpenRef.current && !nav.foldersOpen) {
+      document.querySelector<HTMLElement>('[data-mobile-title]')?.focus({ preventScroll: true });
+    }
+    wasFoldersOpenRef.current = nav.foldersOpen;
+  }, [nav.foldersOpen]);
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -235,15 +263,19 @@ export function EditorPage() {
   }, []);
 
   /** Note picked in the list or in a service account workspace. */
+  const openNoteFromShell = (noteId: string) => {
+    openerRef.current = document.activeElement;
+    nav.openNote(noteId);
+  };
   const selectNote = (noteId: string) => {
-    if (shell) nav.openNote(noteId);
+    if (shell) openNoteFromShell(noteId);
     else setSelectedNoteId(noteId);
   };
 
   /** Note opened from a task (links in the agenda and the kanban board). */
   const handleNoteClick = (noteId: string) => {
     if (shell) {
-      nav.openNote(noteId);
+      openNoteFromShell(noteId);
       return;
     }
     setSelectedView('notes');
@@ -253,11 +285,26 @@ export function EditorPage() {
   /** The editor closed itself (note deleted or restored): leave the pushed screen. */
   const leaveEditor = () => {
     setSelectedNoteId(null);
-    if (shell) nav.back();
+    if (shell) nav.leave();
+  };
+
+  /** Before a delete or restore removes a row: remember the row after it, else the one before it. */
+  const rememberNeighbour = (noteId: string) => {
+    const row = document.querySelector(`[data-note-id="${CSS.escape(noteId)}"]`);
+    const rows = Array.from(row?.closest('[data-scroll-key]')?.querySelectorAll('[data-note-id]') ?? []);
+    const at = row ? rows.indexOf(row) : -1;
+    const neighbour = at >= 0 ? (rows[at + 1] ?? rows[at - 1]) : undefined;
+    closeFocusRef.current = { deleted: true, neighbourId: neighbour?.getAttribute('data-note-id') ?? null };
   };
 
   const editorMounted = shell ? nav.noteId !== null : selectedView === 'notes';
-  const topTitle = nav.tab === 'tasks' ? 'Tasks' : nav.tab === 'search' ? 'Search' : filterLabel.label;
+  // Below xl the editor's mode comes from the route, not the Notes filter: a note opened from Search
+  // or Tasks is never in service account mode, and the service accounts gate only exists on desktop
+  const editorServiceMode = selectedFolderId === 'service-accounts' && (!shell || nav.tab === 'notes');
+  const serviceAccountGate = !shell && selectedFolderId === 'service-accounts' && !selectedServiceAccount;
+  // The Folders screen can filter the Tasks tab too; say so in its title
+  const tasksTitle = filterLabel.folderName ? `Tasks, ${filterLabel.folderName}` : 'Tasks';
+  const topTitle = nav.tab === 'tasks' ? tasksTitle : nav.tab === 'search' ? 'Search' : filterLabel.label;
   const showTopBar = shell && (mobileView === 'list' || mobileView === 'search');
 
   return (
@@ -282,10 +329,19 @@ export function EditorPage() {
           onOpenAccount={nav.openAccount}
         />
       )}
-      {shell && mobileView === 'sidebar' && <MobileBackBar title="Folders" onBack={nav.back} />}
+      {shell && mobileView === 'sidebar' && <MobileBackBar title="Folders" onBack={nav.leave} />}
 
       {/* Main Content Area */}
-      <div className="flex flex-1 min-h-0 overflow-hidden" data-kb-pad>
+      <div
+        ref={mainRowRef}
+        onScrollCapture={(e) => {
+          // Remember where each list is scrolled while it is visible
+          const key = (e.target as HTMLElement).getAttribute?.('data-scroll-key');
+          if (key && !editorOpenRef.current) scrollPosRef.current[key] = (e.target as HTMLElement).scrollTop;
+        }}
+        className="flex flex-1 min-h-0 overflow-hidden"
+        data-kb-pad
+      >
         {/* Folder Sidebar - Hidden on mobile unless mobileView === 'sidebar' */}
         <div
           className={`${mobileView === 'sidebar' ? 'block' : 'hidden'} xl:block flex-shrink-0 w-full xl:w-[var(--pane-w)]`}
@@ -306,14 +362,20 @@ export function EditorPage() {
               if (isVirtual || selectedView !== 'tasks') {
                 setSelectedView('notes');
               }
-              if (shell) nav.leave(); // Back to the Notes list, filtered
+              if (shell) {
+                queryClient.invalidateQueries({ queryKey: FILTER_LABEL_QUERY_KEY }); // a rename shows up in the title
+                nav.leave(); // Back to the Notes list, filtered
+              }
             }}
             onSelectTag={(tagId) => {
               setSelectedTagId(tagId);
               setSelectedNoteId(null);
               setSelectedServiceAccount(null); // Clear service account drill-down
               setSelectedView('notes'); // Switch to notes view when tag is selected
-              if (shell) nav.leave();
+              if (shell) {
+                queryClient.invalidateQueries({ queryKey: FILTER_LABEL_QUERY_KEY });
+                nav.leave();
+              }
             }}
             onSelectView={(view) => {
               setSelectedView(view);
@@ -323,6 +385,7 @@ export function EditorPage() {
             }}
             // The full sidebar always shows in the phone Folders screen; a saved collapse is a desktop choice
             collapsed={sidebarCollapsed && !shell}
+            hideCollapse={shell}
             onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
             onNoteMoved={() => {
               // Refresh note list when a note is moved via drag-and-drop
@@ -341,12 +404,6 @@ export function EditorPage() {
 
         {/* Note List, Task List, or Service Account Views (the Search tab has its own pane below) */}
         <div
-          ref={listPaneRef}
-          onScrollCapture={(e) => {
-            // Remember where the notes list was scrolled while it is visible
-            const el = e.target as HTMLElement;
-            if (!editorOpenRef.current && el.hasAttribute('data-note-list-scroll')) listScrollRef.current = el.scrollTop;
-          }}
           className={`${mobileView === 'list' ? 'block' : 'hidden'} xl:block ${
             selectedFolderId === 'service-accounts' && !selectedServiceAccount
               ? 'flex-1 w-full'
@@ -422,7 +479,7 @@ export function EditorPage() {
         {/* Search tab (below xl). Stays mounted while a result is open so Back restores the results. */}
         {shell && nav.tab === 'search' && (
           <div className={`${mobileView === 'search' ? 'block' : 'hidden'} flex-1 min-w-0 w-full`}>
-            <MobileSearch onOpenNote={nav.openNote} />
+            <MobileSearch onOpenNote={openNoteFromShell} />
           </div>
         )}
 
@@ -435,13 +492,14 @@ export function EditorPage() {
         )}
 
         {/* Note Editor - Hidden on mobile unless mobileView === 'editor', hidden when dashboard is showing (no account selected) */}
-        {editorMounted && !(selectedFolderId === 'service-accounts' && !selectedServiceAccount) && (
+        {editorMounted && !serviceAccountGate && (
           <div className={`flex-1 flex-col min-h-0 min-w-0 ${mobileView === 'editor' ? 'flex' : 'hidden'} xl:flex`}>
-            {shell && <MobileBackBar onBack={nav.back} hideWhileWriting />}
+            {shell && <MobileBackBar onBack={nav.leave} hideWhileWriting />}
             <NoteEditor
               noteId={activeNoteId}
-              serviceAccountMode={selectedFolderId === 'service-accounts'}
+              serviceAccountMode={editorServiceMode}
               onNoteDeleted={(noteId) => {
+                rememberNeighbour(noteId);
                 noteListRef.current?.removeNote(noteId);
                 sidebarRef.current?.refreshAll();
                 leaveEditor(); // Return to the list after deleting
@@ -457,6 +515,7 @@ export function EditorPage() {
                 }
               }}
               onNoteRestored={(noteId) => {
+                rememberNeighbour(noteId);
                 noteListRef.current?.removeNote(noteId); // Remove from trash list
                 sidebarRef.current?.refreshAll(); // Refresh counts
                 leaveEditor(); // Return to the list after restoring
@@ -493,7 +552,12 @@ export function EditorPage() {
       {/* Mobile tab bar: list screens only; the editor and pushed pages are full screen */}
       {showTopBar && <MobileTabBar current={nav.tab} onSelect={nav.selectTab} />}
 
-      <AccountSheet open={shell && nav.sheet === 'account'} onClose={nav.leave} onOpenSettings={nav.openSettings} />
+      <MobileOverlays
+        sheet={shell ? nav.sheet : null}
+        onClose={nav.leave}
+        onOpenSettings={nav.openSettings}
+        onOpenSheet={nav.openSheet}
+      />
     </div>
   );
 }

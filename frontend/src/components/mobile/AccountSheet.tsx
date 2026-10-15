@@ -1,16 +1,17 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { LogOut, MessageSquare, Moon, Settings, Sparkles, Sun } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useFocusTrap } from '../../lib/useFocusTrap';
-import { WhatsNewModal } from '../WhatsNewModal';
-import { FeedbackModal } from '../FeedbackModal';
 
 interface AccountSheetProps {
   open: boolean;
   /** Close the sheet (history back; the sheet is a history entry). */
   onClose: () => void;
   onOpenSettings: () => void;
+  /** What's New and Share feedback are overlays of their own (they replace this sheet's history entry). */
+  onOpenWhatsNew: () => void;
+  onOpenFeedback: () => void;
 }
 
 const ROW =
@@ -22,14 +23,11 @@ const ROW =
  * `role="dialog" aria-modal`, focus trapped, Escape and a backdrop tap close it, focus returns to
  * the opener. Closing goes through history, so system back closes it too.
  */
-export function AccountSheet({ open, onClose, onOpenSettings }: AccountSheetProps) {
+export function AccountSheet({ open, onClose, onOpenSettings, onOpenWhatsNew, onOpenFeedback }: AccountSheetProps) {
   const { user, logout } = useAuth();
   const { theme, setTheme } = useTheme();
   const sheetRef = useRef<HTMLDivElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
-  const [showWhatsNew, setShowWhatsNew] = useState(false);
-  const [showFeedback, setShowFeedback] = useState(false);
-  const currentVersion = import.meta.env.VITE_APP_VERSION || '0.0.0';
 
   useFocusTrap(sheetRef, open);
 
@@ -38,21 +36,20 @@ export function AccountSheet({ open, onClose, onOpenSettings }: AccountSheetProp
     if (open) headingRef.current?.focus();
   }, [open]);
 
-  // Escape closes the sheet from wherever focus is (not while a modal is on top of it)
+  // Escape closes the sheet from wherever focus is
   useEffect(() => {
-    if (!open || showWhatsNew || showFeedback) return;
+    if (!open) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [open, showWhatsNew, showFeedback, onClose]);
+  }, [open, onClose]);
 
   if (!open || !user) return null;
 
   return (
-    <>
-      <div
+    <div
         className="fixed inset-0 z-50 flex items-end bg-black/50 backdrop-blur-sm"
         onMouseDown={(e) => {
           if (e.target === e.currentTarget) onClose();
@@ -78,8 +75,10 @@ export function AccountSheet({ open, onClose, onOpenSettings }: AccountSheetProp
           </div>
 
           <div className="min-h-12 px-4 flex items-center justify-between gap-3">
-            <span className="text-base text-gray-900 dark:text-gray-100">Theme</span>
-            <div className="flex gap-2">
+            <span id="account-theme-label" className="text-base text-gray-900 dark:text-gray-100">
+              Theme
+            </span>
+            <div role="group" aria-labelledby="account-theme-label" className="flex gap-2">
               {(['light', 'dark'] as const).map((value) => {
                 const Icon = value === 'light' ? Sun : Moon;
                 const selected = theme === value;
@@ -107,11 +106,11 @@ export function AccountSheet({ open, onClose, onOpenSettings }: AccountSheetProp
             <Settings className="w-5 h-5 text-gray-500 dark:text-gray-400" aria-hidden="true" />
             Settings
           </button>
-          <button type="button" className={ROW} onClick={() => setShowWhatsNew(true)}>
+          <button type="button" className={ROW} onClick={onOpenWhatsNew}>
             <Sparkles className="w-5 h-5 text-gray-500 dark:text-gray-400" aria-hidden="true" />
             What&apos;s New
           </button>
-          <button type="button" className={ROW} onClick={() => setShowFeedback(true)}>
+          <button type="button" className={ROW} onClick={onOpenFeedback}>
             <MessageSquare className="w-5 h-5 text-gray-500 dark:text-gray-400" aria-hidden="true" />
             Share feedback
           </button>
@@ -127,9 +126,5 @@ export function AccountSheet({ open, onClose, onOpenSettings }: AccountSheetProp
           </button>
         </div>
       </div>
-
-      <WhatsNewModal isOpen={showWhatsNew} onClose={() => setShowWhatsNew(false)} currentVersion={currentVersion} />
-      <FeedbackModal isOpen={showFeedback} onClose={() => setShowFeedback(false)} />
-    </>
   );
 }

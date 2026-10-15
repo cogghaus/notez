@@ -3,6 +3,12 @@ import type { RefObject } from 'react';
 
 const FOCUSABLE = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
 
+/** Not display:none or visibility:hidden (getClientRects is empty in jsdom, so check styles). */
+function isRendered(el: HTMLElement): boolean {
+  const style = getComputedStyle(el);
+  return style.display !== 'none' && style.visibility !== 'hidden';
+}
+
 /**
  * Modal focus handling shared by dialogs and sheets (spec 9.6), extracted from ConfirmDialog:
  * while `active`, Tab and Shift+Tab cycle inside `containerRef`; when it turns inactive (or
@@ -33,17 +39,34 @@ export function useFocusTrap(
       if (e.key !== 'Tab') return;
       const container = containerRef.current;
       if (!container) return;
-      const focusable = container.querySelectorAll<HTMLElement>(FOCUSABLE);
+      const current = document.activeElement;
+
+      // Another dialog stacked on top owns focus (for example a modal opened over a sheet): its own
+      // trap, not this one, handles Tab
+      const owner = current?.closest('[role="dialog"]');
+      if (owner && !owner.contains(container) && !container.contains(owner)) return;
+
+      const focusable = Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
+        (el) => !(el as HTMLButtonElement).disabled && isRendered(el),
+      );
       if (focusable.length === 0) return;
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
 
+      // Focus on the container itself, on a tabindex=-1 element inside it (the sheet heading) or
+      // outside it is not in the tab list: send it to the matching end
+      if (!current || !focusable.includes(current as HTMLElement)) {
+        e.preventDefault();
+        (e.shiftKey ? last : first).focus();
+        return;
+      }
+
       if (e.shiftKey) {
-        if (document.activeElement === first) {
+        if (current === first) {
           e.preventDefault();
           last.focus();
         }
-      } else if (document.activeElement === last) {
+      } else if (current === last) {
         e.preventDefault();
         first.focus();
       }
@@ -58,6 +81,8 @@ export function useFocusTrap(
         // Intentionally the ref's value on the next frame: null once React unmounted the container
         // eslint-disable-next-line react-hooks/exhaustive-deps
         if (containerRef.current?.isConnected) return;
+        // Focus already moved into another dialog (an overlay replaced this one): leave it there
+        if (document.activeElement?.closest('[role="dialog"]')) return;
         if (opener instanceof HTMLElement) opener.focus();
       });
     };

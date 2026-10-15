@@ -335,7 +335,7 @@ export default function TaskList({ onNoteClick, serviceAccountMode, folderId }: 
       </div>
 
       {/* Task List */}
-      <div className="flex-1 overflow-y-auto pb-20 xl:pb-0">
+      <div data-scroll-key="tasks" className="flex-1 overflow-y-auto pb-20 xl:pb-0">
         {isLoading ? (
           <div className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
             Loading...

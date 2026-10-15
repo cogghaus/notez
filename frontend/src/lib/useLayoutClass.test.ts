@@ -87,3 +87,14 @@ describe('useLayoutClass', () => {
     expect(result.current).toBe('expanded');
   });
 });
+
+describe('useShell', () => {
+  it('is true below xl and false from xl', async () => {
+    const { useShell } = await import('./useLayoutClass');
+    const mm = installMatchMedia(841);
+    const { result } = renderHook(() => useShell());
+    expect(result.current).toBe(true);
+    act(() => mm.setWidth(1280));
+    expect(result.current).toBe(false);
+  });
+});

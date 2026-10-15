@@ -33,3 +33,11 @@ function subscribe(onChange: () => void): () => void {
 export function useLayoutClass(): LayoutClass {
   return useSyncExternalStore(subscribe, getSnapshot, () => 'expanded');
 }
+
+/**
+ * True when the mobile shell applies (everything below xl). Medium shares the Compact shell until
+ * the rail and two-pane land in PR8, which flips Medium here and nowhere else.
+ */
+export function useShell(): boolean {
+  return useLayoutClass() !== 'expanded';
+}

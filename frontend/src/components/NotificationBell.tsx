@@ -5,7 +5,7 @@ import { Bell, Check, CheckCheck, Trash2, MessageSquare, RefreshCw, Sparkles, Us
 import { notificationsApi } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from './Toast';
-import { nextDepth } from '../lib/mobileNav';
+import { nextDepth, noteUrl } from '../lib/mobileNav';
 import { formatDistanceToNow } from 'date-fns';
 
 interface Notification {
@@ -134,13 +134,13 @@ export function NotificationBell({ buttonClassName = DEFAULT_BUTTON_CLASS }: Not
     if (notification.linkType === 'feedback') {
       // For admins, navigate to feedback section with the item ID in search params
       if (user?.role === 'admin') {
-        go(`/settings/feedback?expandFeedback=${notification.linkId}`);
+        go(`/settings/feedback?expandFeedback=${encodeURIComponent(notification.linkId)}`);
       }
       // For regular users, the notification itself contains the update info
       // No navigation needed - they can see the status update in the notification message
     } else if (notification.linkType === 'note' && notification.linkId) {
       // Navigate to the shared note and switch sidebar to "Shared with me"
-      go(`/?note=${notification.linkId}&folder=shared`);
+      go(`${noteUrl('notes', notification.linkId)}&folder=shared`);
     } else if (notification.linkType === 'release') {
       // Navigate to changelog/What's New - clicking the version number in settings
       go('/settings/profile');

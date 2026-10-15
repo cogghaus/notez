@@ -1,6 +1,6 @@
 import { CheckSquare, FileText, Search } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import { requestSearchFocus, type Tab } from '../../lib/mobileNav';
+import type { Tab } from '../../lib/mobileNav';
 
 interface MobileTabBarProps {
   current: Tab;
@@ -35,10 +35,7 @@ export function MobileTabBar({ current, onSelect }: MobileTabBarProps) {
               key={tab}
               type="button"
               aria-current={active ? 'page' : undefined}
-              onClick={() => {
-                if (tab === 'search' && !active) requestSearchFocus();
-                onSelect(tab);
-              }}
+              onClick={() => onSelect(tab)}
               className={`flex-1 min-h-12 flex flex-col items-center justify-center gap-0.5 py-1 ${
                 active ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400'
               }`}

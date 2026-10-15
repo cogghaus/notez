@@ -33,6 +33,8 @@ interface FolderSidebarProps {
   onSelectView: (view: 'notes' | 'tasks') => void;
   collapsed: boolean;
   onToggleCollapse: () => void;
+  /** Hide the collapse button (the phone Folders screen: collapsing would silently flip the desktop setting). */
+  hideCollapse?: boolean;
   onNoteMoved?: () => void;
 }
 
@@ -51,6 +53,7 @@ export const FolderSidebar = forwardRef<FolderSidebarHandle, FolderSidebarProps>
   onSelectView,
   collapsed,
   onToggleCollapse,
+  hideCollapse = false,
   onNoteMoved,
 }, ref) => {
   const confirm = useConfirm();
@@ -562,13 +565,15 @@ export const FolderSidebar = forwardRef<FolderSidebarHandle, FolderSidebarProps>
           >
             <FolderPlus className="w-4 h-4 text-gray-600 dark:text-gray-400" />
           </button>
-          <button
-            onClick={onToggleCollapse}
-            className="p-1.5 hover:bg-gray-100 dark:bg-gray-700 rounded-md"
-            title="Collapse sidebar"
-          >
-            <ChevronLeft className="w-4 h-4 text-gray-600 dark:text-gray-400" />
-          </button>
+          {!hideCollapse && (
+            <button
+              onClick={onToggleCollapse}
+              className="p-1.5 hover:bg-gray-100 dark:bg-gray-700 rounded-md"
+              title="Collapse sidebar"
+            >
+              <ChevronLeft className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+            </button>
+          )}
         </div>
       </div>
 

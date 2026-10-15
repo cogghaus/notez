@@ -32,6 +32,7 @@ export function MobileTopBar({ title, titleIcon, onTitleClick, onOpenAccount }: 
           type="button"
           onClick={onOpenAccount}
           aria-label="Account menu"
+          data-account-button
           aria-haspopup="dialog"
           className="flex-shrink-0 w-12 h-12 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
         >
@@ -43,6 +44,7 @@ export function MobileTopBar({ title, titleIcon, onTitleClick, onOpenAccount }: 
             <h1>
               <button
                 type="button"
+                data-mobile-title
                 onClick={onTitleClick}
                 aria-label={`Filter notes, currently ${title}`}
                 className="max-w-full min-h-12 px-3 flex items-center gap-2 rounded-lg text-lg font-semibold text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"

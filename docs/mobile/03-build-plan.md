@@ -40,12 +40,13 @@ The project as a whole is a minor bump. Proposed mapping:
 | --- | --- | --- |
 | PR1 | patch (1.30.5) | Bug fix, no new experience |
 | PR2 | patch (1.31.2) | Bug fixes, no new experience |
-| PR3 | **minor -> 1.32.0 (approved 2026-10-15)** | First PR that ships the new mobile experience (new navigation) |
-| PR4 to PR9 | patch (1.32.x) | Increments within the mobile release |
+| PR3 | **minor -> 1.33.0 (approved 2026-10-15)** | First PR that ships the new mobile experience (new navigation) |
+| PR4 to PR9 | patch (1.33.x) | Increments within the mobile release |
 
 Updated 2026-10-14: 1.31.0 went to the Foyer task schema (#190) between PR1 and PR2, so PR2 is a
 1.31.x patch and PR3's minor moves to 1.32.0. Then the sign-in hotfix (#194) took 1.31.1, so PR2
-shipped as 1.31.2. Adam approved 1.32.0 for PR3 on 2026-10-15.
+shipped as 1.31.2. 1.32.0 then went to the Connect-on-LAN and TRUST_PROXY follow-up (#195, a new
+config option), and Adam approved 1.33.0 for PR3 on 2026-10-15.
 
 Alternative: an integration branch with all phases, one merge to `main` as 1.31.0. Rejected for now
 because real-device testing and the cron deploy both run from `main`, and a long-lived branch would
@@ -121,7 +122,7 @@ strip function). Monaco follows the app theme.
 
 **Acceptance criteria:** tests above pass; Settings usable at 360px; desktop unchanged.
 
-## PR3: Mobile shell and navigation (`feature/mobile-shell-nav`) -> 1.32.0
+## PR3: Mobile shell and navigation (`feature/mobile-shell-nav`) -> 1.33.0
 
 Scope decisions taken when PR3 was built (2026-10-15):
 - Medium (600 to 1279px) uses the Compact shell (bottom tabs) until PR8 brings the rail and the
@@ -171,6 +172,9 @@ N2); if it exits, document it and rely on the in-app arrow. Pixel review approve
   Compact and Medium; the FAB hides in writing mode.
 - Details sheet: folder, tags, AI actions, share, raw mode, word count, delete with Undo.
 - Collaborative presence fits the slim bar.
+- Carried from PR3 review: notification links into a note replace the entry when the editor is
+  already open (as `openNote` does) instead of pushing a second editor entry; sheets share one
+  `onEscape` option in `useFocusTrap` once the Details sheet is the third copy.
 
 **Acceptance criteria:** with a simulated keyboard at S23U, at least 60% of the visible height is
 note text; exiting writing mode restores the layout with no jump; formatting strip actions work in
@@ -251,6 +255,11 @@ and change status without gestures.
   an open task sheet becomes the detail pane and back.
 - Carried from PR3: the rail (spec 3.2) and the N3 back-stack case in `e2e/mobile-back-stack.spec.ts`
   (closing the Medium detail pane pops the selection entry, no dead back press).
+- Carried from PR3 review: "tab tap above a pushed screen" (spec 3.3) using the `tabDepth` PR3
+  records in `location.state`; crossing xl must not add history entries (the desktop `?note=`
+  consume path pushes an empty entry today; making it a replace touches desktop, so it needs
+  Adam's OK under D7); a stronger active state for the tab pill if a rendered check shows the
+  1.2:1 pill is not enough.
 
 **Acceptance criteria:** Playwright resize 412x797 -> 841x701 -> 412x797 mid-edit loses no text and
 keeps selection; Adam tests folding and unfolding on the Fold.

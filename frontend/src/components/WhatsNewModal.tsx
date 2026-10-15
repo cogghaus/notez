@@ -1,11 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { X, ChevronDown, ChevronRight, Sparkles, Wrench, RefreshCw, Minus, Plus } from 'lucide-react';
 import { changelog, type ChangelogEntry } from '../data/changelog';
+import { useFocusTrap } from '../lib/useFocusTrap';
 
 interface WhatsNewModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentVersion: string;
+  /** Where focus goes on close, when it is not the element focused at open (mobile overlays). */
+  returnFocusTo?: Element | null;
 }
 
 const LAST_SEEN_VERSION_KEY = 'notez-last-seen-version';
@@ -111,8 +114,26 @@ function ReleaseSection({ entry, isLatest = false }: { entry: ChangelogEntry; is
   );
 }
 
-export function WhatsNewModal({ isOpen, onClose, currentVersion }: WhatsNewModalProps) {
+export function WhatsNewModal({ isOpen, onClose, currentVersion, returnFocusTo }: WhatsNewModalProps) {
   const [showHistory, setShowHistory] = useState(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+
+  useFocusTrap(dialogRef, isOpen, { opener: returnFocusTo });
+
+  // Focus starts on the heading (Tab reaches Close next); Escape closes. The latest onClose is kept
+  // in a ref so a parent re-render neither re-focuses the heading nor re-subscribes.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  useEffect(() => {
+    if (!isOpen) return;
+    headingRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onCloseRef.current();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [isOpen]);
 
   // Mark version as seen when modal opens
   useEffect(() => {
@@ -137,6 +158,7 @@ export function WhatsNewModal({ isOpen, onClose, currentVersion }: WhatsNewModal
       {/* Modal */}
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
         <div
+          ref={dialogRef}
           className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full max-h-[80vh] flex flex-col"
           role="dialog"
           aria-modal="true"
@@ -149,7 +171,7 @@ export function WhatsNewModal({ isOpen, onClose, currentVersion }: WhatsNewModal
                 <Sparkles className="w-5 h-5 text-white" />
               </div>
               <div>
-                <h2 id="whats-new-title" className="text-lg font-semibold text-gray-900 dark:text-white">What's New in Notez</h2>
+                <h2 id="whats-new-title" ref={headingRef} tabIndex={-1} className="text-lg font-semibold text-gray-900 dark:text-white focus:outline-none">What's New in Notez</h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400">Version {currentVersion}</p>
               </div>
             </div>

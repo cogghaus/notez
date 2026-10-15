@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { useReplaceSearchParams } from '../lib/mobileNav';
 import { useAuth } from '../contexts/AuthContext';
 import { authApi, profileApi } from '../lib/api';
 import { User, Mail, Lock, Loader2, Check, Camera, Trash2, Pencil, X, KeyRound } from 'lucide-react';
@@ -38,7 +39,8 @@ export function ProfileSettings() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [sso, setSso] = useState<{ enabled: boolean; providerName: string } | null>(null);
   const [isLinkingSso, setIsLinkingSso] = useState(false);
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
+  const replaceSearchParams = useReplaceSearchParams(); // keeps the history depth the mobile shell relies on
 
   // Is SSO configured on the server?
   useEffect(() => {
@@ -56,7 +58,7 @@ export function ProfileSettings() {
     const ssoError = searchParams.get('sso_error');
     if (!linkStep && !ssoError) return;
     linkHandled.current = true;
-    setSearchParams({}, { replace: true });
+    replaceSearchParams({});
 
     if (ssoError) {
       setError(ssoErrorMessage(ssoError));
@@ -76,7 +78,7 @@ export function ProfileSettings() {
         })
         .finally(() => setIsLinkingSso(false));
     }
-  }, [searchParams, setSearchParams, refreshAuth]);
+  }, [searchParams, replaceSearchParams, refreshAuth]);
 
   const handleConnectSso = async () => {
     setIsLinkingSso(true);

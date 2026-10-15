@@ -2,18 +2,18 @@ import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   FOLDERS_URL,
+  navState,
   noteUrl,
   parentUrl,
   parseScreen,
   planTabSwitch,
   readCurrentNav,
   readNavState,
+  requestSearchFocus,
   tabUrl,
+  type Sheet,
   type Tab,
 } from './mobileNav';
-
-// Set once per page load by the first hook that runs (see the boot effect below)
-let bootChecked = false;
 
 /**
  * History-backed navigation for the mobile shell (spec 3.3). All moves go through React Router, so
@@ -35,8 +35,8 @@ export function useMobileNav(enabled = true) {
   );
   const { depth, sheet } = readNavState(location.state);
 
-  // Guards against a second leave while the first is still resolving (a sidebar click can fire
-  // several selection callbacks in a row). Cleared on every location change.
+  // Guards against a second leave while the first is still resolving (a double tap on Back, or a
+  // sidebar click that fires several selection callbacks). Cleared on every location change.
   const leavingRef = useRef(false);
   useEffect(() => {
     leavingRef.current = false;
@@ -50,10 +50,10 @@ export function useMobileNav(enabled = true) {
       return;
     }
     const parent = parentUrl(cur.screen, cur.sheet);
-    if (parent) navigateRef.current(parent, { replace: true, state: { depth: 0 } });
+    if (parent) navigateRef.current(parent, { replace: true, state: navState(cur, { depth: 0, tabDepth: 0 }) });
   }, []);
 
-  /** Back, at most once per location. For callbacks that may fire together. */
+  /** Back, at most once per location. Use this for buttons and for callbacks that may fire together. */
   const leave = useCallback(() => {
     if (leavingRef.current) return;
     leavingRef.current = true;
@@ -63,12 +63,16 @@ export function useMobileNav(enabled = true) {
   const selectTab = useCallback((to: Tab) => {
     const cur = readCurrentNav();
     const plan = planTabSwitch(cur.screen.tab, to, cur.depth);
+    if (plan.kind !== 'none' && to === 'search') requestSearchFocus();
     switch (plan.kind) {
       case 'push':
-        navigateRef.current(plan.url, { state: { depth: plan.depth } });
+        navigateRef.current(plan.url, { state: navState(cur, { depth: plan.depth, tabDepth: plan.tabDepth }) });
         break;
       case 'replace':
-        navigateRef.current(plan.url, { replace: true, state: { depth: plan.depth } });
+        navigateRef.current(plan.url, {
+          replace: true,
+          state: navState(cur, { depth: plan.depth, tabDepth: plan.tabDepth }),
+        });
         break;
       case 'pop':
         navigateRef.current(-plan.count);
@@ -80,14 +84,16 @@ export function useMobileNav(enabled = true) {
     const cur = readCurrentNav();
     if (cur.screen.kind === 'editor') {
       // Already in the editor: switch note in place, no extra back press
-      navigateRef.current(noteUrl(cur.screen.tab, noteId), { replace: true, state: { depth: cur.depth } });
+      navigateRef.current(noteUrl(cur.screen.tab, noteId), { replace: true, state: navState(cur, { depth: cur.depth }) });
       return;
     }
-    navigateRef.current(noteUrl(cur.screen.tab, noteId), { state: { depth: cur.depth + 1 } });
+    navigateRef.current(noteUrl(cur.screen.tab, noteId), { state: navState(cur, { depth: cur.depth + 1 }) });
   }, []);
 
   const openFolders = useCallback(() => {
-    navigateRef.current(FOLDERS_URL, { state: { depth: readCurrentNav().depth + 1 } });
+    const cur = readCurrentNav();
+    if (cur.screen.kind === 'folders') return;
+    navigateRef.current(FOLDERS_URL, { state: navState(cur, { depth: cur.depth + 1 }) });
   }, []);
 
   /** Leave the Folders screen for a tab (the sidebar's Tasks entry): replaces the Folders entry. */
@@ -95,22 +101,39 @@ export function useMobileNav(enabled = true) {
     if (leavingRef.current) return;
     leavingRef.current = true;
     const cur = readCurrentNav();
-    navigateRef.current(tabUrl(tab), { replace: true, state: { depth: cur.depth } });
+    navigateRef.current(tabUrl(tab), { replace: true, state: navState(cur, { depth: cur.depth, tabDepth: cur.depth }) });
   }, []);
 
-  const openAccount = useCallback(() => {
+  /**
+   * Open an overlay (account sheet, What's New, Share feedback) as a history entry. From another
+   * overlay it replaces that entry, so system back closes just the one on top and returns to the
+   * screen under it. Opening the one that is already open does nothing.
+   */
+  const openSheet = useCallback((kind: Sheet) => {
     const cur = readCurrentNav();
-    navigateRef.current(cur.url, { state: { depth: cur.depth + 1, sheet: 'account' } });
+    if (cur.sheet === kind) return;
+    if (cur.sheet) {
+      navigateRef.current(cur.url, { replace: true, state: navState(cur, { depth: cur.depth, sheet: kind }) });
+      return;
+    }
+    navigateRef.current(cur.url, { state: navState(cur, { depth: cur.depth + 1, sheet: kind }) });
   }, []);
+  const openAccount = useCallback(() => openSheet('account'), [openSheet]);
 
   /** Settings from the account sheet replaces the sheet's entry: Back returns to the tab, not the menu. */
   const openSettings = useCallback(() => {
     const cur = readCurrentNav();
-    navigateRef.current('/settings', { replace: cur.sheet !== null, state: { depth: cur.sheet ? cur.depth : cur.depth + 1 } });
+    if (cur.screen.kind === 'settings-list' && !cur.sheet) return;
+    navigateRef.current('/settings', {
+      replace: cur.sheet !== null,
+      state: navState(cur, { depth: cur.sheet ? cur.depth : cur.depth + 1 }),
+    });
   }, []);
 
   const openSettingsSection = useCallback((section: string) => {
-    navigateRef.current(`/settings/${section}`, { state: { depth: readCurrentNav().depth + 1 } });
+    const cur = readCurrentNav();
+    if (cur.screen.kind === 'settings-section' && cur.screen.section === section) return;
+    navigateRef.current(`/settings/${section}`, { state: navState(cur, { depth: cur.depth + 1 }) });
   }, []);
 
   // N2: a fresh load of a deep link shows the editor at depth 0 without pushing. On the first user
@@ -125,8 +148,8 @@ export function useMobileNav(enabled = true) {
       window.removeEventListener('keydown', fire, true);
       const cur = readCurrentNav();
       if (cur.screen.kind !== 'editor') return;
-      navigateRef.current(tabUrl(cur.screen.tab), { replace: true, state: { depth: 0 } });
-      navigateRef.current(cur.url, { state: { depth: 1 } });
+      navigateRef.current(tabUrl(cur.screen.tab), { replace: true, state: navState(cur, { depth: 0, tabDepth: 0 }) });
+      navigateRef.current(cur.url, { state: navState(cur, { depth: 1, tabDepth: 0 }) });
     };
     window.addEventListener('pointerdown', fire, true);
     window.addEventListener('keydown', fire, true);
@@ -136,16 +159,20 @@ export function useMobileNav(enabled = true) {
     };
   }, [isBareDeepLink, location.key]);
 
-  // The account sheet is a transient overlay: a reload, or any load that lands on a sheet entry,
-  // closes it by popping that entry (the screen under it is the entry below). Once per page load.
+  // Overlays are transient: a reload, or any load that lands on an overlay entry, closes it by
+  // popping that entry (the screen under it is the entry below). Only on the first mount and only
+  // when that mount is in the shell: a later desktop-to-shell crossing can push a note in the same
+  // pass (EditorPage), and the two must never navigate together. A per-mount ref rather than module
+  // state keeps tests independent; the check is a no-op unless the current entry is an overlay.
+  const bootRef = useRef<'pending' | 'done'>(enabled ? 'pending' : 'done');
   useEffect(() => {
-    if (!enabled || bootChecked) return;
-    bootChecked = true;
+    if (bootRef.current !== 'pending') return;
+    bootRef.current = 'done';
     const cur = readCurrentNav();
     if (!cur.sheet) return;
     if (cur.depth > 0) navigateRef.current(-1);
-    else navigateRef.current(cur.url, { replace: true, state: { depth: 0 } });
-  }, [enabled]);
+    else navigateRef.current(cur.url, { replace: true, state: navState(cur, { depth: 0, tabDepth: 0 }) });
+  }, []);
 
   return {
     screen,
@@ -160,6 +187,7 @@ export function useMobileNav(enabled = true) {
     openNote,
     openFolders,
     replaceWithTab,
+    openSheet,
     openAccount,
     openSettings,
     openSettingsSection,

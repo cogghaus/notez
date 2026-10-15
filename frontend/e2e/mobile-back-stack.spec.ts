@@ -103,14 +103,20 @@ test('Notes -> Tasks pushes, Tasks -> Search replaces, back returns to the Notes
   await expect(noteRow(page, NOTE.title)).toBeVisible();
 });
 
-test('Back from a Tasks or Search tab root after a reload reaches the Notes root (N1)', async ({ page }) => {
-  await page.goto('/', { waitUntil: 'domcontentloaded' });
-  await primaryNav(page).getByRole('button', { name: 'Tasks' }).click();
-  await page.reload({ waitUntil: 'domcontentloaded' });
-  await expect(primaryNav(page).getByRole('button', { name: 'Tasks' })).toHaveAttribute('aria-current', 'page');
-  await page.goBack();
-  await expect(primaryNav(page).getByRole('button', { name: 'Notes' })).toHaveAttribute('aria-current', 'page');
-});
+for (const tab of ['Tasks', 'Search'] as const) {
+  // A tab root has no arrow (spec 3.3: only child screens do); the in-app way home is the Notes tab
+  for (const how of ['system back', 'Notes tab'] as const) {
+    test(`${how} from the ${tab} tab root after a reload reaches the Notes root (N1)`, async ({ page }) => {
+      await page.goto('/', { waitUntil: 'domcontentloaded' });
+      await primaryNav(page).getByRole('button', { name: tab }).click();
+      await page.reload({ waitUntil: 'domcontentloaded' });
+      await expect(primaryNav(page).getByRole('button', { name: tab })).toHaveAttribute('aria-current', 'page');
+      if (how === 'system back') await page.goBack();
+      else await primaryNav(page).getByRole('button', { name: 'Notes' }).click();
+      await expect(primaryNav(page).getByRole('button', { name: 'Notes' })).toHaveAttribute('aria-current', 'page');
+    });
+  }
+}
 
 test('the account menu closes on system back; Settings returns to the tab, not the menu', async ({ page }) => {
   await page.goto('/', { waitUntil: 'domcontentloaded' });

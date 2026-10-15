@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import { useLocation, useNavigate, useParams, Link } from 'react-router-dom';
 import { User, Bot, Shield, ArrowLeft, ChevronRight, MessageSquare, Key, Webhook, Sparkles, Plug } from 'lucide-react';
 import { AppHeader } from '../components/AppHeader';
@@ -12,7 +12,7 @@ import { AgentSettings } from '../components/AgentSettings';
 import { WebhookSettings } from '../components/WebhookSettings';
 import { McpConnectorSettings } from '../components/McpConnectorSettings';
 import { useAuth } from '../contexts/AuthContext';
-import { useLayoutClass } from '../lib/useLayoutClass';
+import { useShell } from '../lib/useLayoutClass';
 import { useMobileNav } from '../lib/useMobileNav';
 
 export type SettingsSection = 'profile' | 'ai' | 'agents' | 'tokens' | 'webhooks' | 'connectors' | 'admin' | 'feedback';
@@ -73,19 +73,25 @@ export function SettingsHub() {
   const navigate = useNavigate();
   const location = useLocation();
   // Below xl the phone list and page branch applies (Medium shares the Compact shell until PR8)
-  const compact = useLayoutClass() !== 'expanded';
+  const compact = useShell();
   const nav = useMobileNav(compact);
   const { section } = useParams<{ section?: SettingsSection }>();
 
   // Determine active section from URL path parameter
   const rawSection = section as SettingsSection | undefined;
-  const isValidSection = rawSection && SECTION_CONFIG[rawSection];
-  const isAdminSection = rawSection === 'admin' || rawSection === 'feedback';
-  const isUnauthorizedAdmin = isAdminSection && user?.role !== 'admin';
+  const isValidSection = rawSection !== undefined && Object.hasOwn(SECTION_CONFIG, rawSection);
+  // adminOnly comes from the config, so a section added there is covered without touching this check
+  const isUnauthorizedAdmin = isValidSection && SECTION_CONFIG[rawSection].adminOnly && user?.role !== 'admin';
+  const sectionAllowed = isValidSection && !isUnauthorizedAdmin;
 
   // Default to 'profile' if invalid section or unauthorized
-  const activeSection: SettingsSection =
-    isValidSection && !isUnauthorizedAdmin ? rawSection : 'profile';
+  const activeSection: SettingsSection = sectionAllowed ? rawSection : 'profile';
+
+  // Phone: a section the user cannot open (unknown, or admin only) is not a page; go to the list
+  const badSection = compact && rawSection !== undefined && !sectionAllowed;
+  useEffect(() => {
+    if (badSection) navigate('/settings', { replace: true, state: location.state });
+  }, [badSection, navigate, location.state]);
 
   // Navigate to section - updates URL path. The router state (history depth) is carried over so
   // Back keeps working after switching sections.
@@ -123,15 +129,15 @@ export function SettingsHub() {
 
   const currentConfig = SECTION_CONFIG[activeSection];
 
-  // Compact (< 600px): the two-column layout becomes a list page and a page per section, each a
-  // history entry (spec 8). Medium and up keep the two columns below.
+  // Below xl (Compact, and Medium until PR8): the two-column layout becomes a list page and a page per
+  // section, each a history entry (spec 8). From xl up the two columns below render.
   if (compact) {
     return (
       <div className="h-[var(--app-h,100dvh)] overflow-hidden flex flex-col bg-gray-100 dark:bg-gray-900">
         <main className="flex-1 min-h-0 flex flex-col">
-          {section === undefined ? (
+          {!sectionAllowed ? (
             <>
-              <MobileBackBar title="Settings" onBack={nav.back} />
+              <MobileBackBar title="Settings" onBack={nav.leave} />
               <nav aria-label="Settings sections" className="flex-1 min-h-0 overflow-y-auto overscroll-contain bg-white dark:bg-gray-900">
                 {availableSections.map(([key, config]) => {
                   const Icon = config.icon;
@@ -155,7 +161,7 @@ export function SettingsHub() {
             </>
           ) : (
             <>
-              <MobileBackBar title={currentConfig.label} onBack={nav.back} />
+              <MobileBackBar title={currentConfig.label} onBack={nav.leave} />
               <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 py-4">
                 <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">{renderContent()}</div>
               </div>
@@ -170,7 +176,7 @@ export function SettingsHub() {
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900 flex flex-col">
       <AppHeader />
 
-      {/* Row from `medium` (600px). Below it the Compact list and page branch above renders instead. */}
+      {/* Two columns from `medium` (600px) up. Until PR8 gives Medium its own shell, only xl reaches this branch. */}
       <div className="flex-1 flex flex-col medium:flex-row">
         {/* Sidebar */}
         <aside className="w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 hidden medium:block">

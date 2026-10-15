@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useSearchParams } from 'react-router-dom';
+import { useReplaceSearchParams } from '../lib/mobileNav';
 import {
   Bug,
   Lightbulb,
@@ -62,7 +62,7 @@ export function AdminFeedbackPanel() {
   const queryClient = useQueryClient();
   const { showToast } = useToast();
   const confirm = useConfirm();
-  const [, setSearchParams] = useSearchParams();
+  const replaceSearchParams = useReplaceSearchParams(); // keeps the history depth the mobile shell relies on
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [filterType, setFilterType] = useState<FeedbackType | ''>('');
   const [filterStatus, setFilterStatus] = useState<FeedbackStatus | ''>('');
@@ -180,9 +180,9 @@ export function AdminFeedbackPanel() {
       // Clear pending expand (only once)
       setPendingExpandId(null);
       // Clear URL param
-      setSearchParams({}, { replace: true });
+      replaceSearchParams({});
     }
-  }, [pendingExpandId, submissions, setSearchParams]);
+  }, [pendingExpandId, submissions, replaceSearchParams]);
 
   // Auto-save notes with debounce
   const debouncedSaveNotes = useCallback((id: string, notes: string) => {

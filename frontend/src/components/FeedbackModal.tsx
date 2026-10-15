@@ -2,11 +2,14 @@ import { useState, useEffect, useRef } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { X, Bug, Lightbulb, Send, CheckCircle, AlertCircle } from 'lucide-react';
 import axios from 'axios';
+import { useFocusTrap } from '../lib/useFocusTrap';
 import { feedbackApi, type FeedbackType, type FeedbackCategory, type FeedbackPriority } from '../lib/api';
 
 interface FeedbackModalProps {
   isOpen: boolean;
   onClose: () => void;
+  /** Where focus goes on close, when it is not the element focused at open (mobile overlays). */
+  returnFocusTo?: Element | null;
 }
 
 const CATEGORIES: { value: FeedbackCategory; label: string }[] = [
@@ -42,7 +45,9 @@ function extractErrorMessage(error: unknown): string {
   return 'Something went wrong. Please try again.';
 }
 
-export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
+export function FeedbackModal({ isOpen, onClose, returnFocusTo }: FeedbackModalProps) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
 
   const [type, setType] = useState<FeedbackType>('FEATURE');
   const [title, setTitle] = useState('');
@@ -119,12 +124,28 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
     }
   };
 
+  useFocusTrap(dialogRef, isOpen, { opener: returnFocusTo });
+
+  // Focus starts on the heading (Tab reaches the controls next); Escape closes unless a submit is running
+  const handleCloseRef = useRef(handleClose);
+  handleCloseRef.current = handleClose; // handleClose ignores the call while a submit is pending
+  useEffect(() => {
+    if (!isOpen) return;
+    headingRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') handleCloseRef.current();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const isBug = type === 'BUG';
 
   return (
     <div
+      ref={dialogRef}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
       onMouseDown={handleBackdropMouseDown}
       role="dialog"
@@ -150,7 +171,12 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
               <div>
-                <h2 id="feedback-title" className="text-lg font-semibold text-gray-900 dark:text-white">
+                <h2
+                  id="feedback-title"
+                  ref={headingRef}
+                  tabIndex={-1}
+                  className="text-lg font-semibold text-gray-900 dark:text-white focus:outline-none"
+                >
                   Share Your Feedback
                 </h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -160,9 +186,10 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
               <button
                 onClick={handleClose}
                 disabled={submitMutation.isPending}
+                aria-label="Close"
                 className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
               >
-                <X className="w-5 h-5" />
+                <X className="w-5 h-5" aria-hidden="true" />
               </button>
             </div>
 
