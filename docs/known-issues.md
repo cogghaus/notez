@@ -548,6 +548,12 @@ Found while shipping Pocket ID SSO; none block v1.30.0, which is live and confir
 **Issue:** Node 20 reached end of life on 2026-04-30 and gets no security fixes. Production runs on it.
 **Severity:** MEDIUM
 **Status:** FIXED in v1.30.11. All Dockerfiles (`Dockerfile`, `backend/Dockerfile`, `frontend/Dockerfile`, `frontend/Dockerfile.dev`), `docker-build.yml`, `e2e.yml` and the esbuild target now use Node 24 LTS; backend `@types/node` is ^24. Native modules checked at their pinned versions: sharp 0.35.5 (musl and glibc prebuilds, engines >=20.9), bcrypt 6.0.0 (N-API prebuilds incl. musl), Prisma 5.22 (needs OpenSSL, still installed in each image); no package in the three lockfiles excludes Node 24 except the Windows-only `@img/sharp-win32-ia32`.
+
+### 73. Desktop status text uses -600 shades that fail contrast on white
+**Location:** 40 uses of `text-green-600`, `text-amber-600`, `text-orange-600` or `text-yellow-600` across 20 files in `frontend/src` (most in `AdminFeedbackPanel.tsx` 7, `AdminPanel.tsx` 4, `McpConnectorSettings.tsx` 3; `KanbanBoard.tsx`, `NoteEditor.tsx`, `CollaborativeTiptapEditor.tsx`, the Settings sections and others 1 or 2 each), and the toast surfaces in `Toast.tsx` (`bg-green-600`, `bg-yellow-500`, `dark:bg-yellow-600` under white text). `TaskItem.tsx` and `NotificationBell.tsx`, named in the mobile spec, have none of these shades today.
+**Issue:** On white, green-600 is 3.3:1, amber-600 3.2:1 and orange-600 3.6:1, below WCAG 1.4.3 (4.5:1 for text). White on yellow-500 is 1.9:1, on yellow-600 2.4:1 and on green-600 3.3:1. Decision D13 of the mobile rework moves mobile surfaces to the -700 shades (`docs/design-language.md`, v1.31.1); D7 keeps desktop untouched during the rework, so these stay for now.
+**Severity:** MEDIUM (accessibility, WCAG 2.1 AA)
+**Status:** Open -- sweep after the mobile rework: status text on white from -600 to -700 (dark keeps the -400 shades); toasts to `bg-green-700` / `bg-amber-700` / `bg-red-700` / `bg-blue-700` with white text. Ratios: `docs/mobile/02-mobile-design-spec.md` section 9.5.
 ---
 
 ## Version Notes
