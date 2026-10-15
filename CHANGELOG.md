@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.31.1] - 2026-10-15
+
+Hotfix: sign-in could stay on the login page.
+
+### Fixed
+
+- Signing in with Pocket ID looped back to the login page and password sign-in could stay on "Signing in..." until a reload, though the server had signed the user in. When a valid token was already in the browser, the login page's redirect home and its clearing of `?sso=complete` navigated in the same pass and the second won. The page now never navigates twice at once, a password sign-in leaves explicitly, and a Pocket ID return always adopts the new session, even over another account's token on a shared browser.
+- A Pocket ID sign-in started on another host name for the server (the LAN name) never finished: the host-only transaction cookie stayed on that host and the callback on the `APP_URL` host answered `sso_error=expired`. `GET /api/auth/oidc/login` now moves to the `APP_URL` host first (host names compared without port, case or trailing dot; at most one move, so a proxy can never cause a redirect loop). The target comes from config, never the request.
+- `?sso_error=` codes are looked up as own keys only (`__proto__` and the like show the generic message).
+
+### Changed
+
+- The Playwright suite runs against a production build (`npm run e2e:serve`: `vite build` + `vite preview`) instead of the dev server. Dev-only StrictMode runs effects twice, which hid this bug from the tests.
+
 ## [1.31.0] - 2026-10-13
 
 ### Added

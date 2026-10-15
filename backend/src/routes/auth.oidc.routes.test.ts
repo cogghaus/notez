@@ -29,6 +29,7 @@ vi.mock('../services/oidc.service.js', async () => {
     OIDC_PROVIDER_NAME: 'Pocket ID',
     OidcLoginError,
     isOidcEnabled: vi.fn(),
+    getOidcSettings: vi.fn(),
     beginLogin: vi.fn(),
     completeLogin: vi.fn(),
     resolveOidcUser: vi.fn(),
@@ -52,7 +53,10 @@ describe('SSO routes', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    app = Fastify();
+    // No canonical-host bounce unless a test configures one
+    mockOidc.getOidcSettings.mockReturnValue(null);
+    // As in production (index.ts): Host and X-Forwarded-Host as a proxy presents them
+    app = Fastify({ trustProxy: true });
     await app.register(cookie, { secret: 'test-cookie-signing-key-0123456789' });
     await app.register(authRoutes, { prefix: '/api' });
     await app.ready();
@@ -90,6 +94,88 @@ describe('SSO routes', () => {
     expect(txCookie.domain).toBeUndefined();
     expect(txCookie.sameSite).toBe('Lax');
     expect(txCookie.maxAge).toBe(600);
+  });
+
+  // Production 2026-10-15: a sign-in started on the LAN name set the host-only transaction cookie
+  // there, the provider returned to the APP_URL host, the cookie was missing, and the login page
+  // showed sso_error=expired.
+  describe('started on a host other than the APP_URL callback host', () => {
+    beforeEach(() => {
+      mockOidc.getOidcSettings.mockReturnValue({
+        redirectUri: 'https://notez.example.com/api/auth/oidc/callback',
+      } as ReturnType<typeof oidcService.getOidcSettings>);
+      mockOidc.beginLogin.mockResolvedValue({ url: 'https://id.example.com/authorize?x=1', transaction: tx });
+    });
+
+    it('bounces to the APP_URL host first, without a cookie or a provider round trip', async () => {
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/auth/oidc/login',
+        headers: { host: 'notez.local.example.com' },
+      });
+
+      expect(res.statusCode).toBe(302);
+      expect(res.headers.location).toBe('https://notez.example.com/api/auth/oidc/login?canonical=1');
+      expect(res.cookies).toEqual([]);
+      expect(mockOidc.beginLogin).not.toHaveBeenCalled();
+    });
+
+    it('starts the login normally on the APP_URL host', async () => {
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/auth/oidc/login',
+        headers: { host: 'notez.example.com' },
+      });
+
+      expect(res.statusCode).toBe(302);
+      expect(res.headers.location).toBe('https://id.example.com/authorize?x=1');
+      expect(res.cookies.find((c) => c.name === 'oidc_tx')).toBeDefined();
+    });
+
+    it('does not bounce when the proxy forwards the APP_URL host over an internal Host', async () => {
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/auth/oidc/login',
+        headers: { host: 'notez-backend:3000', 'x-forwarded-host': 'notez.example.com' },
+      });
+      expect(res.headers.location).toBe('https://id.example.com/authorize?x=1');
+    });
+
+    it.each([
+      ['upper case', 'Notez.Example.COM'],
+      ['a port', 'notez.example.com:443'],
+      ['a trailing dot', 'notez.example.com.'],
+    ])('does not bounce the APP_URL host written with %s (a loop would end all SSO)', async (_n, host) => {
+      const res = await app.inject({ method: 'GET', url: '/api/auth/oidc/login', headers: { host } });
+      expect(res.headers.location).toBe('https://id.example.com/authorize?x=1');
+    });
+
+    it('bounces at most once: the marked bounce starts the login wherever it lands', async () => {
+      const first = await app.inject({
+        method: 'GET',
+        url: '/api/auth/oidc/login',
+        headers: { host: 'notez.local.example.com' },
+      });
+      expect(first.headers.location).toBe('https://notez.example.com/api/auth/oidc/login?canonical=1');
+
+      // A proxy that still presents another host must not loop
+      const second = await app.inject({
+        method: 'GET',
+        url: '/api/auth/oidc/login?canonical=1',
+        headers: { host: 'proxy-rewritten.example.com' },
+      });
+      expect(second.headers.location).toBe('https://id.example.com/authorize?x=1');
+    });
+
+    it('never takes the bounce target from the request', async () => {
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/auth/oidc/login?next=https://evil.example.net',
+        headers: { host: 'evil.example.net', 'x-forwarded-host': 'evil.example.net' },
+      });
+
+      expect(res.headers.location).toBe('https://notez.example.com/api/auth/oidc/login?canonical=1');
+    });
   });
 
   it('in production the transaction cookie is a host-only __Host- cookie (no cookie tossing)', async () => {
