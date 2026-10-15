@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, type CSSProperties } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { FolderSidebar, type FolderSidebarHandle } from '../components/FolderSidebar';
 import { NoteList, type NoteListHandle } from '../components/NoteList';
@@ -27,6 +27,14 @@ const SIDEBAR_MAX = 400;
 const LIST_MIN = 240;
 const LIST_MAX = 500;
 const SA_WORKSPACE_WIDTH = 520; // Service account workspace: inner sidebar (224) + usable note list (~296)
+
+/**
+ * Resizable pane width, applied only at xl (the class `xl:w-[var(--pane-w)]`). Below xl every pane
+ * is a single full-width view; an inline `width` there left a dead strip on phones (mobile PR2).
+ */
+function paneWidth(px: number): CSSProperties {
+  return { '--pane-w': `${px}px` } as CSSProperties;
+}
 
 export function EditorPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -168,8 +176,8 @@ export function EditorPage() {
       <div className="flex flex-1 min-h-0 overflow-hidden pb-20 xl:pb-0" data-kb-pad>
         {/* Folder Sidebar - Hidden on mobile unless mobileView === 'sidebar' */}
         <div
-          className={`${mobileView === 'sidebar' ? 'block' : 'hidden'} xl:block flex-shrink-0`}
-          style={{ width: sidebarCollapsed ? 48 : sidebarWidth }}
+          className={`${mobileView === 'sidebar' ? 'block' : 'hidden'} xl:block flex-shrink-0 w-full xl:w-[var(--pane-w)]`}
+          style={paneWidth(sidebarCollapsed ? 48 : sidebarWidth)}
         >
           <FolderSidebar
             ref={sidebarRef}
@@ -220,12 +228,14 @@ export function EditorPage() {
 
         {/* Note List, Task List, or Service Account Views */}
         <div
-          className={`${mobileView === 'list' ? 'block' : 'hidden'} xl:block flex-shrink-0`}
+          className={`${mobileView === 'list' ? 'block' : 'hidden'} xl:block ${
+            selectedFolderId === 'service-accounts' && !selectedServiceAccount
+              ? 'flex-1 w-full'
+              : 'flex-shrink-0 w-full xl:w-[var(--pane-w)]'
+          }`}
           style={selectedFolderId === 'service-accounts'
-            ? selectedServiceAccount
-              ? { width: SA_WORKSPACE_WIDTH, flex: '0 0 auto' }
-              : { width: '100%', flex: 1 }
-            : { width: listWidth }}
+            ? selectedServiceAccount ? paneWidth(SA_WORKSPACE_WIDTH) : undefined
+            : paneWidth(listWidth)}
         >
           {/* Service Account Dashboard (no account selected yet) */}
           {selectedFolderId === 'service-accounts' && !selectedServiceAccount ? (
@@ -302,7 +312,7 @@ export function EditorPage() {
 
         {/* Note Editor - Hidden on mobile unless mobileView === 'editor', hidden when dashboard is showing (no account selected) */}
         {selectedView === 'notes' && !(selectedFolderId === 'service-accounts' && !selectedServiceAccount) && (
-          <div className={`flex-1 flex-col min-h-0 ${mobileView === 'editor' ? 'flex' : 'hidden'} xl:flex`}>
+          <div className={`flex-1 flex-col min-h-0 min-w-0 ${mobileView === 'editor' ? 'flex' : 'hidden'} xl:flex`}>
             <NoteEditor
               noteId={selectedNoteId}
               serviceAccountMode={selectedFolderId === 'service-accounts'}

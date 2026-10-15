@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from 'react';
-import Editor, { type OnMount } from '@monaco-editor/react';
 import { notesApi, aiApi, foldersApi, serviceAccountsApi } from '../lib/api';
 import { Save, Trash2, Sparkles, FileText as FileTextIcon, Tags, RotateCcw, Eye, Code, HelpCircle, ChevronDown, ChevronUp, Users, Shield, Share2, Bot } from 'lucide-react';
 import { TagInput } from './TagInput';
@@ -9,6 +8,7 @@ import { FolderChip } from './FolderChip';
 import { useConfirm } from './ConfirmDialog';
 import { ShareDialog } from './ShareDialog';
 import { CollaborativeTiptapEditor } from './CollaborativeTiptapEditor';
+import { RawMarkdownEditor, type MonacoEditorInstance } from './RawMarkdownEditor';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from './Toast';
 import { useKeepMonacoCaretVisible } from '../lib/useKeepCaretVisible';
@@ -93,7 +93,7 @@ export function NoteEditor({ noteId, onNoteDeleted, onTagsChanged, onNoteUpdated
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveErrorShownRef = useRef(false);
   const titleInputRef = useRef<HTMLInputElement>(null);
-  const monacoRef = useRef<Parameters<OnMount>[0] | null>(null);
+  const monacoRef = useRef<MonacoEditorInstance | null>(null);
   useKeepMonacoCaretVisible(monacoRef);
   // Drop the disposed raw editor when leaving raw mode.
   useEffect(() => {
@@ -790,28 +790,14 @@ export function NoteEditor({ noteId, onNoteDeleted, onTagsChanged, onNoteUpdated
             placeholder="Start writing your note... Use markdown: ## headers, **bold**, *italic*, - lists, [ ] tasks"
           />
         ) : (
-          <Editor
+          <RawMarkdownEditor
             key="raw-editor"
-            height="100%"
             onMount={(editor) => {
               monacoRef.current = editor;
             }}
-            defaultLanguage="markdown"
             value={content}
-            onChange={(value) => setContent(value || '')}
-            theme="vs-light"
-            options={{
-              minimap: { enabled: false },
-              fontSize: 14,
-              lineNumbers: 'off',
-              wordWrap: 'on',
-              padding: { top: 16, bottom: 16 },
-              scrollBeyondLastLine: false,
-              renderLineHighlight: 'none',
-              overviewRulerBorder: false,
-              hideCursorInOverviewRuler: true,
-              readOnly: isReadOnly,
-            }}
+            onChange={setContent}
+            readOnly={isReadOnly}
           />
         )}
       </div>
