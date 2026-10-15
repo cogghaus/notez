@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { installMockApi, NOTE_ID } from './support/mockApi';
 
 /**
  * Editor keyboard scroll (mobile rework PR1).
@@ -7,10 +8,9 @@ import { test, expect, type Page } from '@playwright/test';
  * layout viewport does NOT (measured on a Pixel Fold: layout 411x693, visible 411x351). The test
  * replaces window.visualViewport with a controllable fake and never resizes the Playwright viewport.
  *
- * Hermetic: every /api/* call is answered from fixtures in this file; no backend is needed.
+ * Hermetic: /api/* is answered by e2e/support/mockApi.ts, with this spec's long note on top.
  */
 
-const NOTE_ID = '11111111-1111-4111-8111-111111111111';
 const NOW = '2026-10-11T12:00:00.000Z';
 
 function buildContent(): string {
@@ -40,59 +40,9 @@ const NOTE = {
 
 const NOTE_SUMMARY = { ...NOTE, content: NOTE.content.slice(0, 120) };
 
-const USER = {
-  userId: '22222222-2222-4222-8222-222222222222',
-  username: 'tester',
-  email: 'tester@example.com',
-  role: 'USER',
-  isServiceAccount: false,
-  mustChangePassword: false,
-  oidcLinked: false,
-};
-
-/** Fixtures keyed by "METHOD pathname". Anything not listed falls through to the logged default. */
-function fixtureFor(method: string, pathname: string): unknown | undefined {
-  if (method === 'GET') {
-    switch (pathname) {
-      case '/api/auth/setup-needed':
-        return { setupNeeded: false };
-      case '/api/auth/me':
-        return { user: USER };
-      case '/api/auth/oidc/config':
-        return { enabled: false, providerName: '' };
-      case '/api/folders':
-        return { folders: [] };
-      case '/api/tags':
-        return { tags: [] };
-      case '/api/notes/stats':
-        return { unfiledNotes: 1, deletedNotes: 0, sharedByMeCount: 0, sharedWithMeCount: 0 };
-      case '/api/notes':
-        return { notes: [NOTE_SUMMARY], total: 1 };
-      case `/api/notes/${NOTE_ID}`:
-        return { note: NOTE };
-      case '/api/notifications/unread-count':
-        return { count: 0 };
-      case '/api/notifications':
-        return { notifications: [], total: 0 };
-      case '/api/tasks':
-        return { tasks: [], total: 0 };
-      case '/api/tasks/stats':
-        return { total: 0, byStatus: {}, byPriority: {} };
-      case '/api/system/info':
-        return { version: 'e2e' };
-    }
-  }
-  if (method === 'PATCH' && pathname === `/api/notes/${NOTE_ID}`) {
-    return { note: NOTE };
-  }
-  return undefined;
-}
-
 test.beforeEach(async ({ page }) => {
-  // Auth token and a controllable fake visualViewport, installed before any app script runs.
+  // A controllable fake visualViewport, installed before any app script runs.
   await page.addInitScript(() => {
-    localStorage.setItem('accessToken', 'e2e-fake-token');
-
     class FakeVisualViewport extends EventTarget {
       width = window.innerWidth;
       height = window.innerHeight;
@@ -121,28 +71,11 @@ test.beforeEach(async ({ page }) => {
     };
   });
 
-  await page.route(
-    (url) => url.pathname.startsWith('/api/') && !/\.(ts|tsx|js|css)$/.test(url.pathname),
-    async (route) => {
-      const req = route.request();
-      const url = new URL(req.url());
-      if (url.pathname.startsWith('/api/profile/avatar/')) {
-        await route.fulfill({ status: 404, body: '' });
-        return;
-      }
-      const body = fixtureFor(req.method(), url.pathname);
-      if (body === undefined) {
-        console.log(`[e2e] unmatched route: ${req.method()} ${url.pathname}`);
-        await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
-        return;
-      }
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(body),
-      });
-    },
-  );
+  await installMockApi(page, {
+    'GET /api/notes': { notes: [NOTE_SUMMARY], total: 1 },
+    [`GET /api/notes/${NOTE_ID}`]: { note: NOTE },
+    [`PATCH /api/notes/${NOTE_ID}`]: { note: NOTE },
+  });
 });
 
 interface Measure {
@@ -232,6 +165,9 @@ const MODES = ['resizes-visual', 'resizes-content'] as const;
 
 for (const mode of MODES) {
   test(`[${mode}] note stays scrollable and the caret visible with the on-screen keyboard open`, async ({ page }, testInfo) => {
+    // The on-screen keyboard and writing mode exist below xl only; the optional desktop project
+    // has neither (these failed there since PR1).
+    test.skip(testInfo.project.name === 'desktop', 'phones and the Fold only');
     await page.goto('/', { waitUntil: 'domcontentloaded' });
 
     // Real mobile flow: the notes list is shown first; tap the note to open the editor.
@@ -300,14 +236,14 @@ for (const mode of MODES) {
     expect.soft(m.caretTop, `caret top (${m.caretTop}) >= scroller top (${m.scrollerTop})`).toBeGreaterThanOrEqual(m.scrollerTop - 1);
     expect.soft(m.pageScrollTop, 'page does not pan').toBe(0);
 
-    // Minimal writing mode: below xl, with the keyboard open and focus in the editor, the app header,
-    // the folder, tag and AI rows and the bottom navigation are hidden so the note gets most of the
-    // visible area.
+    // Minimal writing mode: below xl, with the keyboard open and focus in the editor, the top row
+    // (Back), the folder, tag and AI rows and the bottom navigation are hidden so the note gets most of
+    // the visible area. The tab bar is not rendered in the editor at all since PR3.
     const minShare = testInfo.project.name === 'fold-inner' ? 0.5 : 0.6;
     const share = (m.scrollerBottom - m.scrollerTop) / visibleHeight;
     console.log(`[e2e] [${mode}] scroller ${Math.round(m.scrollerBottom - m.scrollerTop)} of ${visibleHeight} visible, share ${share.toFixed(2)} (need >= ${minShare})`);
     expect.soft(share, `note scroller share of the visible height (${share.toFixed(2)}) >= ${minShare}`).toBeGreaterThanOrEqual(minShare);
-    await expect.soft(page.locator('nav').first(), 'app header hidden in writing mode').toBeHidden();
+    await expect.soft(shellTopRow(page), 'top row hidden in writing mode').toBeHidden();
     await expect.soft(aiRows(page), 'AI actions row hidden in writing mode').toHaveCount(0);
     await expect.soft(bottomNav(page), 'bottom navigation hidden in writing mode').toBeHidden();
     await expect.soft(page.getByPlaceholder('Untitled Note'), 'title row stays').toBeVisible();
@@ -324,9 +260,9 @@ for (const mode of MODES) {
     // Focus leaves the editor while the keyboard is still up: everything returns at once, before
     // the keyboard has gone.
     await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
-    await expect.soft(page.locator('nav').first(), 'app header returns after blur').toBeVisible();
+    await expect.soft(shellTopRow(page), 'top row returns after blur').toBeVisible();
     await expect.soft(aiRows(page), 'AI actions row returns after blur').toHaveCount(1);
-    await expect.soft(bottomNav(page), 'bottom navigation returns after blur').toBeVisible();
+    await expect.soft(bottomNav(page), 'no tab bar in the editor').toHaveCount(0);
 
     // Keyboard closes: the shell grows back to the full height.
     if (mode === 'resizes-content') {
@@ -341,6 +277,11 @@ for (const mode of MODES) {
 /** Visible AI row label: "AI Actions" below sm, "AI:" from sm up. Counts only rendered ones. */
 function aiRows(page: Page) {
   return page.getByText(/^(AI Actions|AI:)$/).locator('visible=true');
+}
+
+/** The editor's top row below xl (the Back row, marked as shell chrome). */
+function shellTopRow(page: Page) {
+  return page.locator('[data-mobile-shell]').first();
 }
 
 /** The mobile bottom navigation bar (below xl). */

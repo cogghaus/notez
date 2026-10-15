@@ -1,7 +1,7 @@
 {
   "name": "notez-frontend",
   "private": true,
-  "version": "1.32.0",
+  "version": "1.33.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -48,6 +48,7 @@
     "dompurify": "$dompurify"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
     "@eslint/js": "^9.39.5",
     "@playwright/test": "1.63.0",
     "@testing-library/jest-dom": "^6.10.0",

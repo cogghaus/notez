@@ -24,11 +24,13 @@ function isSafeLinkUrl(url: string): boolean {
   }
 }
 
+// Below xl the light text is the -700 shade (D13: -500 fails 4.5:1 on white); desktop keeps its
+// colours until the sweep in known issue #73.
 const priorityColors = {
-  LOW: 'text-gray-500 dark:text-gray-400',
-  MEDIUM: 'text-blue-500 dark:text-blue-400',
-  HIGH: 'text-orange-500 dark:text-orange-400',
-  URGENT: 'text-red-500 dark:text-red-400',
+  LOW: 'text-gray-600 xl:text-gray-500 dark:text-gray-400',
+  MEDIUM: 'text-blue-700 xl:text-blue-500 dark:text-blue-400',
+  HIGH: 'text-orange-700 xl:text-orange-500 dark:text-orange-400',
+  URGENT: 'text-red-700 xl:text-red-500 dark:text-red-400',
 };
 
 const priorityLabels = {
@@ -131,7 +133,7 @@ export default function TaskItem({
 
             {/* Due Date */}
             {task.dueDate && (
-              <span className={`flex items-center gap-1 ${isOverdue ? 'text-red-600 dark:text-red-400 font-medium' : ''}`}>
+              <span className={`flex items-center gap-1 ${isOverdue ? 'text-red-700 xl:text-red-600 dark:text-red-400 font-medium' : ''}`}>
                 {isOverdue ? (
                   <AlertCircle className="w-3 h-3" />
                 ) : (

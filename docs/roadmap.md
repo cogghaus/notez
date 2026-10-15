@@ -212,7 +212,7 @@ Native iOS/Android applications:
 
 ### 4.5 Mobile Web Rework (v1.31)
 
-**Status:** Spec approved 2026-10-11; building. Done: PR1 editor keyboard scroll (v1.30.5), CI e2e (v1.30.6), PR2 pane widths, Settings on phones, plain previews, dark inputs (v1.31.1). Next: PR3 navigation (minor bump, re-proposed as 1.32.0 since 1.31.0 went to the Foyer task schema).
+**Status:** Spec approved 2026-10-11; building. Done: PR1 editor keyboard scroll (v1.30.5), CI e2e (v1.30.6), PR2 pane widths, Settings on phones, plain previews, dark inputs (v1.31.2; 1.31.1 was the sign-in hotfix). Building: PR3 mobile shell and navigation (v1.33.0, approved; 1.32.0 was the TRUST_PROXY follow-up).
 
 Phone and foldable layouts for the web app: editor keyboard scroll fix, 3-tab navigation, editor
 writing mode, tasks agenda with quick add, task soft delete, two-pane layout on the Pixel Fold inner

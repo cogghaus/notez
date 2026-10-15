@@ -2,11 +2,15 @@ import { useState, useEffect, useRef } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { X, Bug, Lightbulb, Send, CheckCircle, AlertCircle } from 'lucide-react';
 import axios from 'axios';
+import { useFocusTrap } from '../lib/useFocusTrap';
+import { useToast } from './Toast';
 import { feedbackApi, type FeedbackType, type FeedbackCategory, type FeedbackPriority } from '../lib/api';
 
 interface FeedbackModalProps {
   isOpen: boolean;
   onClose: () => void;
+  /** Where focus goes on close, when it is not the element focused at open (mobile overlays). */
+  returnFocusTo?: Element | null;
 }
 
 const CATEGORIES: { value: FeedbackCategory; label: string }[] = [
@@ -42,7 +46,11 @@ function extractErrorMessage(error: unknown): string {
   return 'Something went wrong. Please try again.';
 }
 
-export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
+export function FeedbackModal({ isOpen, onClose, returnFocusTo }: FeedbackModalProps) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const successRef = useRef<HTMLHeadingElement>(null);
+  const { showToast } = useToast();
 
   const [type, setType] = useState<FeedbackType>('FEATURE');
   const [title, setTitle] = useState('');
@@ -51,6 +59,14 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
   const [priority, setPriority] = useState<FeedbackPriority | ''>('');
   const [showSuccess, setShowSuccess] = useState(false);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The timer and a late response must act on the modal as it is now, not as it was when they started
+  const isOpenRef = useRef(isOpen);
+  isOpenRef.current = isOpen;
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  // A request still in flight after the modal was closed and reopened: closing resets the mutation
+  // (no stale error), which clears isPending, so this keeps Send disabled until it settles
+  const [inFlight, setInFlight] = useState(false);
 
   // Cleanup timer on unmount to prevent memory leak
   useEffect(() => {
@@ -62,6 +78,8 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
   }, []);
 
   const submitMutation = useMutation({
+    onMutate: () => setInFlight(true),
+    onSettled: () => setInFlight(false),
     mutationFn: () =>
       feedbackApi.submit({
         type,
@@ -71,20 +89,35 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
         priority: priority || undefined,
       }),
     onSuccess: () => {
-      setShowSuccess(true);
-      // Reset form after short delay (with cleanup)
-      closeTimerRef.current = setTimeout(() => {
+      if (!isOpenRef.current) {
+        // Closed (system back) while sending: it was sent, so the draft goes; say so with a toast
         resetForm();
-        onClose();
+        showToast('Feedback sent', 'success');
+        return;
+      }
+      setShowSuccess(true);
+      // Close after a short delay, but only if it is still open then (system back may have closed it)
+      closeTimerRef.current = setTimeout(() => {
+        if (!isOpenRef.current) return;
+        resetForm();
+        onCloseRef.current();
       }, 2000);
     },
     onError: (error: unknown) => {
+      if (!isOpenRef.current) {
+        // Failed after the modal was closed: nothing to show it in, so say so and keep the draft
+        submitMutation.reset();
+        showToast('Feedback was not sent. Open Share feedback to try again.', 'error');
+        return;
+      }
       if (import.meta.env.DEV) {
         console.error('[FeedbackModal] Submit failed:', error);
       }
       // Error displayed via inline role="alert" block in the form (submitMutation.isError)
     },
   });
+
+  const sending = submitMutation.isPending || inFlight;
 
   const resetForm = () => {
     setType('FEATURE');
@@ -96,16 +129,19 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
     submitMutation.reset();
   };
 
+  // Closing without sending (X, Escape, backdrop, back) keeps the draft for the session; it is
+  // cleared only after a successful send
   const handleClose = () => {
-    if (!submitMutation.isPending) {
-      resetForm();
-      onClose();
-    }
+    if (sending) return;
+    if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+    if (showSuccess) resetForm();
+    else submitMutation.reset();
+    onClose();
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (title.trim() && description.trim()) {
+    if (!sending && title.trim() && description.trim()) {
       submitMutation.mutate();
     }
   };
@@ -114,10 +150,40 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
     // Using mousedown instead of click prevents issues with text selection
     // When user drags to select text and mouseup lands on backdrop, click fires
     // but mousedown only fires if the click started on the backdrop
-    if (e.target === e.currentTarget && !submitMutation.isPending) {
+    if (e.target === e.currentTarget && !sending) {
       handleClose();
     }
   };
+
+  useFocusTrap(dialogRef, isOpen, { opener: returnFocusTo });
+
+  // Focus starts on the heading (Tab reaches the controls next); Escape closes unless a submit is running
+  const handleCloseRef = useRef(handleClose);
+  handleCloseRef.current = handleClose; // handleClose ignores the call while a submit is pending
+  useEffect(() => {
+    if (!isOpen) return;
+    headingRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') handleCloseRef.current();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [isOpen]);
+
+  // Closed from outside (system back) during the thanks screen: stop the timer, drop the sent draft
+  useEffect(() => {
+    if (isOpen) return;
+    if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+    if (showSuccess) resetForm();
+    else submitMutation.reset(); // a send that fails after the close must not reopen with a stale error
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
+
+  // The submit button is gone once the thanks screen shows: move focus to its heading (announced as
+  // the dialog's name) instead of letting it fall to <body>
+  useEffect(() => {
+    if (showSuccess) successRef.current?.focus();
+  }, [showSuccess]);
 
   if (!isOpen) return null;
 
@@ -125,20 +191,27 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
 
   return (
     <div
+      ref={dialogRef}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
       onMouseDown={handleBackdropMouseDown}
       role="dialog"
       aria-modal="true"
-      aria-labelledby="feedback-title"
+      aria-labelledby={showSuccess ? 'feedback-success-title' : 'feedback-title'}
     >
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-lg w-full overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+      {/* Height follows the visible viewport (--app-h) so Send stays reachable with the keyboard up and at 200% text */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-lg w-full overflow-hidden flex flex-col max-h-[calc(var(--app-h,100dvh)-2rem)] animate-in fade-in zoom-in-95 duration-200">
         {showSuccess ? (
           // Success State
           <div className="p-8 text-center">
             <div className="mx-auto w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mb-4">
               <CheckCircle className="w-8 h-8 text-green-600 dark:text-green-400" />
             </div>
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+            <h3
+              id="feedback-success-title"
+              ref={successRef}
+              tabIndex={-1}
+              className="text-xl font-semibold text-gray-900 dark:text-white mb-2 focus:outline-none"
+            >
               Thanks for your feedback!
             </h3>
             <p className="text-gray-600 dark:text-gray-400">
@@ -148,9 +221,14 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
         ) : (
           <>
             {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex-shrink-0 flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
               <div>
-                <h2 id="feedback-title" className="text-lg font-semibold text-gray-900 dark:text-white">
+                <h2
+                  id="feedback-title"
+                  ref={headingRef}
+                  tabIndex={-1}
+                  className="text-lg font-semibold text-gray-900 dark:text-white focus:outline-none"
+                >
                   Share Your Feedback
                 </h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -159,18 +237,21 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
               </div>
               <button
                 onClick={handleClose}
-                disabled={submitMutation.isPending}
+                disabled={sending}
+                aria-label="Close"
                 className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
               >
-                <X className="w-5 h-5" />
+                <X className="w-5 h-5" aria-hidden="true" />
               </button>
             </div>
 
+            <div className="min-h-0 overflow-y-auto overscroll-contain">
             {/* Type Toggle */}
             <div className="p-4 bg-gray-50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-700">
               <div className="flex gap-2">
                 <button
                   type="button"
+                  aria-pressed={isBug}
                   onClick={() => setType('BUG')}
                   className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-medium transition-all ${
                     isBug
@@ -183,6 +264,7 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
                 </button>
                 <button
                   type="button"
+                  aria-pressed={!isBug}
                   onClick={() => setType('FEATURE')}
                   className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-medium transition-all ${
                     !isBug
@@ -212,7 +294,7 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
                   placeholder={isBug ? 'e.g., Editor crashes when pasting images' : 'e.g., Add dark mode scheduling'}
                   className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   required
-                  disabled={submitMutation.isPending}
+                  disabled={sending}
                 />
                 <div className="text-xs text-gray-500 dark:text-gray-400 text-right mt-1">
                   {title.length}/100
@@ -237,7 +319,7 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
                   }
                   className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
                   required
-                  disabled={submitMutation.isPending}
+                  disabled={sending}
                 />
                 <div className="text-xs text-gray-500 dark:text-gray-400 text-right mt-1">
                   {description.length}/1000
@@ -255,7 +337,7 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
                     value={category}
                     onChange={(e) => setCategory(e.target.value as FeedbackCategory)}
                     className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    disabled={submitMutation.isPending}
+                    disabled={sending}
                   >
                     <option value="">Select...</option>
                     {CATEGORIES.map((cat) => (
@@ -275,7 +357,7 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
                     value={priority}
                     onChange={(e) => setPriority(e.target.value as FeedbackPriority)}
                     className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    disabled={submitMutation.isPending}
+                    disabled={sending}
                   >
                     <option value="">Select...</option>
                     {PRIORITIES.map((pri) => (
@@ -298,10 +380,10 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
               {/* Submit Button */}
               <button
                 type="submit"
-                disabled={!title.trim() || !description.trim() || submitMutation.isPending}
+                disabled={!title.trim() || !description.trim() || sending}
                 className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-medium rounded-lg transition-colors"
               >
-                {submitMutation.isPending ? (
+                {sending ? (
                   <>
                     <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                     <span>Sending...</span>
@@ -314,6 +396,7 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
                 )}
               </button>
             </form>
+            </div>
           </>
         )}
       </div>

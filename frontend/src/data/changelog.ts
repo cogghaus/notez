@@ -12,6 +12,17 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '1.33.0',
+    date: '2026-10-15',
+    added: [
+      'A new phone layout: Notes, Tasks and Search tabs at the bottom, with your account menu and notifications at the top',
+      'Back works the way you expect on phones, including the Android back gesture, and returns you to where you were in the list',
+      'Search your notes from the new Search tab',
+      'Settings are easier to use on phones: pick a section, then come back with Back',
+    ],
+    changed: ['Accessibility improvements for keyboard and screen reader users'],
+  },
+  {
     version: '1.32.0',
     date: '2026-10-15',
     fixed: [

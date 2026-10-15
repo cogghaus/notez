@@ -33,6 +33,10 @@ interface FolderSidebarProps {
   onSelectView: (view: 'notes' | 'tasks') => void;
   collapsed: boolean;
   onToggleCollapse: () => void;
+  /** Hide the collapse button (the phone Folders screen: collapsing would silently flip the desktop setting). */
+  hideCollapse?: boolean;
+  /** Below xl: open What's New through the shell's history (a modal of its own) instead of in place. */
+  onOpenWhatsNew?: (opener: Element) => void;
   onNoteMoved?: () => void;
 }
 
@@ -51,6 +55,8 @@ export const FolderSidebar = forwardRef<FolderSidebarHandle, FolderSidebarProps>
   onSelectView,
   collapsed,
   onToggleCollapse,
+  hideCollapse = false,
+  onOpenWhatsNew,
   onNoteMoved,
 }, ref) => {
   const confirm = useConfirm();
@@ -562,13 +568,15 @@ export const FolderSidebar = forwardRef<FolderSidebarHandle, FolderSidebarProps>
           >
             <FolderPlus className="w-4 h-4 text-gray-600 dark:text-gray-400" />
           </button>
-          <button
-            onClick={onToggleCollapse}
-            className="p-1.5 hover:bg-gray-100 dark:bg-gray-700 rounded-md"
-            title="Collapse sidebar"
-          >
-            <ChevronLeft className="w-4 h-4 text-gray-600 dark:text-gray-400" />
-          </button>
+          {!hideCollapse && (
+            <button
+              onClick={onToggleCollapse}
+              className="p-1.5 hover:bg-gray-100 dark:bg-gray-700 rounded-md"
+              title="Collapse sidebar"
+            >
+              <ChevronLeft className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -876,14 +884,16 @@ export const FolderSidebar = forwardRef<FolderSidebarHandle, FolderSidebarProps>
       {/* Version Footer */}
       <div className="mt-auto border-t border-gray-200 dark:border-gray-700 px-4 py-2 bg-gray-50 dark:bg-gray-900">
         <button
-          onClick={() => {
-            setShowWhatsNew(true);
+          onClick={(e) => {
             setShowNewBadge(false);
+            if (onOpenWhatsNew) onOpenWhatsNew(e.currentTarget);
+            else setShowWhatsNew(true);
           }}
-          className="w-full flex items-center justify-center gap-2 text-xs text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+          aria-label={`What's New: ${showNewBadge ? 'NEW ' : ''}v${currentVersion}`}
+          className="w-full min-h-11 xl:min-h-0 flex items-center justify-center gap-2 text-xs text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
         >
           {showNewBadge && (
-            <span className="flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 rounded-full text-[10px] font-medium animate-pulse">
+            <span className="flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 xl:text-blue-600 xl:dark:text-blue-400 rounded-full text-xs xl:text-[10px] font-medium motion-safe:animate-pulse motion-safe:[animation-iteration-count:3]">
               <Sparkles className="w-3 h-3" />
               NEW
             </span>
