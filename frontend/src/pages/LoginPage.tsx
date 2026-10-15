@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { authApi } from '../lib/api';
-import { SSO_ERROR_MESSAGES, SSO_ERROR_FALLBACK } from '../lib/ssoMessages';
+import { ssoErrorMessage, SSO_ERROR_FALLBACK } from '../lib/ssoMessages';
 import { Loader2 } from 'lucide-react';
 
 export function LoginPage() {
@@ -35,12 +35,17 @@ export function LoginPage() {
     }
   }, []); // Run once on mount
 
-  // Signed in (on arrival or after signing in here): leave the login page
+  // A Pocket ID return to finish. While it runs the page stays put; it leaves when done.
+  const completingSso = searchParams.get('sso') === 'complete' && !searchParams.get('sso_error');
+
+  // Signed in (on arrival or after signing in here): leave the login page. Never in the same pass
+  // as another navigation from this page: two navigations at once let the second win, which kept
+  // signed-in users on /login with nothing to re-trigger this (production bug, 2026-10-15).
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && !completingSso) {
       navigate('/', { replace: true });
     }
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, completingSso, navigate]);
 
   // Show the SSO button only when the server has it configured
   useEffect(() => {
@@ -53,31 +58,36 @@ export function LoginPage() {
 
   // Returning from the SSO provider: finish sign-in or show why it failed
   useEffect(() => {
-    // Already signed in (a valid token was in storage): the effect above is leaving for '/'.
-    // Clearing the query here would navigate back to /login in the same pass and win, and
-    // nothing would re-trigger the redirect (production bug, 2026-10-15).
-    if (ssoHandled.current || isAuthenticated) return;
+    if (ssoHandled.current) return;
     const ssoStatus = searchParams.get('sso');
     const ssoError = searchParams.get('sso_error');
     if (!ssoStatus && !ssoError) return;
     ssoHandled.current = true;
 
-    // Drop the query so a reload does not replay it
-    setSearchParams({}, { replace: true });
-
-    if (ssoError) {
-      setError(SSO_ERROR_MESSAGES[ssoError] ?? SSO_ERROR_FALLBACK);
-      return;
-    }
-
-    if (ssoStatus === 'complete') {
+    if (completingSso) {
+      // Always adopt the session the callback just created, even over a token already in
+      // storage: on a shared browser that token may be another account's. Leaving for '/' also
+      // drops the query.
       setIsCompletingSso(true);
       setAnnouncement('Signing you in...');
       completeSsoLogin()
-        .catch(() => setError(SSO_ERROR_FALLBACK))
+        .then(() => navigate('/', { replace: true }))
+        .catch(() => {
+          setError(SSO_ERROR_FALLBACK);
+          setSearchParams({}, { replace: true });
+        })
         .finally(() => setIsCompletingSso(false));
+      return;
     }
-  }, [searchParams, setSearchParams, completeSsoLogin, isAuthenticated]);
+
+    setIsCompletingSso(false);
+    // Already signed in: the redirect above is leaving for '/'; touching the query here would
+    // navigate back to /login in the same pass.
+    if (isAuthenticated) return;
+    // Drop the query so a reload does not replay it
+    setSearchParams({}, { replace: true });
+    setError(ssoErrorMessage(ssoError));
+  }, [searchParams, setSearchParams, completeSsoLogin, completingSso, isAuthenticated, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -19,3 +19,8 @@ export const SSO_ERROR_MESSAGES: Record<string, string> = {
 };
 
 export const SSO_ERROR_FALLBACK = 'Signing in with Pocket ID did not work. Please try again.';
+
+/** Message for a code taken from the URL. Own keys only: "__proto__" or "toString" fall back. */
+export function ssoErrorMessage(code: string | null | undefined): string {
+  return code && Object.hasOwn(SSO_ERROR_MESSAGES, code) ? SSO_ERROR_MESSAGES[code] : SSO_ERROR_FALLBACK;
+}

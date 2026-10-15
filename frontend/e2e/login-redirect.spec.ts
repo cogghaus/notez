@@ -16,21 +16,28 @@ const USER = {
   oidcLinked: true,
 };
 
-async function mockApi(page: Page, opts: { refreshOk: boolean }) {
+/** Another account whose token a shared browser may still hold. */
+const OTHER = { ...USER, userId: '33333333-3333-4333-8333-333333333333', username: 'someone-else' };
+
+async function mockApi(page: Page, opts: { refreshOk: boolean; mustChangePassword?: boolean }) {
+  const loginUser = { ...USER, mustChangePassword: !!opts.mustChangePassword };
+  // The mock only honours tokens it issued, like the server.
+  const users: Record<string, typeof USER> = { 'tok-login': loginUser, 'tok-refresh': USER, 'tok-other': OTHER };
   await page.route(
     (url) => url.pathname.startsWith('/api/') && !/\.(ts|tsx|js|css)$/.test(url.pathname),
     async (route) => {
       const req = route.request();
       const path = new URL(req.url()).pathname;
-      const authed = /^Bearer tok-(login|refresh)$/.test(req.headers()['authorization'] ?? '');
+      const bearer = (req.headers()['authorization'] ?? '').replace(/^Bearer /, '');
+      const authed = bearer in users;
       const json = (status: number, body: unknown) =>
         route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
       if (path === '/api/auth/setup-needed') return json(200, { setupNeeded: false });
       if (path === '/api/auth/oidc/config') return json(200, { enabled: true, providerName: 'Pocket ID' });
-      if (path === '/api/auth/login') return json(200, { accessToken: 'tok-login', user: USER });
+      if (path === '/api/auth/login') return json(200, { accessToken: 'tok-login', user: loginUser });
       if (path === '/api/auth/refresh')
         return opts.refreshOk ? json(200, { accessToken: 'tok-refresh' }) : json(401, { message: 'no cookie' });
-      if (path === '/api/auth/me') return authed ? json(200, { user: USER }) : json(401, { message: 'Unauthorized' });
+      if (path === '/api/auth/me') return authed ? json(200, { user: users[bearer] }) : json(401, { message: 'Unauthorized' });
       if (path.startsWith('/api/profile/avatar/')) return route.fulfill({ status: 404, body: '' });
       if (!authed) return json(401, { message: 'Unauthorized' });
       if (path === '/api/notes') return json(200, { notes: [], total: 0 });
@@ -87,4 +94,28 @@ test('returning from Pocket ID lands in the app', async ({ page }) => {
   await page.goto('/login?sso=complete', { waitUntil: 'domcontentloaded' });
   await expect(page).toHaveURL(/\/$/, { timeout: 5000 });
   await expect(page.getByPlaceholder('Search notes...').first()).toBeAttached();
+});
+
+// A shared browser: the stored token is someone else's, the Pocket ID return carries this user's
+// fresh session (refresh cookie). The page must adopt the new session, not keep the old identity.
+test('returning from Pocket ID replaces a token another account left in storage', async ({ page }) => {
+  await page.addInitScript(() => {
+    if (!sessionStorage.getItem('seeded')) {
+      localStorage.setItem('accessToken', 'tok-other');
+      sessionStorage.setItem('seeded', '1');
+    }
+  });
+  await mockApi(page, { refreshOk: true });
+  await page.goto('/login?sso=complete', { waitUntil: 'domcontentloaded' });
+  await expect(page).toHaveURL(/\/$/, { timeout: 5000 });
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('accessToken'))).toBe('tok-refresh');
+});
+
+test('password sign-in for an account that must change its password goes to that page', async ({ page }) => {
+  await mockApi(page, { refreshOk: false, mustChangePassword: true });
+  await page.goto('/login', { waitUntil: 'domcontentloaded' });
+  await page.getByLabel(/username or email/i).fill('tester');
+  await page.getByLabel(/^password/i).fill('not-a-real-password');
+  await page.getByRole('button', { name: /^sign in$/i }).click();
+  await expect(page).toHaveURL(/\/change-password$/, { timeout: 5000 });
 });
