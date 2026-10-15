@@ -159,18 +159,19 @@ export function TagInput({ tags, onChange, disabled = false }: TagInputProps) {
   return (
     <div className="relative">
       {/* Tag Pills and Input */}
-      <div className="flex flex-wrap items-center gap-2 p-2 border border-gray-300 rounded-md focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 bg-white">
+      <div className="flex flex-wrap items-center gap-2 p-2 border border-gray-400 dark:border-gray-500 rounded-md focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 bg-white dark:bg-gray-700">
         {tags.map((tag) => (
           <div
             key={tag.id || tag.name}
-            className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 text-sm rounded-md"
+            className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300 text-sm rounded-md"
           >
             <span>{tag.name}</span>
             {!disabled && (
               <button
                 type="button"
                 onClick={() => removeTag(tag.name)}
-                className="hover:bg-blue-200 rounded-full p-0.5"
+                aria-label={`Remove tag ${tag.name}`}
+                className="hover:bg-blue-200 dark:hover:bg-blue-800 rounded-full p-0.5"
               >
                 <X className="w-3 h-3" />
               </button>
@@ -193,7 +194,7 @@ export function TagInput({ tags, onChange, disabled = false }: TagInputProps) {
               onKeyDown={handleKeyDown}
               onFocus={() => inputValue.trim().length > 0 && setShowSuggestions(true)}
               placeholder={tags.length === 0 ? 'Add tags...' : ''}
-              className="w-full outline-none text-sm"
+              className="w-full outline-none text-sm bg-transparent text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-300"
             />
           </div>
         )}
@@ -203,16 +204,16 @@ export function TagInput({ tags, onChange, disabled = false }: TagInputProps) {
       {showSuggestions && (
         <div
           ref={suggestionsRef}
-          className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-48 overflow-y-auto"
+          className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg max-h-48 overflow-y-auto"
         >
           {isLoading && (
-            <div className="px-3 py-2 text-sm text-gray-500 text-center">
+            <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400 text-center">
               Loading suggestions...
             </div>
           )}
 
           {error && !isLoading && (
-            <div className="px-3 py-2 text-sm text-red-600 text-center">
+            <div className="px-3 py-2 text-sm text-red-600 dark:text-red-400 text-center">
               {error}
             </div>
           )}
@@ -221,8 +222,8 @@ export function TagInput({ tags, onChange, disabled = false }: TagInputProps) {
             <button
               type="button"
               onClick={() => addTag(inputValue)}
-              className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-100 ${
-                selectedIndex === 0 ? 'bg-blue-50' : ''
+              className={`w-full text-left px-3 py-2 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700 ${
+                selectedIndex === 0 ? 'bg-blue-50 dark:bg-blue-900/30 ring-2 ring-inset ring-blue-500' : ''
               }`}
             >
               <div className="flex items-center gap-2">
@@ -241,12 +242,12 @@ export function TagInput({ tags, onChange, disabled = false }: TagInputProps) {
                   key={tag.id}
                   type="button"
                   onClick={() => addTag(tag.name)}
-                  className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-100 ${
-                    index === selectedIndex ? 'bg-blue-50' : ''
+                  className={`w-full text-left px-3 py-2 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700 ${
+                    index === selectedIndex ? 'bg-blue-50 dark:bg-blue-900/30 ring-2 ring-inset ring-blue-500' : ''
                   }`}
                 >
                   <div className="flex items-center gap-2">
-                    <Plus className="w-3 h-3 text-gray-400" />
+                    <Plus className="w-3 h-3 text-gray-400 dark:text-gray-500" />
                     <span>{tag.name}</span>
                   </div>
                 </button>
@@ -258,8 +259,8 @@ export function TagInput({ tags, onChange, disabled = false }: TagInputProps) {
                   <button
                     type="button"
                     onClick={() => addTag(inputValue)}
-                    className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-100 border-t border-gray-200 ${
-                      selectedIndex === suggestions.length ? 'bg-blue-50' : ''
+                    className={`w-full text-left px-3 py-2 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700 border-t border-gray-200 dark:border-gray-700 ${
+                      selectedIndex === suggestions.length ? 'bg-blue-50 dark:bg-blue-900/30 ring-2 ring-inset ring-blue-500' : ''
                     }`}
                   >
                     <div className="flex items-center gap-2">

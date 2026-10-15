@@ -119,7 +119,9 @@ export function SettingsHub() {
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900 flex flex-col">
       <AppHeader />
 
-      <div className="flex-1 flex">
+      {/* Column on phones (section picker above the content), row from md. In a row the picker's
+          w-full squeezed main to 0px wide below md (mobile PR2, audit 2.2). */}
+      <div className="flex-1 flex flex-col md:flex-row">
         {/* Sidebar */}
         <aside className="w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 hidden md:block">
           <div className="p-4">
@@ -182,7 +184,7 @@ export function SettingsHub() {
             name="settings-section"
             value={activeSection}
             onChange={(e) => navigateToSection(e.target.value as SettingsSection)}
-            className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-white"
+            className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-400 dark:border-gray-500 rounded-md text-gray-900 dark:text-white"
           >
             {availableSections.map(([key, config]) => (
               <option key={key} value={key}>
@@ -193,7 +195,7 @@ export function SettingsHub() {
         </div>
 
         {/* Main content */}
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 min-w-0 overflow-y-auto">
           <div className="max-w-4xl mx-auto py-8 px-4">
             {/* Section header */}
             <div className="mb-6">
