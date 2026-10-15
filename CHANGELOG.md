@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.31.3] - 2026-10-15
+## [1.32.0] - 2026-10-15
 
 Follow-ups to the 1.31.1 sign-in hotfix. **Upgrade note: new `TRUST_PROXY` setting with a changed default; read it before deploying if your reverse proxy is not on the same Docker host.**
 
