@@ -196,23 +196,22 @@ export function WhatsNewModal({ isOpen, onClose, currentVersion, returnFocusTo }
               <div className="mt-6">
                 <button
                   onClick={() => setShowHistory(!showHistory)}
+                  aria-expanded={showHistory}
+                  aria-controls="whats-new-history"
                   className="flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
                 >
                   {showHistory ? (
-                    <ChevronDown className="w-4 h-4" />
+                    <ChevronDown className="w-4 h-4" aria-hidden="true" />
                   ) : (
-                    <ChevronRight className="w-4 h-4" />
+                    <ChevronRight className="w-4 h-4" aria-hidden="true" />
                   )}
                   <span>Previous Releases ({previousReleases.length})</span>
                 </button>
 
-                {showHistory && (
-                  <div className="mt-4 space-y-4">
-                    {previousReleases.map((entry) => (
-                      <ReleaseSection key={entry.version} entry={entry} />
-                    ))}
-                  </div>
-                )}
+                <div id="whats-new-history" hidden={!showHistory} className="mt-4 space-y-4">
+                  {showHistory &&
+                    previousReleases.map((entry) => <ReleaseSection key={entry.version} entry={entry} />)}
+                </div>
               </div>
             )}
           </div>

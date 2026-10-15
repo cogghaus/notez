@@ -3,6 +3,7 @@ import { useMutation } from '@tanstack/react-query';
 import { X, Bug, Lightbulb, Send, CheckCircle, AlertCircle } from 'lucide-react';
 import axios from 'axios';
 import { useFocusTrap } from '../lib/useFocusTrap';
+import { useToast } from './Toast';
 import { feedbackApi, type FeedbackType, type FeedbackCategory, type FeedbackPriority } from '../lib/api';
 
 interface FeedbackModalProps {
@@ -49,6 +50,7 @@ export function FeedbackModal({ isOpen, onClose, returnFocusTo }: FeedbackModalP
   const dialogRef = useRef<HTMLDivElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const successRef = useRef<HTMLHeadingElement>(null);
+  const { showToast } = useToast();
 
   const [type, setType] = useState<FeedbackType>('FEATURE');
   const [title, setTitle] = useState('');
@@ -83,8 +85,9 @@ export function FeedbackModal({ isOpen, onClose, returnFocusTo }: FeedbackModalP
       }),
     onSuccess: () => {
       if (!isOpenRef.current) {
-        // Closed (system back) while sending: it was sent, so the draft goes; nothing to show
+        // Closed (system back) while sending: it was sent, so the draft goes; say so with a toast
         resetForm();
+        showToast('Feedback sent', 'success');
         return;
       }
       setShowSuccess(true);
@@ -96,6 +99,12 @@ export function FeedbackModal({ isOpen, onClose, returnFocusTo }: FeedbackModalP
       }, 2000);
     },
     onError: (error: unknown) => {
+      if (!isOpenRef.current) {
+        // Failed after the modal was closed: nothing to show it in, so say so and keep the draft
+        submitMutation.reset();
+        showToast('Feedback was not sent. Open Share feedback to try again.', 'error');
+        return;
+      }
       if (import.meta.env.DEV) {
         console.error('[FeedbackModal] Submit failed:', error);
       }
@@ -159,6 +168,7 @@ export function FeedbackModal({ isOpen, onClose, returnFocusTo }: FeedbackModalP
     if (isOpen) return;
     if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
     if (showSuccess) resetForm();
+    else submitMutation.reset(); // a send that fails after the close must not reopen with a stale error
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 

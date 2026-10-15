@@ -162,6 +162,23 @@ describe('leave guard timeout', () => {
   });
 });
 
+describe('leave guard with a slow popstate', () => {
+  it('does not re-arm once the history entry has moved on', () => {
+    vi.useFakeTimers();
+    mount();
+    act(() => nav.selectTab('tasks'));
+    const go = vi.spyOn(window.history, 'go').mockImplementation(() => {});
+    act(() => nav.leave());
+    // The browser is slow: the entry changes (the pop is landing) after the timer would have fired
+    act(() => {
+      window.history.replaceState({ ...(window.history.state as object), key: 'moved' }, '');
+      vi.advanceTimersByTime(1100);
+    });
+    act(() => nav.leave());
+    expect(go).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('overlay opener', () => {
   it('keeps the opener passed to openSheet (never in history state) and keeps it for the next overlay', () => {
     mount();
@@ -193,6 +210,14 @@ describe('overlay boot check', () => {
     mount(true);
     await waitFor(() => expect(readCurrentNav().sheet).toBeNull());
     expect(idx()).toBe(0);
+  });
+
+  it('shows the overlay again when Forward lands on that entry', async () => {
+    landOnSheet();
+    mount(true);
+    await waitFor(() => expect(readCurrentNav().sheet).toBeNull());
+    act(() => window.history.forward());
+    await waitFor(() => expect(nav.sheet).toBe('account'));
   });
 
   it('never renders the overlay it is about to close', async () => {

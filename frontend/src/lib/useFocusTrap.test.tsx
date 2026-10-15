@@ -98,6 +98,32 @@ describe('useFocusTrap', () => {
   });
 });
 
+describe('useFocusTrap with a hidden ancestor (no checkVisibility)', () => {
+  function HiddenParent() {
+    const ref = useRef<HTMLDivElement>(null);
+    useFocusTrap(ref, true);
+    return (
+      <div>
+        <button>outside</button>
+        <div style={{ display: 'none' }}>
+          <div ref={ref} role="dialog" aria-label="Nested">
+            <button>inside</button>
+          </div>
+        </div>
+        <button>after</button>
+      </div>
+    );
+  }
+
+  it('does not trap while an ancestor is display:none', async () => {
+    const user = userEvent.setup();
+    render(<HiddenParent />);
+    screen.getByText('outside').focus();
+    await user.tab();
+    expect(screen.getByText('after')).toHaveFocus();
+  });
+});
+
 describe('useFocusTrap when the container is not rendered', () => {
   function Hidden() {
     const ref = useRef<HTMLDivElement>(null);

@@ -34,6 +34,16 @@ describe('restoreScroll', () => {
     expect(el.scrollTop).toBe(800);
   });
 
+  it.each([['pointerdown'], ['keydown'], ['wheel']])('stops waiting once the user acts (%s)', async (type) => {
+    const { el, dims } = scroller({ scrollHeight: 500, clientHeight: 500 });
+    restoreScroll(el, 800);
+    el.dispatchEvent(new Event(type, { bubbles: true }));
+    dims.scrollHeight = 2000;
+    el.appendChild(document.createElement('p'));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(el.scrollTop).toBe(0);
+  });
+
   it('gives up after the timeout and can be cancelled', () => {
     vi.useFakeTimers();
     const { el, dims } = scroller({ scrollHeight: 500, clientHeight: 500 });

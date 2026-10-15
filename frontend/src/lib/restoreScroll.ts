@@ -16,6 +16,7 @@ export function restoreScroll(el: HTMLElement, y: number, timeoutMs = 2000): () 
     clearTimeout(timer);
     el.removeEventListener('pointerdown', stop);
     el.removeEventListener('wheel', stop);
+    el.removeEventListener('keydown', stop);
   };
   const observer = new MutationObserver(() => {
     if (!reachable()) return;
@@ -26,5 +27,6 @@ export function restoreScroll(el: HTMLElement, y: number, timeoutMs = 2000): () 
   const timer = setTimeout(stop, timeoutMs);
   el.addEventListener('pointerdown', stop);
   el.addEventListener('wheel', stop);
+  el.addEventListener('keydown', stop); // arrows, PageDown, Space scroll too
   return stop;
 }

@@ -199,6 +199,12 @@ export function EditorPage() {
   const openerRef = useRef<Element | null>(null);
   const closeFocusRef = useRef<{ deleted: boolean; neighbourId: string | null } | null>(null);
 
+  // The Search list unmounts when its tab is left and its query resets, so its saved position would
+  // belong to results that no longer exist
+  useEffect(() => {
+    if (nav.tab !== 'search') delete scrollPosRef.current.search;
+  }, [nav.tab]);
+
   useLayoutEffect(() => {
     if (!shell || showEditor) return;
     const saved = scrollPosRef.current[nav.tab];

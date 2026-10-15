@@ -8,7 +8,12 @@ function isRendered(el: HTMLElement): boolean {
   const style = getComputedStyle(el);
   if (style.display === 'none' || style.visibility === 'hidden') return false;
   // checkVisibility also sees a hidden ancestor (content-visibility, display:none up the tree)
-  return el.checkVisibility ? el.checkVisibility() : true;
+  if (el.checkVisibility) return el.checkVisibility();
+  // jsdom and Safari before 17.4: walk up looking for display:none
+  for (let p = el.parentElement; p; p = p.parentElement) {
+    if (getComputedStyle(p).display === 'none') return false;
+  }
+  return true;
 }
 
 /**

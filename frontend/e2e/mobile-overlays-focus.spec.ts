@@ -250,7 +250,7 @@ test('Folders footer What\'s New is a history entry: back closes it, Tab still m
   await page.setViewportSize({ width: 841, height: 627 });
   await page.goto('/', { waitUntil: 'domcontentloaded' });
   await page.getByRole('button', { name: /All notes/ }).click();
-  const version = page.getByRole('button', { name: /v\d/ });
+  const version = page.getByRole('button', { name: /What's New, version/ });
   await version.click();
   const modal = page.getByRole('dialog', { name: /What's New in Notez/ });
   await expect(modal).toBeVisible();
@@ -268,6 +268,51 @@ test('Folders footer What\'s New is a history entry: back closes it, Tab still m
   await page.getByRole('button', { name: /All notes/ }).click();
   await expect(page.getByRole('button', { name: /^Work/ }).first()).toBeVisible();
   await expect(modal).toBeHidden();
+});
+
+test('the Folders version button says it opens What\'s New', async ({ page }) => {
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: /All notes/ }).click();
+  await expect(page.getByRole('button', { name: /^What's New, version \d/ })).toBeVisible();
+});
+
+test('Previous Releases in What\'s New is a disclosure with its state exposed', async ({ page }) => {
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: 'Account menu' }).click();
+  await page.getByRole('dialog', { name: 'tester' }).getByRole('button', { name: "What's New" }).click();
+  const toggle = page.getByRole('button', { name: /Previous Releases/ });
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  const controls = await toggle.getAttribute('aria-controls');
+  expect(controls, 'aria-controls names the release list').toBeTruthy();
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.locator(`[id="${controls}"]`)).toBeVisible();
+});
+
+test('Search starts at the top for a new query after leaving the tab', async ({ page }) => {
+  const results = Array.from({ length: 40 }, (_, i) => ({
+    id: `aaaaaaaa-aaaa-4aaa-8aaa-${String(i).padStart(12, '0')}`,
+    title: `Hit ${i}`,
+    snippet: '',
+    folder: null,
+    tags: [],
+  }));
+  await page.route('**/api/search*', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ results, total: results.length }) }),
+  );
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await primaryNav(page).getByRole('button', { name: 'Search' }).click();
+  const box = page.getByRole('searchbox', { name: 'Search notes' });
+  await box.fill('x1');
+  await page.getByRole('button', { name: /Hit 30/ }).scrollIntoViewIfNeeded();
+  expect(await scrollTopOf(page, 'search')).toBeGreaterThan(0);
+
+  await primaryNav(page).getByRole('button', { name: 'Tasks' }).click();
+  await primaryNav(page).getByRole('button', { name: 'Search' }).click();
+  await box.fill('x2');
+  await expect(page.getByRole('button', { name: /Hit 0/ })).toBeVisible();
+  await page.waitForTimeout(400);
+  expect(await scrollTopOf(page, 'search')).toBe(0);
 });
 
 test('system back during the Feedback thanks screen does not go back twice', async ({ page }) => {
@@ -299,6 +344,30 @@ test('closing Feedback with Escape keeps the draft; it clears after a send', asy
   await sheet(page).getByRole('button', { name: 'Share feedback' }).click();
   await expect(page.getByLabel('What would help?')).toHaveValue('Keep me');
   await expect(page.getByRole('button', { name: 'Suggest Something' })).toHaveAttribute('aria-pressed', 'true');
+
+  // A successful send clears the draft: the thanks screen closes itself, and the form reopens empty
+  await page.getByLabel('Describe your idea').fill('Details');
+  await page.getByRole('button', { name: 'Send Feedback' }).click();
+  await expect(page.getByRole('heading', { name: 'Thanks for your feedback!' })).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'Share Your Feedback' })).toBeHidden({ timeout: 5000 });
+  await accountButton(page).click();
+  await sheet(page).getByRole('button', { name: 'Share feedback' }).click();
+  await expect(page.getByLabel('What would help?')).toHaveValue('');
+  await expect(page.getByLabel('Describe your idea')).toHaveValue('');
+});
+
+test('a send that succeeds after the modal was closed says so with a toast', async ({ page }) => {
+  await page.route('**/api/feedback', async (route) => {
+    await new Promise((r) => setTimeout(r, 700));
+    await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+  });
+  await openFromSheet(page, 'Share feedback');
+  await page.getByLabel('What would help?').fill('Late');
+  await page.getByLabel('Describe your idea').fill('Reply');
+  await page.getByRole('button', { name: 'Send Feedback' }).click();
+  await page.goBack();
+  await expect(page.getByRole('dialog', { name: 'Share Your Feedback' })).toBeHidden();
+  await expect(page.getByText('Feedback sent')).toBeVisible();
 });
 
 test.describe('scroll position per list', () => {

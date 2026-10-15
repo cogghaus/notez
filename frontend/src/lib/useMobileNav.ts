@@ -45,8 +45,12 @@ export function useMobileNav(enabled = true) {
 
   // An overlay found on the very first render (a reload, a restored tab) is about to be popped by the
   // boot check below: never render it, not even for a frame (What's New would mark the version seen)
-  const [bootHiddenKey] = useState<string | null>(() => (enabled && entrySheet ? location.key : null));
+  const [bootHiddenKey, setBootHiddenKey] = useState<string | null>(() => (enabled && entrySheet ? location.key : null));
   const sheet = bootHiddenKey === location.key ? null : entrySheet;
+  // Once the location has moved off that entry the hiding is done: Forward onto it must show it
+  useEffect(() => {
+    if (bootHiddenKey !== null && bootHiddenKey !== location.key) setBootHiddenKey(null);
+  }, [bootHiddenKey, location.key]);
 
   // Who opened the current overlay, for focus return. Kept in a ref: elements never go in history state.
   const sheetOpenerRef = useRef<Element | null>(null);
@@ -55,6 +59,7 @@ export function useMobileNav(enabled = true) {
   // sidebar click that fires several selection callbacks). Cleared on every location change.
   const leavingRef = useRef(false);
   const rearmRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const leaveKeyRef = useRef<unknown>(null);
   useEffect(() => {
     leavingRef.current = false;
     if (rearmRef.current) clearTimeout(rearmRef.current);
@@ -79,8 +84,12 @@ export function useMobileNav(enabled = true) {
     if (leavingRef.current) return;
     leavingRef.current = true;
     // Normally a location change clears the guard; this covers a pop that never produced one
+    // It re-arms only if the history entry is still the one we left from: a slow pop that is still
+    // landing must not let a second tap pop again.
+    leaveKeyRef.current = (window.history.state as { key?: unknown } | null)?.key;
     rearmRef.current = setTimeout(() => {
-      leavingRef.current = false;
+      const now = (window.history.state as { key?: unknown } | null)?.key;
+      if (now === leaveKeyRef.current) leavingRef.current = false;
     }, LEAVE_REARM_MS);
     back();
   }, [back]);
