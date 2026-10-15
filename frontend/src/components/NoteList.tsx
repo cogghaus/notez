@@ -2,6 +2,7 @@ import { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { notesApi, sharesApi, serviceAccountsApi } from '../lib/api';
 import { FileText, Files, Plus, Search, Bot, ArrowLeft } from 'lucide-react';
 import { useToast } from './Toast';
+import { previewText } from '../lib/previewText';
 
 interface Note {
   id: string;
@@ -211,7 +212,7 @@ export const NoteList = forwardRef<NoteListHandle, NoteListProps>(({ folderId, t
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search notes..."
-              className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full pl-9 pr-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 border border-gray-400 dark:border-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </form>
         )}
@@ -234,7 +235,9 @@ export const NoteList = forwardRef<NoteListHandle, NoteListProps>(({ folderId, t
               : 'No notes yet. Click + to create one!'}
           </div>
         ) : (
-          notes.map((note) => (
+          notes.map((note) => {
+            const preview = previewText(note.content);
+            return (
             <button
               key={note.id}
               onClick={() => onSelectNote(note.id)}
@@ -265,9 +268,9 @@ export const NoteList = forwardRef<NoteListHandle, NoteListProps>(({ folderId, t
                       by {note.shareInfo.owner.username}{folderId !== 'service-accounts' ? ` \u00B7 ${note.shareInfo.permission.toLowerCase()}` : ''}
                     </p>
                   )}
-                  {note.content && (
+                  {preview && (
                     <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2 mt-1">
-                      {note.content.substring(0, 100)}
+                      {preview}
                     </p>
                   )}
                   <div className="flex items-center justify-between mt-2">
@@ -288,7 +291,8 @@ export const NoteList = forwardRef<NoteListHandle, NoteListProps>(({ folderId, t
                 </div>
               </div>
             </button>
-          ))
+            );
+          })
         )}
       </div>
     </div>
