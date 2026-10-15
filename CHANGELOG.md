@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.31.3] - 2026-10-15
+
+Follow-ups to the 1.31.1 sign-in hotfix. **Upgrade note: new `TRUST_PROXY` setting with a changed default; read it before deploying if your reverse proxy is not on the same Docker host.**
+
+### Fixed
+
+- Settings, Profile, "Connect Pocket ID" started on another host name for the server (the LAN name) could never finish: the host-only transaction cookie stayed on that host and the provider returned to the `APP_URL` host. `POST /api/auth/oidc/link` now answers `409 {code: "wrong_host", url}` with the `APP_URL` Settings address (from config, never the request), sets no cookie and does not contact the provider. Settings shows "open <that address>, sign in there, and choose Connect again" as a link (http/https only). If the named address is the one the page is already on (a proxy hides the `APP_URL` host from the backend), Settings retries once with `?canonical=1` and the link starts there, the same escape hatch as the login bounce.
+- Forwarded headers were trusted from any peer (`trustProxy: true`). The backend is also reachable directly on port 5173, so a LAN client could pick its own rate-limit key with `X-Forwarded-For` and its own host with `X-Forwarded-Host`; through the Cloudflare tunnel `request.ip` was the leftmost, client-supplied `X-Forwarded-For` entry rather than the address Cloudflare appends. Rate limits are keyed on `request.ip`.
+
+### Changed
+
+- New `TRUST_PROXY` (backend env, passed through by `compose.prod.yml`): which socket peers may set `X-Forwarded-For/-Host/-Proto`. A comma-separated list of IPs, CIDR ranges and `loopback`/`linklocal`/`uniquelocal`, or `true`/`false`. **Default `loopback,172.16.0.0/12`** (a proxy on the same machine or in Docker on the same host). An invalid value stops startup; the startup log line "Forwarded headers trusted from these peers only" shows the value in effect. See `docs/deployment.md`, "Reverse proxy and TRUST_PROXY".
+  - **Upgrading with a proxy on another host or a Docker network outside 172.16.0.0/12** (or rootless Docker, or `iptables: false`): set `TRUST_PROXY` to the proxy's address. Without it every client shares the proxy's rate-limit bucket (one user's failed logins can lock out everyone), and the backend sees the proxy's internal host name (Pocket ID sign-in makes one extra bounce to `APP_URL` and Connect one extra request; both still finish).
+  - `TRUST_PROXY=true` restores the old behaviour.
+- `compose.prod.yml` publishes the backend on IPv4 only (`0.0.0.0:5173:3000`). Docker relays IPv6 connections to a published port through docker-proxy, so they arrive from the gateway address the default trusts and could forge the headers. A test fails if the mapping loses its IPv4 bind address. **Existing installs: refresh `compose.prod.yml` on the server and recreate `notez-backend`** (the image-only deploy cron does not pick up compose changes).
+
 ## [1.31.2] - 2026-10-15
 
 Mobile rework PR2 (`docs/mobile/03-build-plan.md`): width and Settings bugs on phones and the Fold.

@@ -65,8 +65,11 @@ anyone can send, so the backend only believes them from the peers in `TRUST_PROX
   connection to the published port from the gateway of whichever network it picks for the
   backend, so a backend on two networks can arrive from either gateway.
 - Docker networks outside 172.16.0.0/12 (once those pools run out Docker hands out
-  192.168.x.0/20), rootless Docker, or Docker with `iptables: false` (LAN clients then arrive
-  from the gateway address, which the default trusts): set `TRUST_PROXY` explicitly.
+  192.168.x.0/20) or rootless Docker: set `TRUST_PROXY` explicitly.
+- Docker with `iptables: false`: LAN clients then arrive from the same gateway address as a
+  proxy relayed through the published port, so trusting that gateway lets them forge the headers.
+  The only safe values are `false`, or the address of a proxy that reaches the backend directly
+  over a Docker network (not through the published port).
 - Your proxy runs elsewhere (another LAN host): set `TRUST_PROXY` to its address, e.g.
   `TRUST_PROXY=192.168.1.10`.
 - Nothing but the proxy can reach the backend: `TRUST_PROXY=true` (trust every peer).
