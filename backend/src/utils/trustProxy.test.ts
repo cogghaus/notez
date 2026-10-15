@@ -1,4 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest';
+import { readFileSync } from 'node:fs';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { resolveTrustProxy } from './trustProxy.js';
 
@@ -117,6 +118,18 @@ describe('TRUST_PROXY set', () => {
       expect(() => resolveTrustProxy(value)).toThrow(/TRUST_PROXY/);
     }
   );
+
+  // Docker relays IPv6 connections to a published port through docker-proxy, so they arrive from
+  // the gateway address the default trusts (seen live on accserver). The default is only safe while
+  // the port is published on IPv4 alone.
+  it('compose.prod.yml publishes the backend port on IPv4 only', () => {
+    const compose = readFileSync(new URL('../../../compose.prod.yml', import.meta.url), 'utf8');
+    const mappings = compose.match(/^\s*-\s*"?[^"\n]*:3000"?\s*$/gm) ?? [];
+    expect(mappings.length).toBeGreaterThan(0);
+    for (const mapping of mappings) {
+      expect(mapping).toMatch(/"\d{1,3}(\.\d{1,3}){3}:\d+:3000"/);
+    }
+  });
 
   it('accepts the proxy-addr names and IPv6 ranges', () => {
     expect(resolveTrustProxy('loopback, linklocal, uniquelocal, fd00::/8, ::1')).toBe(

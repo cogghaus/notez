@@ -101,7 +101,7 @@ function callbackHostIfElsewhere(request: FastifyRequest): URL | null {
   return requestHost === canonical.hostname.toLowerCase() ? null : canonical;
 }
 
-/** ?canonical=1: this request already is the one move to the APP_URL host (or claims to be). */
+/** ?canonical=1: the login bounce already happened, or the page says it is on the APP_URL origin: start here. */
 function isCanonicalRetry(request: FastifyRequest): boolean {
   return (request.query as { canonical?: string }).canonical === '1';
 }

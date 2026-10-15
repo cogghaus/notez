@@ -58,12 +58,24 @@ request came in on. Behind a proxy both come from `X-Forwarded-For` / `X-Forward
 anyone can send, so the backend only believes them from the peers in `TRUST_PROXY`.
 
 - Default `loopback,172.16.0.0/12`: a proxy on the same machine, or a proxy or tunnel container
-  on the same Docker host (Docker's default bridge range). A client that reaches port `5173`
-  directly from the LAN keeps its own address and cannot forge either header.
+  on the same Docker host (Docker's first default address pools, 172.17-172.31). A client that
+  reaches port `5173` directly from the LAN keeps its own address and cannot forge either header.
+  Every container on that Docker host is trusted too; to narrow it, list your proxy's network,
+  e.g. `TRUST_PROXY=172.18.0.0/24`. Make sure that covers every path in: Docker relays a
+  connection to the published port from the gateway of whichever network it picks for the
+  backend, so a backend on two networks can arrive from either gateway.
+- Docker networks outside 172.16.0.0/12 (once those pools run out Docker hands out
+  192.168.x.0/20), rootless Docker, or Docker with `iptables: false` (LAN clients then arrive
+  from the gateway address, which the default trusts): set `TRUST_PROXY` explicitly.
 - Your proxy runs elsewhere (another LAN host): set `TRUST_PROXY` to its address, e.g.
   `TRUST_PROXY=192.168.1.10`.
 - Nothing but the proxy can reach the backend: `TRUST_PROXY=true` (trust every peer).
 - No proxy at all: `TRUST_PROXY=false`.
+
+The client address is the rightmost `X-Forwarded-For` entry not sent by a trusted peer. Behind
+Cloudflare (tunnel or proxy) that is the address Cloudflare appends, so a client-supplied
+`X-Forwarded-For` cannot win; this relies on Cloudflare appending, and on nothing between it and
+the backend adding a hop outside the trusted list.
 
 An invalid value stops the backend at startup. The startup log line "Forwarded headers trusted
 from these peers only" shows the value in effect.

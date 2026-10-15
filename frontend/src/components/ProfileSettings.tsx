@@ -29,15 +29,15 @@ export function ProfileSettings() {
   const [isEditingUsername, setIsEditingUsername] = useState(false);
   const [newUsername, setNewUsername] = useState(user?.username ?? '');
   const [isSaving, setIsSaving] = useState(false);
-  const [error, setError] = useState('');
+  // A message, or (Connect started on another name for this server, e.g. the LAN name) the main
+  // address to connect from instead. One state, so every setError('') clears either.
+  const [error, setError] = useState<string | { connectAt: URL }>('');
   const [success, setSuccess] = useState('');
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [sso, setSso] = useState<{ enabled: boolean; providerName: string } | null>(null);
   const [isLinkingSso, setIsLinkingSso] = useState(false);
-  // Connect was started on another name for this server (the LAN name): where to do it instead
-  const [connectAt, setConnectAt] = useState<URL | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Is SSO configured on the server?
@@ -82,7 +82,6 @@ export function ProfileSettings() {
     setIsLinkingSso(true);
     setError('');
     setSuccess('');
-    setConnectAt(null);
     try {
       let response;
       try {
@@ -93,8 +92,7 @@ export function ProfileSettings() {
         if (elsewhere?.origin !== window.location.origin) {
           // The provider would return to the main address, where this half-started connection
           // cannot finish: send the user there instead
-          if (elsewhere) setConnectAt(elsewhere);
-          else setError(SSO_ERROR_MESSAGES.wrong_host);
+          setError(elsewhere ? { connectAt: elsewhere } : SSO_ERROR_MESSAGES.wrong_host);
           setIsLinkingSso(false);
           return;
         }
@@ -364,15 +362,15 @@ export function ProfileSettings() {
       </div>
 
       {/* Status Messages */}
-      {(error || connectAt) && (
+      {error && (
         <div role="alert" className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 rounded-md text-sm text-red-800 dark:text-red-200">
-          {error}
-          {connectAt && (
+          {typeof error === 'string' ? (
+            error
+          ) : (
             <>
-              {error && ' '}
               Connecting {sso?.providerName ?? 'Pocket ID'} only works from the main Notez address. Open{' '}
-              <a href={connectAt.href} className="font-medium underline">
-                {connectAt.host}
+              <a href={error.connectAt.href} className="font-medium underline">
+                {error.connectAt.host}
               </a>
               , sign in there, and choose Connect again.
             </>

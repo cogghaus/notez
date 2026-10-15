@@ -18,10 +18,13 @@ import { isIP } from 'node:net';
 export type TrustProxySetting = boolean | string;
 
 /**
- * The machine itself plus Docker's default bridge range. A reverse proxy or tunnel in a container
- * on the same Docker host reaches the backend from 172.16.0.0/12 (on accserver: the tunnel through
- * docker-proxy as the apps-internal gateway, Traefik from its apps-internal address), while LAN
- * clients keep their own address. Not uniquelocal: that would trust 10/8 and 192.168/16, the LAN.
+ * The machine itself plus the range of Docker's first default address pools (172.17-172.31). A
+ * reverse proxy or tunnel in a container on the same Docker host reaches the backend from there
+ * (on accserver: the tunnel through docker-proxy as the apps-internal gateway, Traefik from its
+ * apps-internal address), while LAN clients keep their own address. Every container on that
+ * Docker host is trusted with it. Not uniquelocal: that would trust 10/8 and 192.168/16, the LAN.
+ * Docker networks outside 172.16/12, rootless Docker, or `iptables: false` (LAN clients then
+ * arrive from the gateway) need an explicit TRUST_PROXY.
  */
 export const DEFAULT_TRUSTED_PROXIES = 'loopback,172.16.0.0/12';
 

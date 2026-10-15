@@ -127,6 +127,35 @@ describe('ProfileSettings: Sign in with Pocket ID', () => {
     expect(oidcLink).toHaveBeenLastCalledWith(true);
   });
 
+  it('the wrong_host hint goes away like any other message when another action starts', async () => {
+    oidcLink.mockRejectedValue({
+      response: { status: 409, data: { code: 'wrong_host', url: 'https://notez.example.com/settings/profile' } },
+    });
+    renderAt('/settings/profile');
+    fireEvent.click(await screen.findByRole('button', { name: 'Connect Pocket ID' }));
+    expect(await screen.findByRole('link', { name: 'notez.example.com' })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit username' }));
+
+    expect(screen.queryByRole('link', { name: 'notez.example.com' })).toBeNull();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('if the canonical retry fails too, shows the error and re-enables Connect', async () => {
+    const here = `${window.location.origin}/settings/profile`;
+    oidcLink
+      .mockRejectedValueOnce({ response: { status: 409, data: { code: 'wrong_host', url: here } } })
+      .mockRejectedValueOnce({ response: { status: 503, data: { message: 'Single sign-on is unavailable' } } });
+    renderAt('/settings/profile');
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Connect Pocket ID' }));
+
+    expect((await screen.findByRole('alert')).textContent).toBe('Single sign-on is unavailable');
+    expect(oidcLink).toHaveBeenCalledTimes(2);
+    expect(assign).not.toHaveBeenCalled();
+    expect((screen.getByRole('button', { name: 'Connect Pocket ID' }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
   it('on wrong_host with an address that is not http(s), shows no link', async () => {
     oidcLink.mockRejectedValue({
       response: { status: 409, data: { code: 'wrong_host', url: 'javascript:alert(1)' } },
