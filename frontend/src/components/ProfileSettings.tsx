@@ -6,6 +6,21 @@ import { User, Mail, Lock, Loader2, Check, Camera, Trash2, Pencil, X, KeyRound }
 import { useConfirm } from './ConfirmDialog';
 import { ssoErrorMessage, SSO_ERROR_MESSAGES } from '../lib/ssoMessages';
 
+/**
+ * For a 409 wrong_host from Connect: the address it names (http or https only, null otherwise).
+ * undefined for any other error.
+ */
+function wrongHostAddress(err: unknown): URL | null | undefined {
+  const data = (err as { response?: { data?: { code?: string; url?: unknown } } }).response?.data;
+  if (data?.code !== 'wrong_host') return undefined;
+  try {
+    const url = new URL(String(data.url));
+    return url.protocol === 'https:' || url.protocol === 'http:' ? url : null;
+  } catch {
+    return null;
+  }
+}
+
 export function ProfileSettings() {
   const { user, updateUser, refreshAuth } = useAuth();
   const confirm = useConfirm();
@@ -14,7 +29,9 @@ export function ProfileSettings() {
   const [isEditingUsername, setIsEditingUsername] = useState(false);
   const [newUsername, setNewUsername] = useState(user?.username ?? '');
   const [isSaving, setIsSaving] = useState(false);
-  const [error, setError] = useState('');
+  // A message, or (Connect started on another name for this server, e.g. the LAN name) the main
+  // address to connect from instead. One state, so every setError('') clears either.
+  const [error, setError] = useState<string | { connectAt: URL }>('');
   const [success, setSuccess] = useState('');
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
@@ -66,7 +83,22 @@ export function ProfileSettings() {
     setError('');
     setSuccess('');
     try {
-      const response = await authApi.oidcLink();
+      let response;
+      try {
+        response = await authApi.oidcLink();
+      } catch (err) {
+        const elsewhere = wrongHostAddress(err);
+        if (elsewhere === undefined) throw err;
+        if (elsewhere?.origin !== window.location.origin) {
+          // The provider would return to the main address, where this half-started connection
+          // cannot finish: send the user there instead
+          setError(elsewhere ? { connectAt: elsewhere } : SSO_ERROR_MESSAGES.wrong_host);
+          setIsLinkingSso(false);
+          return;
+        }
+        // The server names the address this page is already on: a proxy hides it, start here
+        response = await authApi.oidcLink(true);
+      }
       window.location.assign(response.data.url);
     } catch (err) {
       const message = (err as { response?: { data?: { message?: string } } }).response?.data?.message;
@@ -332,7 +364,17 @@ export function ProfileSettings() {
       {/* Status Messages */}
       {error && (
         <div role="alert" className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 rounded-md text-sm text-red-800 dark:text-red-200">
-          {error}
+          {typeof error === 'string' ? (
+            error
+          ) : (
+            <>
+              Connecting {sso?.providerName ?? 'Pocket ID'} only works from the main Notez address. Open{' '}
+              <a href={error.connectAt.href} className="font-medium underline">
+                {error.connectAt.host}
+              </a>
+              , sign in there, and choose Connect again.
+            </>
+          )}
         </div>
       )}
 

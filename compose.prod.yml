@@ -48,7 +48,9 @@ services:
     container_name: notez-backend
     restart: unless-stopped
     ports:
-      - "5173:3000"
+      # IPv4 only: Docker relays IPv6 connections through docker-proxy, so they would arrive from
+      # the Docker gateway, a trusted proxy address (TRUST_PROXY), and could forge X-Forwarded-*
+      - "0.0.0.0:5173:3000"
     environment:
       NODE_ENV: production
       PORT: 3000
@@ -64,6 +66,9 @@ services:
       EMAIL_FROM: ${EMAIL_FROM:-noreply@example.com}
       APP_NAME: ${APP_NAME:-Notez}
       APP_URL: ${APP_URL:-https://notez.example.com}
+      # Peers allowed to set X-Forwarded-For/-Host/-Proto. Empty = loopback,172.16.0.0/12 (a
+      # proxy or tunnel in Docker on this host). See docs/deployment.md "Reverse proxy and TRUST_PROXY"
+      TRUST_PROXY: ${TRUST_PROXY:-}
       # Single sign-on (OpenID Connect, e.g. Pocket ID). Leave unset to disable.
       # Callback to register at the provider: ${APP_URL}/api/auth/oidc/callback
       OIDC_ISSUER: ${OIDC_ISSUER:-}

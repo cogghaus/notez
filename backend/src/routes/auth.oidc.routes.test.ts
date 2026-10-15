@@ -228,6 +228,87 @@ describe('SSO routes', () => {
     expect(res.cookies.find((c) => c.name === 'oidc_tx')).toBeDefined();
   });
 
+  // Same cause as the login bounce above: a Connect started on the LAN name set its host-only
+  // transaction cookie there and could never finish on the APP_URL host. The link start is an
+  // XHR with a bearer token (no redirect possible, and the session on the LAN name does not
+  // exist on the APP_URL host), so it refuses and names the address to open instead.
+  describe('link started on a host other than the APP_URL callback host', () => {
+    beforeEach(() => {
+      mockOidc.getOidcSettings.mockReturnValue({
+        redirectUri: 'https://notez.example.com/api/auth/oidc/callback',
+      } as ReturnType<typeof oidcService.getOidcSettings>);
+      mockOidc.beginLogin.mockResolvedValue({
+        url: 'https://id.example.com/authorize?y=1',
+        transaction: { ...tx, linkUserId: 'admin1' },
+      });
+    });
+
+    it('answers 409 wrong_host with the APP_URL Settings address, without a cookie or a provider round trip', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/auth/oidc/link',
+        headers: { authorization: 'Bearer valid', host: 'notez.local.example.com' },
+      });
+
+      expect(res.statusCode).toBe(409);
+      expect(res.json()).toMatchObject({
+        code: 'wrong_host',
+        url: 'https://notez.example.com/settings/profile',
+      });
+      expect(res.cookies).toEqual([]);
+      expect(mockOidc.beginLogin).not.toHaveBeenCalled();
+    });
+
+    it('still requires a signed-in user first', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/auth/oidc/link',
+        headers: { host: 'notez.local.example.com' },
+      });
+      expect(res.statusCode).toBe(401);
+    });
+
+    it.each([
+      ['the APP_URL host', { host: 'notez.example.com' }],
+      ['upper case, a port and a trailing dot', { host: 'Notez.Example.COM.:443' }],
+      ['a proxy forwarding the APP_URL host', { host: 'notez-backend:3000', 'x-forwarded-host': 'notez.example.com' }],
+    ])('starts the link normally on %s', async (_n, headers) => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/auth/oidc/link',
+        headers: { authorization: 'Bearer valid', ...headers },
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toEqual({ url: 'https://id.example.com/authorize?y=1' });
+      expect(res.cookies.find((c) => c.name === 'oidc_tx')).toBeDefined();
+    });
+
+    // The browser knows which address it is on; a proxy that hides the APP_URL host from the
+    // backend must degrade to "start here" (as the login bounce does), never to a dead button.
+    it('starts the link when the page says it already is on the APP_URL address (?canonical=1)', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/auth/oidc/link?canonical=1',
+        headers: { authorization: 'Bearer valid', host: 'proxy-rewritten.example.com' },
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(mockOidc.beginLogin).toHaveBeenCalledWith('admin1');
+    });
+
+    it('never takes the address it names from the request', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/auth/oidc/link?next=https://evil.example.net',
+        headers: { authorization: 'Bearer valid', host: 'evil.example.net', 'x-forwarded-host': 'evil.example.net' },
+      });
+
+      expect(res.statusCode).toBe(409);
+      expect(res.json().url).toBe('https://notez.example.com/settings/profile');
+    });
+  });
+
   /** Run a Connect through the provider callback; returns the signed pending-link cookie */
   async function callbackForLink(sub: string): Promise<{ location: string; pending: string }> {
     mockOidc.beginLogin.mockResolvedValue({
