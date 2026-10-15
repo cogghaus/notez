@@ -26,21 +26,29 @@ function decodeEntities(text: string): string {
   });
 }
 
-function stripHtml(text: string): string {
-  // TipTap HTML always starts with a tag. Raw markdown (API notes) may use < and > as comparison
-  // signs, so there only unambiguous tags go: <b>, </b>, <br/>, or a tag with an attribute.
-  if (!/^\s*</.test(text)) {
-    return text.replace(/<\/?[a-z][a-z0-9]*\s*\/?>|<[a-z][a-z0-9]*\s[^<>]*=[^<>]*>/gi, '');
-  }
-  return (
-    text
-      .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, ' ')
-      // Block boundaries become spaces; inline tags (<strong>, <a>) vanish so "milk</em>." stays "milk."
-      .replace(/<\/?(p|div|h[1-6]|li|ul|ol|blockquote|pre|table|tr|td|th|section|article|br|hr)\b[^>]*>/gi, ' ')
-      .replace(/<[^>]*>/g, '')
-      // A tag cut open by the length cap (e.g. a long data: URL) is dropped, not shown as text.
-      .replace(/<[a-z/!][^>]*$/i, '')
-  );
+const BLOCKS = 'p,div,h1,h2,h3,h4,h5,h6,li,ul,ol,blockquote,pre,table,tr,td,th,section,article,br,hr';
+
+/**
+ * TipTap HTML always starts with a tag; HTML pasted into a markdown note has closing tags. Anything
+ * else is raw markdown, where < and > are comparison signs ("if x<y then y>z") and stay as text.
+ */
+function looksLikeHtml(text: string): boolean {
+  return /^\s*<|<\/[a-z]/i.test(text);
+}
+
+/**
+ * Text content via DOMParser, never regexes over markup. A parsed document is inert (no scripts
+ * run, nothing loads), decodes entities itself, and drops a tag the length cap cut open.
+ */
+function htmlToText(html: string): string {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  doc.querySelectorAll('script,style,template').forEach((el) => el.remove());
+  // Block boundaries become spaces; inline tags (<strong>, <a>) vanish so "milk</em>." stays "milk."
+  doc.querySelectorAll(BLOCKS).forEach((el) => {
+    el.before(' ');
+    el.after(' ');
+  });
+  return doc.body.textContent ?? '';
 }
 
 function stripMarkdown(text: string): string {
@@ -75,7 +83,8 @@ const MAX_SOURCE = 4096;
 export function previewText(content: string | null | undefined, max = 120): string {
   if (!content) return '';
   const source = content.length > MAX_SOURCE ? content.slice(0, MAX_SOURCE) : content;
-  const text = stripMarkdown(decodeEntities(stripHtml(source)))
+  const plain = looksLikeHtml(source) ? htmlToText(source) : decodeEntities(source);
+  const text = stripMarkdown(plain)
     .replace(/\s+/g, ' ')
     .trim();
   if (text.length <= max) return text;

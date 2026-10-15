@@ -26,6 +26,23 @@ describe('previewText', () => {
     expect(previewText('if a < b then')).toBe('if a < b then');
   });
 
+  it('decodes entities once, never twice', () => {
+    expect(previewText('<p>&amp;lt;b&amp;gt; is a tag</p>')).toBe('&lt;b&gt; is a tag');
+  });
+
+  it('strips inline HTML inside a markdown note', () => {
+    expect(previewText('Some text <b>bold</b> here')).toBe('Some text bold here');
+  });
+
+  it('never runs markup from the note (the parsed document is inert)', () => {
+    const w = window as unknown as { __pwned?: number };
+    delete w.__pwned;
+    expect(previewText('<p>x</p><img src="nope" onerror="window.__pwned=1"><script>window.__pwned=2</script>')).toBe(
+      'x',
+    );
+    expect(w.__pwned).toBeUndefined();
+  });
+
   it('keeps comparison signs in raw markdown', () => {
     expect(previewText('a < b and c > d')).toBe('a < b and c > d');
     expect(previewText('if x<y then y>z')).toBe('if x<y then y>z');
