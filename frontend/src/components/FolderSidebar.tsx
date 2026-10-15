@@ -883,7 +883,7 @@ export const FolderSidebar = forwardRef<FolderSidebarHandle, FolderSidebarProps>
           className="w-full flex items-center justify-center gap-2 text-xs text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
         >
           {showNewBadge && (
-            <span className="flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 rounded-full text-[10px] font-medium animate-pulse">
+            <span className="flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 xl:text-blue-600 xl:dark:text-blue-400 rounded-full text-xs xl:text-[10px] font-medium animate-pulse">
               <Sparkles className="w-3 h-3" />
               NEW
             </span>

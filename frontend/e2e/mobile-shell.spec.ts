@@ -121,7 +121,7 @@ test.describe('below xl', () => {
     await opener.click();
     const sheet = page.getByRole('dialog', { name: 'tester' });
     await expect(sheet).toBeVisible();
-    for (const name of ['Settings', "What's New", 'Sign out']) {
+    for (const name of ['Settings', "What's New", 'Share feedback', 'Sign out']) {
       await expect(sheet.getByRole('button', { name })).toBeVisible();
     }
     await page.keyboard.press('Escape');

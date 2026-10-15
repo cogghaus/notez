@@ -5,6 +5,7 @@ import { Bell, Check, CheckCheck, Trash2, MessageSquare, RefreshCw, Sparkles, Us
 import { notificationsApi } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from './Toast';
+import { nextDepth } from '../lib/mobileNav';
 import { formatDistanceToNow } from 'date-fns';
 
 interface Notification {
@@ -19,7 +20,15 @@ interface Notification {
   readAt: string | null;
 }
 
-export function NotificationBell() {
+const DEFAULT_BUTTON_CLASS =
+  'relative p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors';
+
+interface NotificationBellProps {
+  /** Override the button styling (the mobile top bar uses a 48px target). */
+  buttonClassName?: string;
+}
+
+export function NotificationBell({ buttonClassName = DEFAULT_BUTTON_CLASS }: NotificationBellProps = {}) {
   const { user } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
@@ -112,6 +121,9 @@ export function NotificationBell() {
   const unreadCount = unreadData?.data?.count ?? 0;
   const notifications: Notification[] = notificationsData?.data?.notifications ?? [];
 
+  // Pushes carry the shell depth so Back and reload stay correct below xl (mobile nav)
+  const go = (to: string) => navigate(to, { state: { depth: nextDepth() } });
+
   const handleNotificationClick = (notification: Notification) => {
     // Mark as read if not already
     if (!notification.isRead) {
@@ -122,19 +134,19 @@ export function NotificationBell() {
     if (notification.linkType === 'feedback') {
       // For admins, navigate to feedback section with the item ID in search params
       if (user?.role === 'admin') {
-        navigate(`/settings/feedback?expandFeedback=${notification.linkId}`);
+        go(`/settings/feedback?expandFeedback=${notification.linkId}`);
       }
       // For regular users, the notification itself contains the update info
       // No navigation needed - they can see the status update in the notification message
     } else if (notification.linkType === 'note' && notification.linkId) {
       // Navigate to the shared note and switch sidebar to "Shared with me"
-      navigate(`/?note=${notification.linkId}&folder=shared`);
+      go(`/?note=${notification.linkId}&folder=shared`);
     } else if (notification.linkType === 'release') {
       // Navigate to changelog/What's New - clicking the version number in settings
-      navigate('/settings/profile');
+      go('/settings/profile');
     } else if (notification.linkType === 'mcp_client') {
       // Navigate to MCP Connectors settings for approval
-      navigate('/settings/connectors');
+      go('/settings/connectors');
     }
 
     setIsOpen(false);
@@ -163,7 +175,7 @@ export function NotificationBell() {
     <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+        className={buttonClassName}
         aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ''}`}
         aria-expanded={isOpen}
         aria-haspopup="true"

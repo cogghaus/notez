@@ -219,7 +219,7 @@ export const NoteList = forwardRef<NoteListHandle, NoteListProps>(({ folderId, t
       </div>
 
       {/* Notes List */}
-      <div className="flex-1 overflow-y-auto">
+      <div data-note-list-scroll className="flex-1 overflow-y-auto">
         {isLoading ? (
           <div className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">Loading...</div>
         ) : notes.length === 0 ? (
@@ -240,6 +240,7 @@ export const NoteList = forwardRef<NoteListHandle, NoteListProps>(({ folderId, t
             return (
               <button
                 key={note.id}
+                data-note-id={note.id}
                 onClick={() => onSelectNote(note.id)}
                 draggable={folderId !== 'trash' && folderId !== 'shared' && folderId !== 'my-shares' && folderId !== 'service-accounts'}
                 onDragStart={(e) => {

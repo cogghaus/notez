@@ -165,6 +165,9 @@ const MODES = ['resizes-visual', 'resizes-content'] as const;
 
 for (const mode of MODES) {
   test(`[${mode}] note stays scrollable and the caret visible with the on-screen keyboard open`, async ({ page }, testInfo) => {
+    // The on-screen keyboard and writing mode exist below xl only; the optional desktop project
+    // has neither (these failed there since PR1).
+    test.skip(testInfo.project.name === 'desktop', 'phones and the Fold only');
     await page.goto('/', { waitUntil: 'domcontentloaded' });
 
     // Real mobile flow: the notes list is shown first; tap the note to open the editor.
@@ -233,14 +236,14 @@ for (const mode of MODES) {
     expect.soft(m.caretTop, `caret top (${m.caretTop}) >= scroller top (${m.scrollerTop})`).toBeGreaterThanOrEqual(m.scrollerTop - 1);
     expect.soft(m.pageScrollTop, 'page does not pan').toBe(0);
 
-    // Minimal writing mode: below xl, with the keyboard open and focus in the editor, the app header,
-    // the folder, tag and AI rows and the bottom navigation are hidden so the note gets most of the
-    // visible area.
+    // Minimal writing mode: below xl, with the keyboard open and focus in the editor, the top row
+    // (Back), the folder, tag and AI rows and the bottom navigation are hidden so the note gets most of
+    // the visible area. The tab bar is not rendered in the editor at all since PR3.
     const minShare = testInfo.project.name === 'fold-inner' ? 0.5 : 0.6;
     const share = (m.scrollerBottom - m.scrollerTop) / visibleHeight;
     console.log(`[e2e] [${mode}] scroller ${Math.round(m.scrollerBottom - m.scrollerTop)} of ${visibleHeight} visible, share ${share.toFixed(2)} (need >= ${minShare})`);
     expect.soft(share, `note scroller share of the visible height (${share.toFixed(2)}) >= ${minShare}`).toBeGreaterThanOrEqual(minShare);
-    await expect.soft(page.locator('nav').first(), 'app header hidden in writing mode').toBeHidden();
+    await expect.soft(shellTopRow(page), 'top row hidden in writing mode').toBeHidden();
     await expect.soft(aiRows(page), 'AI actions row hidden in writing mode').toHaveCount(0);
     await expect.soft(bottomNav(page), 'bottom navigation hidden in writing mode').toBeHidden();
     await expect.soft(page.getByPlaceholder('Untitled Note'), 'title row stays').toBeVisible();
@@ -257,9 +260,9 @@ for (const mode of MODES) {
     // Focus leaves the editor while the keyboard is still up: everything returns at once, before
     // the keyboard has gone.
     await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
-    await expect.soft(page.locator('nav').first(), 'app header returns after blur').toBeVisible();
+    await expect.soft(shellTopRow(page), 'top row returns after blur').toBeVisible();
     await expect.soft(aiRows(page), 'AI actions row returns after blur').toHaveCount(1);
-    await expect.soft(bottomNav(page), 'bottom navigation returns after blur').toBeVisible();
+    await expect.soft(bottomNav(page), 'no tab bar in the editor').toHaveCount(0);
 
     // Keyboard closes: the shell grows back to the full height.
     if (mode === 'resizes-content') {
@@ -274,6 +277,11 @@ for (const mode of MODES) {
 /** Visible AI row label: "AI Actions" below sm, "AI:" from sm up. Counts only rendered ones. */
 function aiRows(page: Page) {
   return page.getByText(/^(AI Actions|AI:)$/).locator('visible=true');
+}
+
+/** The editor's top row below xl (the Back row, marked as shell chrome). */
+function shellTopRow(page: Page) {
+  return page.locator('[data-mobile-shell]').first();
 }
 
 /** The mobile bottom navigation bar (below xl). */

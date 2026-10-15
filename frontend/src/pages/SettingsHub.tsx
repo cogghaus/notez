@@ -1,7 +1,8 @@
 import { useCallback } from 'react';
-import { useNavigate, useParams, Link } from 'react-router-dom';
-import { User, Bot, Shield, ArrowLeft, MessageSquare, Key, Webhook, Sparkles, Plug } from 'lucide-react';
+import { useLocation, useNavigate, useParams, Link } from 'react-router-dom';
+import { User, Bot, Shield, ArrowLeft, ChevronRight, MessageSquare, Key, Webhook, Sparkles, Plug } from 'lucide-react';
 import { AppHeader } from '../components/AppHeader';
+import { MobileBackBar } from '../components/mobile/MobileBackBar';
 import { ProfileSettings } from '../components/ProfileSettings';
 import { AISettings } from '../components/AISettings';
 import { AdminPanel } from '../components/AdminPanel';
@@ -11,6 +12,8 @@ import { AgentSettings } from '../components/AgentSettings';
 import { WebhookSettings } from '../components/WebhookSettings';
 import { McpConnectorSettings } from '../components/McpConnectorSettings';
 import { useAuth } from '../contexts/AuthContext';
+import { useLayoutClass } from '../lib/useLayoutClass';
+import { useMobileNav } from '../lib/useMobileNav';
 
 export type SettingsSection = 'profile' | 'ai' | 'agents' | 'tokens' | 'webhooks' | 'connectors' | 'admin' | 'feedback';
 
@@ -68,6 +71,10 @@ export const SECTION_CONFIG = {
 export function SettingsHub() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  // Below xl the phone list and page branch applies (Medium shares the Compact shell until PR8)
+  const compact = useLayoutClass() !== 'expanded';
+  const nav = useMobileNav(compact);
   const { section } = useParams<{ section?: SettingsSection }>();
 
   // Determine active section from URL path parameter
@@ -80,10 +87,11 @@ export function SettingsHub() {
   const activeSection: SettingsSection =
     isValidSection && !isUnauthorizedAdmin ? rawSection : 'profile';
 
-  // Navigate to section - updates URL path
+  // Navigate to section - updates URL path. The router state (history depth) is carried over so
+  // Back keeps working after switching sections.
   const navigateToSection = useCallback((newSection: SettingsSection) => {
-    navigate(`/settings/${newSection}`, { replace: true });
-  }, [navigate]);
+    navigate(`/settings/${newSection}`, { replace: true, state: location.state });
+  }, [navigate, location.state]);
 
   // Filter sections based on user role
   const availableSections = Object.entries(SECTION_CONFIG).filter(
@@ -115,15 +123,57 @@ export function SettingsHub() {
 
   const currentConfig = SECTION_CONFIG[activeSection];
 
+  // Compact (< 600px): the two-column layout becomes a list page and a page per section, each a
+  // history entry (spec 8). Medium and up keep the two columns below.
+  if (compact) {
+    return (
+      <div className="h-[var(--app-h,100dvh)] overflow-hidden flex flex-col bg-gray-100 dark:bg-gray-900">
+        <main className="flex-1 min-h-0 flex flex-col">
+          {section === undefined ? (
+            <>
+              <MobileBackBar title="Settings" onBack={nav.back} />
+              <nav aria-label="Settings sections" className="flex-1 min-h-0 overflow-y-auto overscroll-contain bg-white dark:bg-gray-900">
+                {availableSections.map(([key, config]) => {
+                  const Icon = config.icon;
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => nav.openSettingsSection(key)}
+                      className="w-full min-h-14 px-4 py-2 flex items-center gap-3 text-left border-b border-gray-100 dark:border-gray-700/60 hover:bg-gray-50 dark:hover:bg-gray-800"
+                    >
+                      <Icon className="w-5 h-5 flex-shrink-0 text-gray-500 dark:text-gray-400" aria-hidden="true" />
+                      <span className="flex-1 min-w-0">
+                        <span className="block text-base text-gray-900 dark:text-white">{config.label}</span>
+                        <span className="block text-sm text-gray-600 dark:text-gray-400">{config.description}</span>
+                      </span>
+                      <ChevronRight className="w-5 h-5 flex-shrink-0 text-gray-500 dark:text-gray-400" aria-hidden="true" />
+                    </button>
+                  );
+                })}
+              </nav>
+            </>
+          ) : (
+            <>
+              <MobileBackBar title={currentConfig.label} onBack={nav.back} />
+              <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 py-4">
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">{renderContent()}</div>
+              </div>
+            </>
+          )}
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900 flex flex-col">
       <AppHeader />
 
-      {/* Column on phones (section picker above the content), row from md. In a row the picker's
-          w-full squeezed main to 0px wide below md (mobile PR2, audit 2.2). */}
-      <div className="flex-1 flex flex-col md:flex-row">
+      {/* Row from `medium` (600px). Below it the Compact list and page branch above renders instead. */}
+      <div className="flex-1 flex flex-col medium:flex-row">
         {/* Sidebar */}
-        <aside className="w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 hidden md:block">
+        <aside className="w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 hidden medium:block">
           <div className="p-4">
             <Link
               to="/"
@@ -166,33 +216,6 @@ export function SettingsHub() {
             })}
           </nav>
         </aside>
-
-        {/* Mobile section selector */}
-        <div className="md:hidden bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-2 w-full">
-          <Link
-            to="/"
-            className="inline-flex items-center space-x-1 text-sm text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors mb-2"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Back to Notes</span>
-          </Link>
-          <label htmlFor="settings-section-select" className="sr-only">
-            Select settings section
-          </label>
-          <select
-            id="settings-section-select"
-            name="settings-section"
-            value={activeSection}
-            onChange={(e) => navigateToSection(e.target.value as SettingsSection)}
-            className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-400 dark:border-gray-500 rounded-md text-gray-900 dark:text-white"
-          >
-            {availableSections.map(([key, config]) => (
-              <option key={key} value={key}>
-                {config.label}
-              </option>
-            ))}
-          </select>
-        </div>
 
         {/* Main content */}
         <main className="flex-1 min-w-0 overflow-y-auto">

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, type CSSProperties } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, type CSSProperties } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { FolderSidebar, type FolderSidebarHandle } from '../components/FolderSidebar';
 import { NoteList, type NoteListHandle } from '../components/NoteList';
@@ -8,9 +8,17 @@ import KanbanBoard from '../components/KanbanBoard';
 import TaskForm from '../components/TaskForm';
 import { AppHeader } from '../components/AppHeader';
 import { ResizeHandle } from '../components/ResizeHandle';
-import { Menu, FileText, Edit3, CheckSquare, LayoutList, Columns } from 'lucide-react';
+import { Folder, Tag, LayoutList, Columns } from 'lucide-react';
 import { ServiceAccountDashboard } from '../components/ServiceAccountDashboard';
 import { ServiceAccountWorkspace } from '../components/ServiceAccountWorkspace';
+import { MobileTopBar } from '../components/mobile/MobileTopBar';
+import { MobileBackBar } from '../components/mobile/MobileBackBar';
+import { MobileTabBar } from '../components/mobile/MobileTabBar';
+import { MobileSearch } from '../components/mobile/MobileSearch';
+import { AccountSheet } from '../components/mobile/AccountSheet';
+import { useLayoutClass } from '../lib/useLayoutClass';
+import { useMobileNav } from '../lib/useMobileNav';
+import { useNotesFilterLabel } from '../lib/useNotesFilterLabel';
 import type { Task } from '../types';
 
 const VIRTUAL_FOLDER_IDS = new Set(['shared', 'my-shares', 'unfiled', 'trash', 'service-accounts']);
@@ -55,7 +63,6 @@ export function EditorPage() {
     // Default to kanban on desktop (xl = 1280px), list on mobile
     return window.innerWidth >= 1280 ? 'kanban' : 'list';
   });
-  const [mobileView, setMobileView] = useState<'sidebar' | 'list' | 'editor'>('list');
   const [selectedServiceAccount, setSelectedServiceAccount] = useState<{ id: string; username: string } | null>(null);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [kanbanKey, setKanbanKey] = useState(0); // For refreshing kanban
@@ -81,6 +88,26 @@ export function EditorPage() {
   });
   const noteListRef = useRef<NoteListHandle>(null);
   const sidebarRef = useRef<FolderSidebarHandle>(null);
+  const listPaneRef = useRef<HTMLDivElement>(null);
+
+  // Below xl (Compact, and Medium until the rail lands in PR8) the mobile shell applies: navigation
+  // state (tab, open note, Folders screen, account sheet) lives in the URL and history, not here.
+  const shell = useLayoutClass() !== 'expanded';
+  const nav = useMobileNav(shell);
+  const filterLabel = useNotesFilterLabel(selectedFolderId, selectedTagId);
+
+  const activeNoteId = shell ? nav.noteId : selectedNoteId;
+  const activeView: 'notes' | 'tasks' = shell ? (nav.tab === 'tasks' ? 'tasks' : 'notes') : selectedView;
+  const showEditor = shell && nav.noteId !== null;
+  const mobileView: 'sidebar' | 'list' | 'editor' | 'search' = !shell
+    ? 'list'
+    : showEditor
+      ? 'editor'
+      : nav.foldersOpen
+        ? 'sidebar'
+        : nav.tab === 'search'
+          ? 'search'
+          : 'list';
 
   // Persist sidebar collapsed state
   useEffect(() => {
@@ -110,8 +137,10 @@ export function EditorPage() {
     setListWidth((w) => Math.min(LIST_MAX, Math.max(LIST_MIN, w + delta)));
   }, []);
 
-  // Handle URL query parameters for note selection (from search or notifications)
+  // Desktop: URL query parameters for note selection (from search or notifications) are read once and
+  // cleared. Below xl the `note` parameter IS the editor state (see useMobileNav) and stays.
   useEffect(() => {
+    if (shell) return;
     const noteId = searchParams.get('note');
     const folder = searchParams.get('folder');
     if (noteId) {
@@ -121,18 +150,64 @@ export function EditorPage() {
         setSelectedFolderId(folder);
         setSelectedTagId(null);
       }
-      setMobileView('editor'); // Switch to editor on mobile when note is selected
       // Clear the query parameters after setting state
       setSearchParams({});
     }
-  }, [searchParams, setSearchParams]);
+  }, [searchParams, setSearchParams, shell]);
 
-  // Auto-switch to editor view on mobile when a note is selected
+  // Mobile: a `folder` parameter on a note link (notifications) selects that view for the list behind
+  const folderParam = searchParams.get('folder');
   useEffect(() => {
-    if (selectedNoteId && selectedView === 'notes') {
-      setMobileView('editor');
+    if (shell && folderParam) {
+      setSelectedFolderId(folderParam);
+      setSelectedTagId(null);
     }
-  }, [selectedNoteId, selectedView]);
+  }, [shell, folderParam]);
+
+  // Crossing xl keeps the open note and view: unfolding to a desktop width hands the URL state to
+  // the desktop selection (the effect above), and folding back re-opens the note as a pushed screen.
+  const wasShellRef = useRef(shell);
+  useEffect(() => {
+    if (shell && !wasShellRef.current && selectedNoteId && selectedView === 'notes') {
+      nav.openNote(selectedNoteId);
+    }
+    wasShellRef.current = shell;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shell]);
+  useEffect(() => {
+    if (!shell) return;
+    setSelectedNoteId(nav.noteId);
+    setSelectedView(nav.tab === 'tasks' ? 'tasks' : 'notes');
+  }, [shell, nav.noteId, nav.tab]);
+
+  // Closing the editor returns to the list where the user left it: same scroll position, focus on
+  // the row that was open. The list stays mounted (hidden) while the editor shows. Scroll position
+  // is tracked while the list is visible and put back when it reappears.
+  const listScrollRef = useRef(0);
+  const editorOpenRef = useRef(false);
+  editorOpenRef.current = showEditor;
+  const lastNoteIdRef = useRef<string | null>(null);
+
+  useLayoutEffect(() => {
+    if (!shell || showEditor) return;
+    const scroller = listPaneRef.current?.querySelector<HTMLElement>('[data-note-list-scroll]');
+    if (scroller && listScrollRef.current > 0) scroller.scrollTop = listScrollRef.current;
+  }, [shell, showEditor]);
+
+  useEffect(() => {
+    // A different list (folder, tag or tab) starts at the top
+    listScrollRef.current = 0;
+  }, [selectedFolderId, selectedTagId, nav.tab]);
+
+  useEffect(() => {
+    const prev = lastNoteIdRef.current;
+    lastNoteIdRef.current = nav.noteId;
+    if (!shell || !prev || nav.noteId) return;
+    const row = Array.from(document.querySelectorAll<HTMLElement>(`[data-note-id="${CSS.escape(prev)}"]`)).find(
+      (el) => el.getClientRects().length > 0,
+    );
+    row?.focus({ preventScroll: true });
+  }, [shell, nav.noteId]);
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -159,21 +234,58 @@ export function EditorPage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  /** Note picked in the list or in a service account workspace. */
+  const selectNote = (noteId: string) => {
+    if (shell) nav.openNote(noteId);
+    else setSelectedNoteId(noteId);
+  };
+
+  /** Note opened from a task (links in the agenda and the kanban board). */
   const handleNoteClick = (noteId: string) => {
+    if (shell) {
+      nav.openNote(noteId);
+      return;
+    }
     setSelectedView('notes');
     setSelectedNoteId(noteId);
-    setMobileView('editor');
   };
+
+  /** The editor closed itself (note deleted or restored): leave the pushed screen. */
+  const leaveEditor = () => {
+    setSelectedNoteId(null);
+    if (shell) nav.back();
+  };
+
+  const editorMounted = shell ? nav.noteId !== null : selectedView === 'notes';
+  const topTitle = nav.tab === 'tasks' ? 'Tasks' : nav.tab === 'search' ? 'Search' : filterLabel.label;
+  const showTopBar = shell && (mobileView === 'list' || mobileView === 'search');
 
   return (
     // Height follows the visible viewport (--app-h, see lib/viewport.ts) so the on-screen keyboard
     // never covers the bottom of the note. Falls back to 100dvh until the variable is set.
     <div className="h-[var(--app-h,100dvh)] overflow-hidden flex flex-col bg-gray-100 dark:bg-gray-900">
-      {/* Top Navigation */}
-      <AppHeader />
+      {/* Top Navigation: the desktop header at xl, the mobile top bar or Back row below it */}
+      {!shell && <AppHeader />}
+      {showTopBar && (
+        <MobileTopBar
+          title={topTitle}
+          titleIcon={
+            nav.tab === 'notes' ? (
+              filterLabel.kind === 'tag' ? (
+                <Tag className="w-5 h-5 flex-shrink-0 text-gray-500 dark:text-gray-400" aria-hidden="true" />
+              ) : (
+                <Folder className="w-5 h-5 flex-shrink-0 text-gray-500 dark:text-gray-400" aria-hidden="true" />
+              )
+            ) : undefined
+          }
+          onTitleClick={nav.tab === 'notes' ? nav.openFolders : undefined}
+          onOpenAccount={nav.openAccount}
+        />
+      )}
+      {shell && mobileView === 'sidebar' && <MobileBackBar title="Folders" onBack={nav.back} />}
 
       {/* Main Content Area */}
-      <div className="flex flex-1 min-h-0 overflow-hidden pb-20 xl:pb-0" data-kb-pad>
+      <div className="flex flex-1 min-h-0 overflow-hidden" data-kb-pad>
         {/* Folder Sidebar - Hidden on mobile unless mobileView === 'sidebar' */}
         <div
           className={`${mobileView === 'sidebar' ? 'block' : 'hidden'} xl:block flex-shrink-0 w-full xl:w-[var(--pane-w)]`}
@@ -183,7 +295,7 @@ export function EditorPage() {
             ref={sidebarRef}
             selectedFolderId={selectedFolderId}
             selectedTagId={selectedTagId}
-            selectedView={selectedView}
+            selectedView={activeView}
             onSelectFolder={(folderId) => {
               setSelectedFolderId(folderId);
               setSelectedNoteId(null);
@@ -194,22 +306,23 @@ export function EditorPage() {
               if (isVirtual || selectedView !== 'tasks') {
                 setSelectedView('notes');
               }
-              setMobileView('list');
+              if (shell) nav.leave(); // Back to the Notes list, filtered
             }}
             onSelectTag={(tagId) => {
               setSelectedTagId(tagId);
               setSelectedNoteId(null);
               setSelectedServiceAccount(null); // Clear service account drill-down
               setSelectedView('notes'); // Switch to notes view when tag is selected
-              setMobileView('list'); // Switch to list view on mobile after selecting tag
+              if (shell) nav.leave();
             }}
             onSelectView={(view) => {
               setSelectedView(view);
               setSelectedNoteId(null);
               setSelectedServiceAccount(null); // Clear service account drill-down
-              setMobileView('list'); // Switch to list view on mobile after selecting view
+              if (shell && view === 'tasks') nav.replaceWithTab('tasks');
             }}
-            collapsed={sidebarCollapsed}
+            // The full sidebar always shows in the phone Folders screen; a saved collapse is a desktop choice
+            collapsed={sidebarCollapsed && !shell}
             onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
             onNoteMoved={() => {
               // Refresh note list when a note is moved via drag-and-drop
@@ -226,8 +339,14 @@ export function EditorPage() {
           />
         )}
 
-        {/* Note List, Task List, or Service Account Views */}
+        {/* Note List, Task List, or Service Account Views (the Search tab has its own pane below) */}
         <div
+          ref={listPaneRef}
+          onScrollCapture={(e) => {
+            // Remember where the notes list was scrolled while it is visible
+            const el = e.target as HTMLElement;
+            if (!editorOpenRef.current && el.hasAttribute('data-note-list-scroll')) listScrollRef.current = el.scrollTop;
+          }}
           className={`${mobileView === 'list' ? 'block' : 'hidden'} xl:block ${
             selectedFolderId === 'service-accounts' && !selectedServiceAccount
               ? 'flex-1 w-full'
@@ -237,8 +356,8 @@ export function EditorPage() {
             ? selectedServiceAccount ? paneWidth(SA_WORKSPACE_WIDTH) : undefined
             : paneWidth(listWidth)}
         >
-          {/* Service Account Dashboard (no account selected yet) */}
-          {selectedFolderId === 'service-accounts' && !selectedServiceAccount ? (
+          {shell && nav.tab === 'search' ? null : selectedFolderId === 'service-accounts' && !selectedServiceAccount ? (
+            // Service Account Dashboard (no account selected yet)
             <ServiceAccountDashboard
               onSelectAccount={(id, username) => setSelectedServiceAccount({ id, username })}
             />
@@ -247,18 +366,16 @@ export function EditorPage() {
               accountId={selectedServiceAccount.id}
               username={selectedServiceAccount.username}
               onBack={() => setSelectedServiceAccount(null)}
-              onSelectNote={(noteId) => {
-                setSelectedNoteId(noteId);
-              }}
-              selectedNoteId={selectedNoteId}
+              onSelectNote={selectNote}
+              selectedNoteId={activeNoteId}
             />
-          ) : selectedView === 'notes' ? (
+          ) : activeView === 'notes' ? (
             <NoteList
               ref={noteListRef}
               folderId={selectedFolderId}
               tagId={selectedTagId}
-              selectedNoteId={selectedNoteId}
-              onSelectNote={setSelectedNoteId}
+              selectedNoteId={activeNoteId}
+              onSelectNote={selectNote}
               onNoteCreated={() => {
                 // Refresh sidebar counts after note creation
                 sidebarRef.current?.refreshFolders();
@@ -266,7 +383,7 @@ export function EditorPage() {
             />
           ) : (
             <div className="flex flex-col h-full">
-              {/* Task View Mode Toggle — hidden in service account mode (list view only) */}
+              {/* Task View Mode Toggle, hidden in service account mode (list view only) */}
               {selectedFolderId !== 'service-accounts' && (
                 <div className="hidden xl:flex items-center justify-end gap-1 p-2 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
                   <button
@@ -302,6 +419,13 @@ export function EditorPage() {
           )}
         </div>
 
+        {/* Search tab (below xl). Stays mounted while a result is open so Back restores the results. */}
+        {shell && nav.tab === 'search' && (
+          <div className={`${mobileView === 'search' ? 'block' : 'hidden'} flex-1 min-w-0 w-full`}>
+            <MobileSearch onOpenNote={nav.openNote} />
+          </div>
+        )}
+
         {/* List Resize Handle - hidden only for full-width dashboard */}
         {!(selectedFolderId === 'service-accounts' && !selectedServiceAccount) && (
           <ResizeHandle
@@ -311,16 +435,16 @@ export function EditorPage() {
         )}
 
         {/* Note Editor - Hidden on mobile unless mobileView === 'editor', hidden when dashboard is showing (no account selected) */}
-        {selectedView === 'notes' && !(selectedFolderId === 'service-accounts' && !selectedServiceAccount) && (
+        {editorMounted && !(selectedFolderId === 'service-accounts' && !selectedServiceAccount) && (
           <div className={`flex-1 flex-col min-h-0 min-w-0 ${mobileView === 'editor' ? 'flex' : 'hidden'} xl:flex`}>
+            {shell && <MobileBackBar onBack={nav.back} hideWhileWriting />}
             <NoteEditor
-              noteId={selectedNoteId}
+              noteId={activeNoteId}
               serviceAccountMode={selectedFolderId === 'service-accounts'}
               onNoteDeleted={(noteId) => {
-                setSelectedNoteId(null);
-                setMobileView('list'); // Return to list view on mobile after deleting
                 noteListRef.current?.removeNote(noteId);
                 sidebarRef.current?.refreshAll();
+                leaveEditor(); // Return to the list after deleting
               }}
               onTagsChanged={() => {
                 sidebarRef.current?.refreshTags();
@@ -333,10 +457,9 @@ export function EditorPage() {
                 }
               }}
               onNoteRestored={(noteId) => {
-                setSelectedNoteId(null);
-                setMobileView('list'); // Return to list view on mobile after restoring
                 noteListRef.current?.removeNote(noteId); // Remove from trash list
                 sidebarRef.current?.refreshAll(); // Refresh counts
+                leaveEditor(); // Return to the list after restoring
               }}
             />
           </div>
@@ -367,60 +490,10 @@ export function EditorPage() {
         />
       )}
 
-      {/* Mobile Bottom Navigation - Only visible on small screens */}
-      <div data-kb-hide data-mobile-bottom-nav className="xl:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 flex justify-around py-4 px-2 min-h-[60px] z-50">
-        <button
-          onClick={() => setMobileView('sidebar')}
-          className={`flex flex-col items-center px-4 py-2 rounded-md ${
-            mobileView === 'sidebar'
-              ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20'
-              : 'text-gray-600 dark:text-gray-400'
-          }`}
-        >
-          <Menu className="w-5 h-5" />
-          <span className="text-xs mt-1">Folders</span>
-        </button>
-        <button
-          onClick={() => {
-            setMobileView('list');
-            setSelectedView('notes');
-          }}
-          className={`flex flex-col items-center px-4 py-2 rounded-md ${
-            mobileView === 'list' && selectedView === 'notes'
-              ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20'
-              : 'text-gray-600 dark:text-gray-400'
-          }`}
-        >
-          <FileText className="w-5 h-5" />
-          <span className="text-xs mt-1">Notes</span>
-        </button>
-        <button
-          onClick={() => {
-            setMobileView('list');
-            setSelectedView('tasks');
-          }}
-          className={`flex flex-col items-center px-4 py-2 rounded-md ${
-            mobileView === 'list' && selectedView === 'tasks'
-              ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20'
-              : 'text-gray-600 dark:text-gray-400'
-          }`}
-        >
-          <CheckSquare className="w-5 h-5" />
-          <span className="text-xs mt-1">Tasks</span>
-        </button>
-        <button
-          onClick={() => setMobileView('editor')}
-          className={`flex flex-col items-center px-4 py-2 rounded-md ${
-            mobileView === 'editor'
-              ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20'
-              : 'text-gray-600 dark:text-gray-400'
-          }`}
-          disabled={!selectedNoteId || selectedView !== 'notes'}
-        >
-          <Edit3 className="w-5 h-5" />
-          <span className="text-xs mt-1">Editor</span>
-        </button>
-      </div>
+      {/* Mobile tab bar: list screens only; the editor and pushed pages are full screen */}
+      {showTopBar && <MobileTabBar current={nav.tab} onSelect={nav.selectTab} />}
+
+      <AccountSheet open={shell && nav.sheet === 'account'} onClose={nav.leave} onOpenSettings={nav.openSettings} />
     </div>
   );
 }

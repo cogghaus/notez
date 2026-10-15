@@ -39,13 +39,13 @@ The project as a whole is a minor bump. Proposed mapping:
 | PR | Bump | Reason |
 | --- | --- | --- |
 | PR1 | patch (1.30.5) | Bug fix, no new experience |
-| PR2 | patch (1.31.1) | Bug fixes, no new experience |
-| PR3 | **minor -> 1.32.0 (re-proposed, awaiting Adam)** | First PR that ships the new mobile experience (new navigation) |
+| PR2 | patch (1.31.2) | Bug fixes, no new experience |
+| PR3 | **minor -> 1.32.0 (approved 2026-10-15)** | First PR that ships the new mobile experience (new navigation) |
 | PR4 to PR9 | patch (1.32.x) | Increments within the mobile release |
 
 Updated 2026-10-14: 1.31.0 went to the Foyer task schema (#190) between PR1 and PR2, so PR2 is a
-1.31.x patch and PR3's minor moves to 1.32.0. The 2026-10-11 approval covered 1.31.0 for PR3; the
-new number needs Adam's nod.
+1.31.x patch and PR3's minor moves to 1.32.0. Then the sign-in hotfix (#194) took 1.31.1, so PR2
+shipped as 1.31.2. Adam approved 1.32.0 for PR3 on 2026-10-15.
 
 Alternative: an integration branch with all phases, one merge to `main` as 1.31.0. Rejected for now
 because real-device testing and the cron deploy both run from `main`, and a long-lived branch would
@@ -121,7 +121,19 @@ strip function). Monaco follows the app theme.
 
 **Acceptance criteria:** tests above pass; Settings usable at 360px; desktop unchanged.
 
-## PR3: Mobile shell and navigation (`feature/mobile-shell-nav`) -> 1.32.0 (pending approval)
+## PR3: Mobile shell and navigation (`feature/mobile-shell-nav`) -> 1.32.0
+
+Scope decisions taken when PR3 was built (2026-10-15):
+- Medium (600 to 1279px) uses the Compact shell (bottom tabs) until PR8 brings the rail and the
+  two-pane layout; the N3 back-stack case (Medium detail pane Close) moves to PR8.
+- The Folders tab goes; until PR5's filter sheet the Notes title button pushes a full-screen Folders
+  view (the existing sidebar).
+- Notifications keep the existing header popover; the pushed Notifications page (3.4) is not built.
+- Search covers notes only; task search and the scope chips arrive with PR6.
+- The account menu offers Light and Dark; "System" needs a ThemeContext change and comes later.
+- History goes through React Router (`navigate` with `location.state.depth`), never raw
+  `pushState`, so the app has one history.
+- The Playwright suite runs on a production build since #194 (dev-only StrictMode masked a bug).
 
 - `useLayoutClass()` from `matchMedia` (Compact <600, Medium 600-1279, Expanded >=1280), live on
   resize, replacing the one-time `innerWidth` checks.
@@ -237,6 +249,8 @@ and change status without gestures.
 - Medium layout: navigation rail, notes list plus editor, agenda plus task detail.
 - Posture continuity: fold/unfold keeps the open note or task, scroll position and unsaved text;
   an open task sheet becomes the detail pane and back.
+- Carried from PR3: the rail (spec 3.2) and the N3 back-stack case in `e2e/mobile-back-stack.spec.ts`
+  (closing the Medium detail pane pops the selection entry, no dead back press).
 
 **Acceptance criteria:** Playwright resize 412x797 -> 841x701 -> 412x797 mid-edit loses no text and
 keeps selection; Adam tests folding and unfolding on the Fold.

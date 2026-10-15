@@ -196,19 +196,19 @@ export default function TaskList({ onNoteClick, serviceAccountMode, folderId }: 
           <div className="grid grid-cols-4 gap-2 mb-3 text-xs">
             <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded">
               <div className="font-medium text-blue-700 dark:text-blue-400">{stats.pendingTasks}</div>
-              <div className="text-blue-600 dark:text-blue-500">Pending</div>
+              <div className="text-blue-700 dark:text-blue-400 xl:text-blue-600 xl:dark:text-blue-500">Pending</div>
             </div>
             <div className="p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded">
               <div className="font-medium text-yellow-700 dark:text-yellow-400">{stats.inProgressTasks}</div>
-              <div className="text-yellow-600 dark:text-yellow-500">In Progress</div>
+              <div className="text-yellow-700 dark:text-yellow-400 xl:text-yellow-600 xl:dark:text-yellow-500">In Progress</div>
             </div>
             <div className="p-2 bg-purple-50 dark:bg-purple-900/20 rounded">
               <div className="font-medium text-purple-700 dark:text-purple-400">{stats.waitingTasks ?? 0}</div>
-              <div className="text-purple-600 dark:text-purple-500">Waiting</div>
+              <div className="text-purple-700 dark:text-purple-400 xl:text-purple-600 xl:dark:text-purple-500">Waiting</div>
             </div>
             <div className="p-2 bg-red-50 dark:bg-red-900/20 rounded">
               <div className="font-medium text-red-700 dark:text-red-400">{stats.overdueTasks}</div>
-              <div className="text-red-600 dark:text-red-500">Overdue</div>
+              <div className="text-red-700 dark:text-red-400 xl:text-red-600 xl:dark:text-red-500">Overdue</div>
             </div>
           </div>
         )}
