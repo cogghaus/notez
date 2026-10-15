@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { installMockApi, NOTE_ID } from './support/mockApi';
 
 /**
  * Editor keyboard scroll (mobile rework PR1).
@@ -7,10 +8,9 @@ import { test, expect, type Page } from '@playwright/test';
  * layout viewport does NOT (measured on a Pixel Fold: layout 411x693, visible 411x351). The test
  * replaces window.visualViewport with a controllable fake and never resizes the Playwright viewport.
  *
- * Hermetic: every /api/* call is answered from fixtures in this file; no backend is needed.
+ * Hermetic: /api/* is answered by e2e/support/mockApi.ts, with this spec's long note on top.
  */
 
-const NOTE_ID = '11111111-1111-4111-8111-111111111111';
 const NOW = '2026-10-11T12:00:00.000Z';
 
 function buildContent(): string {
@@ -40,59 +40,9 @@ const NOTE = {
 
 const NOTE_SUMMARY = { ...NOTE, content: NOTE.content.slice(0, 120) };
 
-const USER = {
-  userId: '22222222-2222-4222-8222-222222222222',
-  username: 'tester',
-  email: 'tester@example.com',
-  role: 'USER',
-  isServiceAccount: false,
-  mustChangePassword: false,
-  oidcLinked: false,
-};
-
-/** Fixtures keyed by "METHOD pathname". Anything not listed falls through to the logged default. */
-function fixtureFor(method: string, pathname: string): unknown | undefined {
-  if (method === 'GET') {
-    switch (pathname) {
-      case '/api/auth/setup-needed':
-        return { setupNeeded: false };
-      case '/api/auth/me':
-        return { user: USER };
-      case '/api/auth/oidc/config':
-        return { enabled: false, providerName: '' };
-      case '/api/folders':
-        return { folders: [] };
-      case '/api/tags':
-        return { tags: [] };
-      case '/api/notes/stats':
-        return { unfiledNotes: 1, deletedNotes: 0, sharedByMeCount: 0, sharedWithMeCount: 0 };
-      case '/api/notes':
-        return { notes: [NOTE_SUMMARY], total: 1 };
-      case `/api/notes/${NOTE_ID}`:
-        return { note: NOTE };
-      case '/api/notifications/unread-count':
-        return { count: 0 };
-      case '/api/notifications':
-        return { notifications: [], total: 0 };
-      case '/api/tasks':
-        return { tasks: [], total: 0 };
-      case '/api/tasks/stats':
-        return { total: 0, byStatus: {}, byPriority: {} };
-      case '/api/system/info':
-        return { version: 'e2e' };
-    }
-  }
-  if (method === 'PATCH' && pathname === `/api/notes/${NOTE_ID}`) {
-    return { note: NOTE };
-  }
-  return undefined;
-}
-
 test.beforeEach(async ({ page }) => {
-  // Auth token and a controllable fake visualViewport, installed before any app script runs.
+  // A controllable fake visualViewport, installed before any app script runs.
   await page.addInitScript(() => {
-    localStorage.setItem('accessToken', 'e2e-fake-token');
-
     class FakeVisualViewport extends EventTarget {
       width = window.innerWidth;
       height = window.innerHeight;
@@ -121,28 +71,11 @@ test.beforeEach(async ({ page }) => {
     };
   });
 
-  await page.route(
-    (url) => url.pathname.startsWith('/api/') && !/\.(ts|tsx|js|css)$/.test(url.pathname),
-    async (route) => {
-      const req = route.request();
-      const url = new URL(req.url());
-      if (url.pathname.startsWith('/api/profile/avatar/')) {
-        await route.fulfill({ status: 404, body: '' });
-        return;
-      }
-      const body = fixtureFor(req.method(), url.pathname);
-      if (body === undefined) {
-        console.log(`[e2e] unmatched route: ${req.method()} ${url.pathname}`);
-        await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
-        return;
-      }
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(body),
-      });
-    },
-  );
+  await installMockApi(page, {
+    'GET /api/notes': { notes: [NOTE_SUMMARY], total: 1 },
+    [`GET /api/notes/${NOTE_ID}`]: { note: NOTE },
+    [`PATCH /api/notes/${NOTE_ID}`]: { note: NOTE },
+  });
 });
 
 interface Measure {
