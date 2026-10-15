@@ -5,7 +5,7 @@ import { Bell, Check, CheckCheck, Trash2, MessageSquare, RefreshCw, Sparkles, Us
 import { notificationsApi } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from './Toast';
-import { nextDepth, noteUrl } from '../lib/mobileNav';
+import { nextNavState, noteUrl } from '../lib/mobileNav';
 import { formatDistanceToNow } from 'date-fns';
 
 interface Notification {
@@ -122,7 +122,7 @@ export function NotificationBell({ buttonClassName = DEFAULT_BUTTON_CLASS }: Not
   const notifications: Notification[] = notificationsData?.data?.notifications ?? [];
 
   // Pushes carry the shell depth so Back and reload stay correct below xl (mobile nav)
-  const go = (to: string) => navigate(to, { state: { depth: nextDepth() } });
+  const go = (to: string) => navigate(to, { state: nextNavState() });
 
   const handleNotificationClick = (notification: Notification) => {
     // Mark as read if not already

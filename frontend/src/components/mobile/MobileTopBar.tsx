@@ -11,7 +11,8 @@ interface MobileTopBarProps {
   titleIcon?: ReactNode;
   /** When set, the title is a button (Notes opens the Folders screen). Otherwise it is the h1. */
   onTitleClick?: () => void;
-  onOpenAccount: () => void;
+  /** Receives the button so focus can return to it when the overlay closes. */
+  onOpenAccount: (opener: Element) => void;
 }
 
 /**
@@ -30,7 +31,7 @@ export function MobileTopBar({ title, titleIcon, onTitleClick, onOpenAccount }: 
       <div className="flex items-center gap-1 min-h-14 px-2">
         <button
           type="button"
-          onClick={onOpenAccount}
+          onClick={(e) => onOpenAccount(e.currentTarget)}
           aria-label="Account menu"
           data-account-button
           aria-haspopup="dialog"

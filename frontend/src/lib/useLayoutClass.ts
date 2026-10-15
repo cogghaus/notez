@@ -35,8 +35,9 @@ export function useLayoutClass(): LayoutClass {
 }
 
 /**
- * True when the mobile shell applies (everything below xl). Medium shares the Compact shell until
- * the rail and two-pane land in PR8, which flips Medium here and nowhere else.
+ * True when the history-backed mobile shell applies (everything below xl). Medium stays in this
+ * shell in PR8 too (rail and two-pane included), so it keeps returning true; PR8 branches on
+ * `useLayoutClass()` inside the shell for what differs between Compact and Medium.
  */
 export function useShell(): boolean {
   return useLayoutClass() !== 'expanded';

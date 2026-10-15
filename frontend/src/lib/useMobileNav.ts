@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   FOLDERS_URL,
@@ -14,6 +14,14 @@ import {
   type Sheet,
   type Tab,
 } from './mobileNav';
+
+/** Safari does not focus buttons on tap, so the active element can be <body>: not an opener. */
+function usableOpener(el: Element | null | undefined): Element | null {
+  return el && el !== document.body && el !== document.documentElement ? el : null;
+}
+
+/** A leave that produced no navigation (nothing to pop) must not leave Back dead. */
+const LEAVE_REARM_MS = 1000;
 
 /**
  * History-backed navigation for the mobile shell (spec 3.3). All moves go through React Router, so
@@ -33,14 +41,27 @@ export function useMobileNav(enabled = true) {
     () => parseScreen(location.pathname, location.search),
     [location.pathname, location.search],
   );
-  const { depth, sheet } = readNavState(location.state);
+  const { depth, sheet: entrySheet } = readNavState(location.state);
+
+  // An overlay found on the very first render (a reload, a restored tab) is about to be popped by the
+  // boot check below: never render it, not even for a frame (What's New would mark the version seen)
+  const [bootHiddenKey] = useState<string | null>(() => (enabled && entrySheet ? location.key : null));
+  const sheet = bootHiddenKey === location.key ? null : entrySheet;
+
+  // Who opened the current overlay, for focus return. Kept in a ref: elements never go in history state.
+  const sheetOpenerRef = useRef<Element | null>(null);
 
   // Guards against a second leave while the first is still resolving (a double tap on Back, or a
   // sidebar click that fires several selection callbacks). Cleared on every location change.
   const leavingRef = useRef(false);
+  const rearmRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     leavingRef.current = false;
+    if (rearmRef.current) clearTimeout(rearmRef.current);
   }, [location.key]);
+  useEffect(() => () => {
+    if (rearmRef.current) clearTimeout(rearmRef.current);
+  }, []);
 
   /** In-app Back (N1): pop when there is an entry above the root, else replace with the parent. */
   const back = useCallback(() => {
@@ -57,6 +78,10 @@ export function useMobileNav(enabled = true) {
   const leave = useCallback(() => {
     if (leavingRef.current) return;
     leavingRef.current = true;
+    // Normally a location change clears the guard; this covers a pop that never produced one
+    rearmRef.current = setTimeout(() => {
+      leavingRef.current = false;
+    }, LEAVE_REARM_MS);
     back();
   }, [back]);
 
@@ -109,16 +134,19 @@ export function useMobileNav(enabled = true) {
    * overlay it replaces that entry, so system back closes just the one on top and returns to the
    * screen under it. Opening the one that is already open does nothing.
    */
-  const openSheet = useCallback((kind: Sheet) => {
+  const openSheet = useCallback((kind: Sheet, opener?: Element | null) => {
     const cur = readCurrentNav();
     if (cur.sheet === kind) return;
+    // An explicit opener wins; a replace from another overlay keeps the original opener
+    if (opener !== undefined) sheetOpenerRef.current = usableOpener(opener);
+    else if (!cur.sheet) sheetOpenerRef.current = usableOpener(document.activeElement);
     if (cur.sheet) {
       navigateRef.current(cur.url, { replace: true, state: navState(cur, { depth: cur.depth, sheet: kind }) });
       return;
     }
     navigateRef.current(cur.url, { state: navState(cur, { depth: cur.depth + 1, sheet: kind }) });
   }, []);
-  const openAccount = useCallback(() => openSheet('account'), [openSheet]);
+  const openAccount = useCallback((opener?: Element | null) => openSheet('account', opener), [openSheet]);
 
   /** Settings from the account sheet replaces the sheet's entry: Back returns to the tab, not the menu. */
   const openSettings = useCallback(() => {
@@ -180,6 +208,7 @@ export function useMobileNav(enabled = true) {
     noteId: screen.kind === 'editor' ? screen.noteId : null,
     foldersOpen: screen.kind === 'folders',
     sheet,
+    sheetOpener: sheetOpenerRef.current,
     depth,
     back,
     leave,

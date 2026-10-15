@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { act, render, waitFor } from '@testing-library/react';
 import { BrowserRouter, useNavigate } from 'react-router-dom';
 import { readCurrentNav, useReplaceSearchParams } from './mobileNav';
@@ -13,11 +13,13 @@ const NOTE_A = '11111111-1111-4111-8111-111111111111';
 const NOTE_B = '22222222-2222-4222-8222-222222222222';
 
 let nav: ReturnType<typeof useMobileNav>;
+let renderedSheets: Array<string | null> = [];
 let navigateFn: ReturnType<typeof useNavigate>;
 let replaceParams: ReturnType<typeof useReplaceSearchParams>;
 
 function Probe({ enabled }: { enabled: boolean }) {
   nav = useMobileNav(enabled);
+  renderedSheets.push(nav.sheet);
   navigateFn = useNavigate();
   replaceParams = useReplaceSearchParams();
   return null;
@@ -39,6 +41,12 @@ const settle = () => new Promise((r) => setTimeout(r, 60));
 
 beforeEach(() => {
   resetHistory();
+  renderedSheets = [];
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
 });
 
 describe('router internals the shell reads', () => {
@@ -135,6 +143,45 @@ describe('useMobileNav history rules', () => {
   });
 });
 
+describe('leave guard timeout', () => {
+  it('re-arms after a second when the pop produced no navigation', () => {
+    vi.useFakeTimers();
+    mount();
+    act(() => nav.selectTab('tasks'));
+    const go = vi.spyOn(window.history, 'go').mockImplementation(() => {});
+    act(() => {
+      nav.leave();
+      nav.leave();
+    });
+    expect(go).toHaveBeenCalledTimes(1);
+    act(() => {
+      vi.advanceTimersByTime(1100);
+    });
+    act(() => nav.leave());
+    expect(go).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('overlay opener', () => {
+  it('keeps the opener passed to openSheet (never in history state) and keeps it for the next overlay', () => {
+    mount();
+    const button = document.createElement('button');
+    document.body.appendChild(button);
+    act(() => nav.openSheet('whats-new', button));
+    expect(nav.sheetOpener).toBe(button);
+    expect(JSON.stringify(window.history.state)).not.toContain('button');
+    act(() => nav.openSheet('feedback'));
+    expect(nav.sheetOpener).toBe(button);
+    button.remove();
+  });
+
+  it('ignores body as an opener (Safari does not focus buttons on tap)', () => {
+    mount();
+    act(() => nav.openSheet('account', document.body));
+    expect(nav.sheetOpener).toBeNull();
+  });
+});
+
 describe('overlay boot check', () => {
   function landOnSheet() {
     window.history.replaceState({ usr: { depth: 0 }, key: 'a', idx: 0 }, '', '/');
@@ -146,6 +193,13 @@ describe('overlay boot check', () => {
     mount(true);
     await waitFor(() => expect(readCurrentNav().sheet).toBeNull());
     expect(idx()).toBe(0);
+  });
+
+  it('never renders the overlay it is about to close', async () => {
+    landOnSheet();
+    mount(true);
+    await waitFor(() => expect(readCurrentNav().sheet).toBeNull());
+    expect(renderedSheets.every((s) => s === null)).toBe(true);
   });
 
   it('does not touch the history when the first mount is not in the shell', async () => {

@@ -6,6 +6,7 @@ import {
   tabUrl,
   noteUrl,
   readNavState,
+  nextNavState,
 } from './mobileNav';
 
 describe('readNavState', () => {
@@ -26,6 +27,13 @@ describe('readNavState', () => {
     expect(readNavState(undefined)).toEqual({ depth: 0, tabDepth: 0, sheet: null });
     expect(readNavState({ depth: 'x' })).toEqual({ depth: 0, tabDepth: 0, sheet: null });
     expect(readNavState({ depth: -3 })).toEqual({ depth: 0, tabDepth: 0, sheet: null });
+  });
+});
+
+describe('nextNavState', () => {
+  it('pushes one deeper and carries tabDepth', () => {
+    window.history.replaceState({ usr: { depth: 2, tabDepth: 1 }, key: 'k', idx: 0 }, '', '/?tab=tasks');
+    expect(nextNavState()).toEqual({ depth: 3, tabDepth: 1, sheet: null });
   });
 });
 

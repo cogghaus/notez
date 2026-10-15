@@ -42,7 +42,7 @@ Layout class is derived, never stored. Navigation state is one object, independe
 { tab: 'notes' | 'tasks' | 'search',
   noteId: string | null,          // open note
   taskId: string | null,          // open task (sheet on Compact, detail pane on Medium)
-  sheet: null | 'filter' | 'details' | 'task' | 'task-menu' | 'avatar' | 'chip-picker' | 'confirm',
+  sheet: null | 'filter' | 'details' | 'task' | 'task-menu' | 'account' | 'whats-new' | 'feedback' | 'chip-picker' | 'confirm',
   page: null | 'notifications' | 'settings' | `settings:${section}`,
   draft: NewTaskDraft | null,     // survives sheet close (6.8)
   filter: { folderId, tagId }, taskFilters: {...} }
@@ -175,8 +175,9 @@ Push rules:
 | Medium: select a note or task when nothing was selected | push one selection entry |
 | Medium: select another note or task while one is selected | replace (same entry) |
 | Medium: Close on the detail pane, or delete/trash of the selected item, while the selection entry is on top | `history.back()` (N3: never a `replaceState` that leaves a dead back press). If the selection entry is not on top (depth 0 after a reload), rule N1-2 applies |
-| Any sheet (`filter`, `details`, `task`, `task-menu`, `avatar`, `chip-picker`, `confirm`), ShareDialog | push |
-| Settings opened from the avatar menu | replace the menu's entry (back from Settings returns to the tab, not to the menu) |
+| Any sheet (`filter`, `details`, `task`, `task-menu`, `account`, `chip-picker`, `confirm`), ShareDialog | push |
+| Settings opened from the account menu | replace the menu's entry (back from Settings returns to the tab, not to the menu) |
+| What's New or Share feedback opened from the account menu (or What's New from the Folders view) | an overlay of its own (`whats-new`, `feedback`): pushed when no overlay is open, replacing the menu's entry when opened from it. One overlay at a time, so back closes exactly one layer (as built in PR3) |
 | Notifications page, Settings list, Settings section | push |
 | Filter change, list scroll, writing mode, quick-add focus | nothing |
 
@@ -209,7 +210,7 @@ N1-2. Verify on device (12.14).
 | Notifications | `Bell` in the top bar (Notes, Tasks); opens a pushed full-screen page with back arrow | `Bell` at the rail bottom; existing popover |
 | Theme toggle | Avatar menu (Light / Dark / System) and Settings > Appearance | Same |
 | Settings | Avatar menu entry; pushes the Settings list (section 8) | Avatar menu entry; renders in the main region |
-| Avatar menu | Avatar (32px in a 48px target) at the left of every top bar; opens a bottom sheet: username header, Theme, Settings, What's New, Sign out. Each row `min-h-12` | Rail bottom avatar; popover with the same rows |
+| Account menu (`sheet: 'account'`; "avatar menu" in earlier drafts) | Avatar (32px in a 48px target) at the left of every top bar, named "Account menu"; opens a bottom sheet: username header, Theme, Settings, What's New, Share feedback, Sign out. Each row `min-h-12`. What's New and Share feedback open as their own overlays (3.3) | Rail bottom avatar; popover with the same rows |
 | Search | Search tab (section 7) | Search rail destination |
 | New note | FAB (4.4) | FAB in the list pane |
 | New task | Quick-add bar (6.6) | Quick-add bar in the agenda pane |
@@ -741,7 +742,7 @@ this before the agenda PR.
 
 Fixes audit 2.2 by design: the two-column settings layout becomes a list -> page push.
 
-- Settings list page (pushed from the avatar menu, replacing the menu's entry): top bar `[Back]
+- Settings list page (pushed from the account menu, replacing the menu's entry): top bar `[Back]
   Settings`; rows `min-h-14 px-4 flex items-center gap-3` with icon `w-5 h-5 text-gray-500`, label
   `text-base`, optional value `text-sm text-gray-500` and `ChevronRight`. Sections (confirm the
   inventory against `SettingsHub.tsx`; the list is the union of what exists today): Profile

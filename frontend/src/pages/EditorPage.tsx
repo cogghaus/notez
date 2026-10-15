@@ -18,6 +18,7 @@ import { MobileTabBar } from '../components/mobile/MobileTabBar';
 import { MobileSearch } from '../components/mobile/MobileSearch';
 import { MobileOverlays } from '../components/mobile/MobileOverlays';
 import { useShell } from '../lib/useLayoutClass';
+import { restoreScroll } from '../lib/restoreScroll';
 import { useMobileNav } from '../lib/useMobileNav';
 import { FILTER_LABEL_QUERY_KEY, useNotesFilterLabel } from '../lib/useNotesFilterLabel';
 import type { Task } from '../types';
@@ -185,9 +186,13 @@ export function EditorPage() {
   // Closing the editor returns to the list where the user left it: same scroll position, focus on
   // the row that was open. The lists (Notes, Tasks, Search) stay mounted, hidden, while the editor
   // shows. Scrollers carry data-scroll-key; positions are tracked while visible and put back when
-  // the list reappears. A different list (tab, folder or tag) starts at the top.
-  const scrollPosRef = useRef<Record<string, number>>({});
-  const scrollSigRef = useRef('');
+  // the list reappears, also after another tab (Tasks, Search, Tasks). Each key remembers which
+  // filter it was recorded under, so a different folder or tag starts at the top.
+  const scrollPosRef = useRef<Record<string, { sig: string; y: number }>>({});
+  const scrollSig = (key: string) =>
+    key === 'notes' ? `${selectedFolderId}|${selectedTagId}` : key === 'tasks' ? String(selectedFolderId) : '';
+  const scrollSigRef = useRef(scrollSig);
+  scrollSigRef.current = scrollSig;
   const editorOpenRef = useRef(false);
   editorOpenRef.current = showEditor;
   const lastNoteIdRef = useRef<string | null>(null);
@@ -196,15 +201,11 @@ export function EditorPage() {
 
   useLayoutEffect(() => {
     if (!shell || showEditor) return;
-    const sig = `${nav.tab}|${selectedFolderId}|${selectedTagId}`;
-    if (sig !== scrollSigRef.current) {
-      scrollSigRef.current = sig;
-      scrollPosRef.current = {};
-      return;
-    }
-    const y = scrollPosRef.current[nav.tab];
+    const saved = scrollPosRef.current[nav.tab];
     const scroller = mainRowRef.current?.querySelector<HTMLElement>(`[data-scroll-key="${nav.tab}"]`);
-    if (scroller && y > 0) scroller.scrollTop = y;
+    if (!scroller || !saved || saved.y <= 0 || saved.sig !== scrollSig(nav.tab)) return;
+    return restoreScroll(scroller, saved.y);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shell, showEditor, nav.tab, selectedFolderId, selectedTagId]);
 
   // Focus lands somewhere sensible whenever the editor closes: the control that opened it, else the
@@ -214,7 +215,11 @@ export function EditorPage() {
     lastNoteIdRef.current = nav.noteId;
     if (!shell || !prev || nav.noteId) return;
     const visible = (el: Element | null): el is HTMLElement =>
-      el instanceof HTMLElement && el.isConnected && el.getClientRects().length > 0;
+      el instanceof HTMLElement &&
+      el !== document.body &&
+      el !== document.documentElement &&
+      el.isConnected &&
+      el.getClientRects().length > 0;
     const rowFor = (id: string) =>
       Array.from(document.querySelectorAll<HTMLElement>(`[data-note-id="${CSS.escape(id)}"]`)).find(visible) ?? null;
     const close = closeFocusRef.current;
@@ -222,7 +227,7 @@ export function EditorPage() {
     const opener = openerRef.current;
     openerRef.current = null;
     let target: HTMLElement | null = null;
-    if (close?.deleted) target = close.neighbourId ? rowFor(close.neighbourId) : null;
+    if (close?.deleted) target = (close.neighbourId ? rowFor(close.neighbourId) : null) ?? (visible(opener) ? opener : null);
     else target = (visible(opener) ? opener : null) ?? rowFor(prev);
     target ??= document.querySelector<HTMLElement>('[data-mobile-title]') ?? document.querySelector<HTMLElement>('[data-account-button]');
     target?.focus({ preventScroll: true });
@@ -264,7 +269,9 @@ export function EditorPage() {
 
   /** Note picked in the list or in a service account workspace. */
   const openNoteFromShell = (noteId: string) => {
-    openerRef.current = document.activeElement;
+    // Safari does not focus buttons on tap, so the active element can be <body>: not an opener
+    const active = document.activeElement;
+    openerRef.current = active === document.body || active === document.documentElement ? null : active;
     nav.openNote(noteId);
   };
   const selectNote = (noteId: string) => {
@@ -290,8 +297,10 @@ export function EditorPage() {
 
   /** Before a delete or restore removes a row: remember the row after it, else the one before it. */
   const rememberNeighbour = (noteId: string) => {
-    const row = document.querySelector(`[data-note-id="${CSS.escape(noteId)}"]`);
-    const rows = Array.from(row?.closest('[data-scroll-key]')?.querySelectorAll('[data-note-id]') ?? []);
+    // Only the list of the current tab counts (a Tasks tab has no note rows: the opener is used then)
+    const list = document.querySelector(`[data-scroll-key="${nav.tab}"]`);
+    const row = list?.querySelector(`[data-note-id="${CSS.escape(noteId)}"]`) ?? null;
+    const rows = Array.from(list?.querySelectorAll('[data-note-id]') ?? []);
     const at = row ? rows.indexOf(row) : -1;
     const neighbour = at >= 0 ? (rows[at + 1] ?? rows[at - 1]) : undefined;
     closeFocusRef.current = { deleted: true, neighbourId: neighbour?.getAttribute('data-note-id') ?? null };
@@ -337,7 +346,9 @@ export function EditorPage() {
         onScrollCapture={(e) => {
           // Remember where each list is scrolled while it is visible
           const key = (e.target as HTMLElement).getAttribute?.('data-scroll-key');
-          if (key && !editorOpenRef.current) scrollPosRef.current[key] = (e.target as HTMLElement).scrollTop;
+          if (key && !editorOpenRef.current) {
+            scrollPosRef.current[key] = { sig: scrollSigRef.current(key), y: (e.target as HTMLElement).scrollTop };
+          }
         }}
         className="flex flex-1 min-h-0 overflow-hidden"
         data-kb-pad
@@ -386,6 +397,7 @@ export function EditorPage() {
             // The full sidebar always shows in the phone Folders screen; a saved collapse is a desktop choice
             collapsed={sidebarCollapsed && !shell}
             hideCollapse={shell}
+            onOpenWhatsNew={shell ? (opener) => nav.openSheet('whats-new', opener) : undefined}
             onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
             onNoteMoved={() => {
               // Refresh note list when a note is moved via drag-and-drop
@@ -554,6 +566,7 @@ export function EditorPage() {
 
       <MobileOverlays
         sheet={shell ? nav.sheet : null}
+        opener={nav.sheetOpener}
         onClose={nav.leave}
         onOpenSettings={nav.openSettings}
         onOpenSheet={nav.openSheet}

@@ -9,6 +9,8 @@ interface AccountSheetProps {
   /** Close the sheet (history back; the sheet is a history entry). */
   onClose: () => void;
   onOpenSettings: () => void;
+  /** Where focus returns on close; falls back to the focused element at open. */
+  returnFocusTo?: Element | null;
   /** What's New and Share feedback are overlays of their own (they replace this sheet's history entry). */
   onOpenWhatsNew: () => void;
   onOpenFeedback: () => void;
@@ -23,13 +25,20 @@ const ROW =
  * `role="dialog" aria-modal`, focus trapped, Escape and a backdrop tap close it, focus returns to
  * the opener. Closing goes through history, so system back closes it too.
  */
-export function AccountSheet({ open, onClose, onOpenSettings, onOpenWhatsNew, onOpenFeedback }: AccountSheetProps) {
+export function AccountSheet({
+  open,
+  onClose,
+  onOpenSettings,
+  onOpenWhatsNew,
+  onOpenFeedback,
+  returnFocusTo,
+}: AccountSheetProps) {
   const { user, logout } = useAuth();
   const { theme, setTheme } = useTheme();
   const sheetRef = useRef<HTMLDivElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
 
-  useFocusTrap(sheetRef, open);
+  useFocusTrap(sheetRef, open, { opener: returnFocusTo });
 
   // Informational heading first: screen readers announce the user, Tab moves to the first row
   useEffect(() => {

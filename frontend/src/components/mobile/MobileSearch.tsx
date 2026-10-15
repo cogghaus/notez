@@ -234,6 +234,8 @@ export function MobileSearch({ onOpenNote }: MobileSearchProps) {
             <button
               type="button"
               onClick={() => {
+                // Focus first: the Retry button disappears as soon as the outcome is cleared
+                inputRef.current?.focus();
                 setOutcome(null);
                 setAttempt((n) => n + 1);
               }}

@@ -133,7 +133,11 @@ Scope decisions taken when PR3 was built (2026-10-15):
 - Search covers notes only; task search and the scope chips arrive with PR6.
 - The account menu offers Light and Dark; "System" needs a ThemeContext change and comes later.
 - History goes through React Router (`navigate` with `location.state.depth`), never raw
-  `pushState`, so the app has one history.
+  `pushState`, so the app has one history. `location.state` carries only `depth`, `tabDepth` (for
+  PR8) and `sheet`; drafts and form data never go into history state.
+- The account menu ("avatar menu" in earlier drafts) is `sheet: 'account'`. What's New and Share
+  feedback are overlays of their own (`whats-new`, `feedback`): opened from the menu they replace
+  its entry, so only one overlay is ever open and back closes exactly one layer (spec 3.3, 3.4).
 - The Playwright suite runs on a production build since #194 (dev-only StrictMode masked a bug).
 
 - `useLayoutClass()` from `matchMedia` (Compact <600, Medium 600-1279, Expanded >=1280), live on
@@ -175,6 +179,9 @@ N2); if it exits, document it and rely on the in-app arrow. Pixel review approve
 - Carried from PR3 review: notification links into a note replace the entry when the editor is
   already open (as `openNote` does) instead of pushing a second editor entry; sheets share one
   `onEscape` option in `useFocusTrap` once the Details sheet is the third copy.
+- From PR3's navigation model: the Details sheet is `sheet: 'details'` on the editor entry
+  (`parentUrl` already handles a sheet on the editor); note delete uses the Undo toast, not the
+  root `ConfirmDialog`, which sits outside the history model.
 
 **Acceptance criteria:** with a simulated keyboard at S23U, at least 60% of the visible height is
 note text; exiting writing mode restores the layout with no jump; formatting strip actions work in
@@ -186,6 +193,9 @@ closing it.
 - Folder and tag filter sheet replacing the Folders tab; active filter chip on the list.
 - List row anatomy per spec; new-note action per spec; virtual folders reachable from the sheet.
 - Empty preview shows "No content" (spec 4.2); deferred from PR2 to keep desktop rows unchanged (D7).
+- From PR3's navigation model: the filter sheet is `sheet: 'filter'` on the Notes root, the
+  selection stays in React state, and the interim `?view=folders` screen and its `folders` screen
+  kind are deleted.
 - The mobile Search tab decides between the server `snippet` (desktop SearchBar) and `previewText()`.
 
 **Acceptance criteria:** every folder, tag and virtual folder reachable in two taps from Notes;
@@ -216,6 +226,9 @@ reviews; desktop task list and kanban unchanged apart from deleted tasks no long
 
 - Agenda groups (Overdue / Today / Upcoming / No date / Completed collapsed), compact rows, 48px
   complete target, priority shown with icon or text as well as color.
+- From PR3's navigation model: the open task lives in the URL (`?task=<id>`, like `?note=`) with
+  `sheet: 'task'` as the overlay kind; a new-task draft stays in React state or sessionStorage,
+  never in history state.
 - Task search and filter chips (priority, folder, tag, show completed). **Backend change:** the tasks
   list route has no search parameter today; add `search` (title and description, case-insensitive)
   to the list query schema and `task.service.ts`, with a backend test, also exposed to the MCP list

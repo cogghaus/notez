@@ -154,9 +154,10 @@ export function readCurrentNav(): { screen: Screen; depth: number; tabDepth: num
   };
 }
 
-/** Depth for a push made from outside the shell hooks (for example the notification bell). */
-export function nextDepth(): number {
-  return readCurrentNav().depth + 1;
+/** Router state for a push made from outside the shell hooks (for example the notification bell). */
+export function nextNavState(): NavState {
+  const cur = readCurrentNav();
+  return navState(cur, { depth: cur.depth + 1 });
 }
 
 /**

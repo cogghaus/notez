@@ -48,6 +48,7 @@ function extractErrorMessage(error: unknown): string {
 export function FeedbackModal({ isOpen, onClose, returnFocusTo }: FeedbackModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
+  const successRef = useRef<HTMLHeadingElement>(null);
 
   const [type, setType] = useState<FeedbackType>('FEATURE');
   const [title, setTitle] = useState('');
@@ -56,6 +57,11 @@ export function FeedbackModal({ isOpen, onClose, returnFocusTo }: FeedbackModalP
   const [priority, setPriority] = useState<FeedbackPriority | ''>('');
   const [showSuccess, setShowSuccess] = useState(false);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The timer and a late response must act on the modal as it is now, not as it was when they started
+  const isOpenRef = useRef(isOpen);
+  isOpenRef.current = isOpen;
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   // Cleanup timer on unmount to prevent memory leak
   useEffect(() => {
@@ -76,11 +82,17 @@ export function FeedbackModal({ isOpen, onClose, returnFocusTo }: FeedbackModalP
         priority: priority || undefined,
       }),
     onSuccess: () => {
-      setShowSuccess(true);
-      // Reset form after short delay (with cleanup)
-      closeTimerRef.current = setTimeout(() => {
+      if (!isOpenRef.current) {
+        // Closed (system back) while sending: it was sent, so the draft goes; nothing to show
         resetForm();
-        onClose();
+        return;
+      }
+      setShowSuccess(true);
+      // Close after a short delay, but only if it is still open then (system back may have closed it)
+      closeTimerRef.current = setTimeout(() => {
+        if (!isOpenRef.current) return;
+        resetForm();
+        onCloseRef.current();
       }, 2000);
     },
     onError: (error: unknown) => {
@@ -101,11 +113,14 @@ export function FeedbackModal({ isOpen, onClose, returnFocusTo }: FeedbackModalP
     submitMutation.reset();
   };
 
+  // Closing without sending (X, Escape, backdrop, back) keeps the draft for the session; it is
+  // cleared only after a successful send
   const handleClose = () => {
-    if (!submitMutation.isPending) {
-      resetForm();
-      onClose();
-    }
+    if (submitMutation.isPending) return;
+    if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+    if (showSuccess) resetForm();
+    else submitMutation.reset();
+    onClose();
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -139,6 +154,20 @@ export function FeedbackModal({ isOpen, onClose, returnFocusTo }: FeedbackModalP
     return () => document.removeEventListener('keydown', onKey);
   }, [isOpen]);
 
+  // Closed from outside (system back) during the thanks screen: stop the timer, drop the sent draft
+  useEffect(() => {
+    if (isOpen) return;
+    if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+    if (showSuccess) resetForm();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
+
+  // The submit button is gone once the thanks screen shows: move focus to its heading (announced as
+  // the dialog's name) instead of letting it fall to <body>
+  useEffect(() => {
+    if (showSuccess) successRef.current?.focus();
+  }, [showSuccess]);
+
   if (!isOpen) return null;
 
   const isBug = type === 'BUG';
@@ -150,16 +179,22 @@ export function FeedbackModal({ isOpen, onClose, returnFocusTo }: FeedbackModalP
       onMouseDown={handleBackdropMouseDown}
       role="dialog"
       aria-modal="true"
-      aria-labelledby="feedback-title"
+      aria-labelledby={showSuccess ? 'feedback-success-title' : 'feedback-title'}
     >
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-lg w-full overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+      {/* Height follows the visible viewport (--app-h) so Send stays reachable with the keyboard up and at 200% text */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-lg w-full overflow-hidden flex flex-col max-h-[calc(var(--app-h,100dvh)-2rem)] animate-in fade-in zoom-in-95 duration-200">
         {showSuccess ? (
           // Success State
           <div className="p-8 text-center">
             <div className="mx-auto w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mb-4">
               <CheckCircle className="w-8 h-8 text-green-600 dark:text-green-400" />
             </div>
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+            <h3
+              id="feedback-success-title"
+              ref={successRef}
+              tabIndex={-1}
+              className="text-xl font-semibold text-gray-900 dark:text-white mb-2 focus:outline-none"
+            >
               Thanks for your feedback!
             </h3>
             <p className="text-gray-600 dark:text-gray-400">
@@ -169,7 +204,7 @@ export function FeedbackModal({ isOpen, onClose, returnFocusTo }: FeedbackModalP
         ) : (
           <>
             {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex-shrink-0 flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
               <div>
                 <h2
                   id="feedback-title"
@@ -193,11 +228,13 @@ export function FeedbackModal({ isOpen, onClose, returnFocusTo }: FeedbackModalP
               </button>
             </div>
 
+            <div className="min-h-0 overflow-y-auto overscroll-contain">
             {/* Type Toggle */}
             <div className="p-4 bg-gray-50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-700">
               <div className="flex gap-2">
                 <button
                   type="button"
+                  aria-pressed={isBug}
                   onClick={() => setType('BUG')}
                   className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-medium transition-all ${
                     isBug
@@ -210,6 +247,7 @@ export function FeedbackModal({ isOpen, onClose, returnFocusTo }: FeedbackModalP
                 </button>
                 <button
                   type="button"
+                  aria-pressed={!isBug}
                   onClick={() => setType('FEATURE')}
                   className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-medium transition-all ${
                     !isBug
@@ -341,6 +379,7 @@ export function FeedbackModal({ isOpen, onClose, returnFocusTo }: FeedbackModalP
                 )}
               </button>
             </form>
+            </div>
           </>
         )}
       </div>

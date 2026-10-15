@@ -240,3 +240,150 @@ test('a note opened from Search is never in service account mode and always has 
   await expect(page.getByTitle('Move to trash')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Back', exact: true })).toBeVisible();
 });
+
+// ---- Round 2 ----
+
+const scrollTopOf = (page: Page, key: string) =>
+  page.locator(`[data-scroll-key="${key}"]`).evaluate((el) => el.scrollTop);
+
+test('Folders footer What\'s New is a history entry: back closes it, Tab still moves, it does not return', async ({ page }) => {
+  await page.setViewportSize({ width: 841, height: 627 });
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: /All notes/ }).click();
+  const version = page.getByRole('button', { name: /v\d/ });
+  await version.click();
+  const modal = page.getByRole('dialog', { name: /What's New in Notez/ });
+  await expect(modal).toBeVisible();
+
+  await page.goBack();
+  await expect(modal).toBeHidden();
+  await expect(version).toBeFocused();
+  // Not trapped by a stale dialog: focus moves on (the footer is the last control, so go backwards)
+  await page.keyboard.press('Shift+Tab');
+  await expect(version).not.toBeFocused();
+  expect(await page.evaluate(() => document.activeElement === document.body)).toBe(false);
+
+  // Leave and reopen Folders: What's New is not showing again
+  await page.getByRole('button', { name: 'Back', exact: true }).click();
+  await page.getByRole('button', { name: /All notes/ }).click();
+  await expect(page.getByRole('button', { name: /^Work/ }).first()).toBeVisible();
+  await expect(modal).toBeHidden();
+});
+
+test('system back during the Feedback thanks screen does not go back twice', async ({ page }) => {
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await primaryNav(page).getByRole('button', { name: 'Tasks' }).click();
+  await accountButton(page).click();
+  await sheet(page).getByRole('button', { name: 'Share feedback' }).click();
+  await page.getByLabel('What would help?').fill('Dark mode scheduling');
+  await page.getByLabel('Describe your idea').fill('Switch themes at sunset');
+  await page.getByRole('button', { name: 'Send Feedback' }).click();
+
+  const thanks = page.getByRole('heading', { name: 'Thanks for your feedback!' });
+  await expect(thanks).toBeVisible();
+  // Focus moved to the thanks heading, and it names the dialog
+  await expect(thanks).toBeFocused();
+  await expect(page.getByRole('dialog', { name: 'Thanks for your feedback!' })).toBeVisible();
+
+  await page.goBack();
+  await expect(page.getByRole('dialog', { name: 'Thanks for your feedback!' })).toBeHidden();
+  await page.waitForTimeout(2500);
+  await expect(primaryNav(page).getByRole('button', { name: 'Tasks' })).toHaveAttribute('aria-current', 'page');
+});
+
+test('closing Feedback with Escape keeps the draft; it clears after a send', async ({ page }) => {
+  await openFromSheet(page, 'Share feedback');
+  await page.getByLabel('What would help?').fill('Keep me');
+  await page.keyboard.press('Escape');
+  await accountButton(page).click();
+  await sheet(page).getByRole('button', { name: 'Share feedback' }).click();
+  await expect(page.getByLabel('What would help?')).toHaveValue('Keep me');
+  await expect(page.getByRole('button', { name: 'Suggest Something' })).toHaveAttribute('aria-pressed', 'true');
+});
+
+test.describe('scroll position per list', () => {
+  const MANY_TASKS = Array.from({ length: 40 }, (_, i) => ({
+    id: `55555555-5555-4555-8555-${String(i).padStart(12, '0')}`,
+    userId: '22222222-2222-4222-8222-222222222222',
+    title: `Task ${i}`,
+    description: null,
+    status: 'PENDING',
+    priority: 'MEDIUM',
+    dueDate: null,
+    createdAt: '2026-10-11T12:00:00.000Z',
+    updatedAt: '2026-10-11T12:00:00.000Z',
+    folder: null,
+    note: { id: NOTE.id, title: `Linked ${i}` },
+    tags: [],
+    links: [],
+  }));
+
+  test('Tasks keeps its position after a note and after another tab', async ({ page }) => {
+    await page.route(/\/api\/tasks(\?.*)?$/, (route) =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ tasks: MANY_TASKS, total: MANY_TASKS.length }) }),
+    );
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    await primaryNav(page).getByRole('button', { name: 'Tasks' }).click();
+    const link = page.getByTitle('From note: Linked 30');
+    await link.scrollIntoViewIfNeeded();
+    const before = await scrollTopOf(page, 'tasks');
+    expect(before).toBeGreaterThan(0);
+
+    await link.click();
+    await expect(page.locator('[data-note-editor]')).toBeVisible();
+    await page.goBack();
+    await expect(page.locator('[data-note-editor]')).toBeHidden();
+    expect(await scrollTopOf(page, 'tasks')).toBeCloseTo(before, -1);
+    await expect(link).toBeFocused();
+
+    // Tasks -> Search -> Tasks
+    await primaryNav(page).getByRole('button', { name: 'Search' }).click();
+    await expect(page.getByRole('searchbox', { name: 'Search notes' })).toBeVisible();
+    await primaryNav(page).getByRole('button', { name: 'Tasks' }).click();
+    await expect.poll(() => scrollTopOf(page, 'tasks')).toBeGreaterThan(before - 20);
+  });
+
+  test('Search results keep their position after a note', async ({ page }) => {
+    const results = NOTES.length ? Array.from({ length: 40 }, (_, i) => ({
+      id: `aaaaaaaa-aaaa-4aaa-8aaa-${String(i).padStart(12, '0')}`,
+      title: `Result ${i}`,
+      snippet: '',
+      folder: null,
+      tags: [],
+    })) : [];
+    await page.route('**/api/search*', (route) =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ results, total: results.length }) }),
+    );
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    await primaryNav(page).getByRole('button', { name: 'Search' }).click();
+    await page.getByRole('searchbox', { name: 'Search notes' }).fill('result');
+    const row = page.getByRole('button', { name: /Result 30/ });
+    await row.scrollIntoViewIfNeeded();
+    const before = await scrollTopOf(page, 'search');
+    expect(before).toBeGreaterThan(0);
+
+    await row.click();
+    await expect(page.locator('[data-note-editor]')).toBeVisible();
+    await page.goBack();
+    await expect(page.locator('[data-note-editor]')).toBeHidden();
+    expect(await scrollTopOf(page, 'search')).toBeCloseTo(before, -1);
+    await expect(row).toBeFocused();
+  });
+});
+
+test('Retry returns focus to the search box', async ({ page }) => {
+  let calls = 0;
+  await page.route('**/api/search*', async (route) => {
+    calls++;
+    if (calls === 1) {
+      await route.fulfill({ status: 500, contentType: 'application/json', body: '{}' });
+      return;
+    }
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ results: [], total: 0 }) });
+  });
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await primaryNav(page).getByRole('button', { name: 'Search' }).click();
+  await page.getByRole('searchbox', { name: 'Search notes' }).fill('milk');
+  await page.getByRole('button', { name: 'Retry' }).click();
+  await expect(page.getByRole('searchbox', { name: 'Search notes' })).toBeFocused();
+});

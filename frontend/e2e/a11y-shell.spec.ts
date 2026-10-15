@@ -32,6 +32,22 @@ const STATES: State[] = [
     },
   },
   { name: 'editor', open: async (page) => { await page.getByRole('button', { name: /fairly long title/ }).first().click(); await expect(page.locator('[data-note-editor]')).toBeVisible(); } },
+  {
+    name: "what's new",
+    open: async (page) => {
+      await page.getByRole('button', { name: 'Account menu' }).click();
+      await page.getByRole('dialog', { name: 'tester' }).getByRole('button', { name: "What's New" }).click();
+      await expect(page.getByRole('dialog', { name: /What's New in Notez/ })).toBeVisible();
+    },
+  },
+  {
+    name: 'feedback',
+    open: async (page) => {
+      await page.getByRole('button', { name: 'Account menu' }).click();
+      await page.getByRole('dialog', { name: 'tester' }).getByRole('button', { name: 'Share feedback' }).click();
+      await expect(page.getByRole('dialog', { name: 'Share Your Feedback' })).toBeVisible();
+    },
+  },
   { name: 'account sheet', open: async (page) => { await page.getByRole('button', { name: 'Account menu' }).click(); await expect(page.getByRole('dialog', { name: 'tester' })).toBeVisible(); } },
   { name: 'folders view', open: async (page) => { await page.getByRole('button', { name: /All notes/ }).click(); await expect(page.getByRole('button', { name: /^Work/ }).first()).toBeVisible(); } },
   {

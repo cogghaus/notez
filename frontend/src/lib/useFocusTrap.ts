@@ -6,7 +6,9 @@ const FOCUSABLE = 'button, [href], input, select, textarea, [tabindex]:not([tabi
 /** Not display:none or visibility:hidden (getClientRects is empty in jsdom, so check styles). */
 function isRendered(el: HTMLElement): boolean {
   const style = getComputedStyle(el);
-  return style.display !== 'none' && style.visibility !== 'hidden';
+  if (style.display === 'none' || style.visibility === 'hidden') return false;
+  // checkVisibility also sees a hidden ancestor (content-visibility, display:none up the tree)
+  return el.checkVisibility ? el.checkVisibility() : true;
 }
 
 /**
@@ -38,7 +40,7 @@ export function useFocusTrap(
     const handleTrapKey = (e: KeyboardEvent) => {
       if (e.key !== 'Tab') return;
       const container = containerRef.current;
-      if (!container) return;
+      if (!container || !isRendered(container)) return; // nothing to trap in: leave Tab alone
       const current = document.activeElement;
 
       // Another dialog stacked on top owns focus (for example a modal opened over a sheet): its own
@@ -49,7 +51,10 @@ export function useFocusTrap(
       const focusable = Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
         (el) => !(el as HTMLButtonElement).disabled && isRendered(el),
       );
-      if (focusable.length === 0) return;
+      if (focusable.length === 0) {
+        e.preventDefault(); // nothing to move to: keep focus where it is rather than leaving the dialog
+        return;
+      }
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
 

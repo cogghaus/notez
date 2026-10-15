@@ -38,7 +38,7 @@ function ReleaseSection({ entry, isLatest = false }: { entry: ChangelogEntry; is
       <div className="flex items-center justify-between mb-3">
         <h3 className={`font-semibold ${isLatest ? 'text-lg text-blue-600 dark:text-blue-400' : 'text-base text-gray-700 dark:text-gray-300'}`}>
           v{entry.version}
-          {isLatest && <span className="ml-2 text-xs bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded-full">Latest</span>}
+          {isLatest && <span className="ml-2 text-xs bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-400 px-2 py-0.5 rounded-full">Latest</span>}
         </h3>
         <span className="text-sm text-gray-500 dark:text-gray-400">{entry.date}</span>
       </div>

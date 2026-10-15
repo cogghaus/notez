@@ -97,3 +97,27 @@ describe('useFocusTrap', () => {
     expect(screen.getByText('top-b')).toHaveFocus();
   });
 });
+
+describe('useFocusTrap when the container is not rendered', () => {
+  function Hidden() {
+    const ref = useRef<HTMLDivElement>(null);
+    useFocusTrap(ref, true);
+    return (
+      <div>
+        <button>outside</button>
+        <div ref={ref} role="dialog" aria-label="Hidden" style={{ display: 'none' }}>
+          <button>inside</button>
+        </div>
+        <button>after</button>
+      </div>
+    );
+  }
+
+  it('does not trap (or steal Tab) while its container is display:none', async () => {
+    const user = userEvent.setup();
+    render(<Hidden />);
+    screen.getByText('outside').focus();
+    await user.tab();
+    expect(screen.getByText('after')).toHaveFocus();
+  });
+});
