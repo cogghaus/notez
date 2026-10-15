@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.31.1] - 2026-10-14
+
+Mobile rework PR2 (`docs/mobile/03-build-plan.md`): width and Settings bugs on phones and the Fold.
+
+### Fixed
+
+- Below 1280px the folders, notes and tasks panes fill the screen. The desktop pane widths (256px sidebar, 320px list, resizable) were applied as inline styles at every width and left a dead strip on phones; they now apply only at `xl` through a `--pane-w` variable.
+- The editor no longer overflows a phone: it measured 404px in a 384px or 360px viewport and clipped the delete, tag and image controls. Its wrapper now has `min-w-0`.
+- Settings content is visible on phones. Below 768px the section picker and the content stack in a column; in a row the picker's full width squeezed `main` to 0px.
+- Note list previews show plain text instead of raw HTML or markdown (`previewText()`: strips tags, entities and markdown syntax, cuts at 120 characters on a word boundary, and reads at most the first 4096 characters so hostile content cannot stall the list).
+- Dark mode: the note search input, the tag input (field, chips, suggestions) and note list rows. Rows were always gray-700 in dark (a missing `hover:` prefix) with 3.9:1 text; placeholders are gray-300 on gray-700 (6.8:1). The keyboard-selected tag suggestion has a visible ring, and remove-tag buttons have accessible names.
+- Raw markdown mode (Monaco) follows the app theme, live.
+
+### Changed
+
+- `docs/design-language.md` is now in the repo, with the D13 contrast rules for mobile surfaces (-700 status text on white, -700 toast surfaces, input and chip border tokens). Desktop is unchanged; its -600 status text is known issue #73. Known issue #74 (floating image button covers a long first line) opened for PR4.
+- New Playwright spec `e2e/pane-widths.spec.ts` (all four mobile projects, plus the optional desktop project asserting the desktop widths) with a hermetic mock API in `e2e/support/mockApi.ts`.
+
 ## [1.31.0] - 2026-10-13
 
 ### Added
