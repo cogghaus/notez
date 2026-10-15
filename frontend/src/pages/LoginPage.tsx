@@ -35,10 +35,10 @@ export function LoginPage() {
     }
   }, []); // Run once on mount
 
-  // Navigate after authentication state changes
+  // Signed in (on arrival or after signing in here): leave the login page
   useEffect(() => {
     if (isAuthenticated) {
-      navigate('/');
+      navigate('/', { replace: true });
     }
   }, [isAuthenticated, navigate]);
 
@@ -53,7 +53,10 @@ export function LoginPage() {
 
   // Returning from the SSO provider: finish sign-in or show why it failed
   useEffect(() => {
-    if (ssoHandled.current) return;
+    // Already signed in (a valid token was in storage): the effect above is leaving for '/'.
+    // Clearing the query here would navigate back to /login in the same pass and win, and
+    // nothing would re-trigger the redirect (production bug, 2026-10-15).
+    if (ssoHandled.current || isAuthenticated) return;
     const ssoStatus = searchParams.get('sso');
     const ssoError = searchParams.get('sso_error');
     if (!ssoStatus && !ssoError) return;
@@ -74,7 +77,7 @@ export function LoginPage() {
         .catch(() => setError(SSO_ERROR_FALLBACK))
         .finally(() => setIsCompletingSso(false));
     }
-  }, [searchParams, setSearchParams, completeSsoLogin]);
+  }, [searchParams, setSearchParams, completeSsoLogin, isAuthenticated]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -83,7 +86,9 @@ export function LoginPage() {
 
     try {
       await login(usernameOrEmail, password);
-      // Navigation is handled by useEffect after isAuthenticated updates
+      // Leave explicitly: if the user was already signed in, isAuthenticated does not change and
+      // the redirect effect would not fire, leaving "Signing in..." up forever.
+      navigate('/', { replace: true });
     } catch (err: any) {
       // Get the error message from the response, or provide a friendly fallback
       const errorMessage = err.response?.data?.message || 'Login failed. Please try again.';

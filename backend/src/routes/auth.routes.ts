@@ -235,6 +235,17 @@ export async function authRoutes(fastify: FastifyInstance) {
     '/auth/oidc/login',
     { config: { rateLimit: oidcRateLimitConfig } },
     async (request, reply) => {
+      // The transaction cookie is host-only and the provider always returns to the APP_URL host,
+      // so a sign-in started on another name for this server (a LAN hostname) could never finish:
+      // the callback found no cookie and answered sso_error=expired. Start over on the APP_URL
+      // host. The target comes from config, never from the request.
+      const callback = oidcService.getOidcSettings()?.redirectUri;
+      if (callback) {
+        const canonical = new URL(callback);
+        if (request.host !== canonical.host) {
+          return reply.redirect(new URL('/api/auth/oidc/login', canonical.origin).toString(), 302);
+        }
+      }
       try {
         const { url, transaction } = await oidcService.beginLogin();
         setTransactionCookie(reply, transaction);
