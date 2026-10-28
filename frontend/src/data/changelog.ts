@@ -12,6 +12,14 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '1.32.1',
+    date: '2026-10-28',
+    fixed: [
+      'The cursor no longer jumps to the end of the note while you type, and words typed during a save are no longer lost',
+      'Shared notes stay in live editing after you rename them or change their tags or folder',
+    ],
+  },
+  {
     version: '1.32.0',
     date: '2026-10-15',
     fixed: [
