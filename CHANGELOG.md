@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.32.1] - 2026-10-28
+
+### Fixed
+
+- Typing while an autosave was in flight could jump the cursor to the end of the note and drop what was typed after the save started, leaving partial words behind. `saveNote` wrote the title and content it had sent back into state when the response arrived, which rolled the editor back to that snapshot. It no longer writes title or content back from the response.
+- The plain editor stopped ignoring updates for 150ms after a content reset (keystrokes typed in that window were not saved until the next one). It now resets with `emitUpdate: false`, and skips the markdown comparison when the content prop is its own last output.
+- A shared note dropped out of the collaborative editor after its first title, tag or folder save: the `PATCH /api/notes/:id` response has no `isShared` or `permission`, and the client replaced its note with it. That editor then saved full content over REST, which replaced the live document for every collaborator (cursor jump to the end, concurrent typing lost). The client now keeps `isShared`, `permission` and `owner` across saves.
+
 ## [1.32.0] - 2026-10-15
 
 Follow-ups to the 1.31.1 sign-in hotfix. **Upgrade note: new `TRUST_PROXY` setting with a changed default; read it before deploying if your reverse proxy is not on the same Docker host.**

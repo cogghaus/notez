@@ -230,7 +230,9 @@ function markdownToHTML(markdown: string): string {
 }
 
 export function TiptapEditor({ content, onChange, disabled = false, placeholder = 'Start writing...', onNoteNavigate }: TiptapEditorProps) {
-  const isUpdatingFromProp = useRef(false);
+  // The markdown this editor last sent through onChange. When the content prop is just
+  // that value coming back, there is nothing to sync.
+  const lastEmittedRef = useRef(content);
   const [isUploading, setIsUploading] = useState(false);
   const [referencesKeyword, setReferencesKeyword] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -271,11 +273,10 @@ export function TiptapEditor({ content, onChange, disabled = false, placeholder 
     content: markdownToHTML(content),
     editable: !disabled,
     onUpdate: ({ editor }) => {
-      if (isUpdatingFromProp.current) return;
-
       // Convert HTML back to markdown
       const html = editor.getHTML();
       const markdown = turndownService.turndown(html);
+      lastEmittedRef.current = markdown;
       onChange(markdown);
     },
     editorProps: {
@@ -299,6 +300,9 @@ export function TiptapEditor({ content, onChange, disabled = false, placeholder 
   // Update editor content when prop changes (e.g., switching notes)
   useEffect(() => {
     if (editor && content !== undefined) {
+      // Our own onChange echoed back: skip the full-document conversion on every keystroke.
+      if (content === lastEmittedRef.current) return;
+
       const html = editor.getHTML();
       const currentMarkdown = turndownService.turndown(html);
 
@@ -308,12 +312,10 @@ export function TiptapEditor({ content, onChange, disabled = false, placeholder 
 
       // Only update if content actually changed
       if (normalizedCurrent !== normalizedNew) {
-        isUpdatingFromProp.current = true;
-        editor.commands.setContent(markdownToHTML(content));
-        // Longer timeout to ensure editor state is fully settled
-        setTimeout(() => {
-          isUpdatingFromProp.current = false;
-        }, 150);
+        // emitUpdate: false keeps this change from echoing back through onChange. The
+        // old 150ms "ignore updates" window also swallowed real keystrokes typed in it.
+        editor.commands.setContent(markdownToHTML(content), { emitUpdate: false });
+        lastEmittedRef.current = content;
       }
     }
   }, [content, editor]);

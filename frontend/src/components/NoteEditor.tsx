@@ -242,18 +242,22 @@ export function NoteEditor({ noteId, onNoteDeleted, onTagsChanged, onNoteUpdated
       setLastSaved(new Date(updatedNote.updatedAt));
       saveErrorShownRef.current = false; // Reset on successful save
 
-      // Update note object with server response
-      setNote(updatedNote);
+      // Update note object with server response. The update response carries no
+      // isShared/permission/owner, so keep ours: losing isShared silently dropped a
+      // shared note out of the collaborative editor, and its next autosave then
+      // overwrote the live document for every collaborator.
+      setNote((prev) => ({
+        ...updatedNote,
+        isShared: prev?.isShared,
+        permission: prev?.permission,
+        owner: prev?.owner,
+      }));
 
-      // CRITICAL: Only update title/content if they match what we sent
-      // This prevents cursor jumps when user is still typing
+      // CRITICAL: never write title/content back from the response. title and content
+      // here are the values from when this save started, so writing them back rolled
+      // the editor back to that snapshot whenever the user kept typing while the
+      // request was in flight: the cursor jumped to the end and the newer typing was lost.
       // Tags must be updated to get proper IDs from server
-      if (title === updatedNote.title) {
-        setTitle(updatedNote.title);
-      }
-      if (content === (updatedNote.content || '')) {
-        setContent(updatedNote.content || '');
-      }
       setTags(updatedNote.tags || []);
       setSelectedFolderId(updatedNote.folder?.id || null);
 
