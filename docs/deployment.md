@@ -95,7 +95,9 @@ Open the app in your browser. You'll be prompted to create an admin account on f
 ## Single sign-on (Pocket ID)
 
 Optional. Adds a "Sign in with Pocket ID" button next to the password form; password login keeps
-working (and is still how service accounts and anyone without a Pocket ID account sign in).
+working (and is still how anyone without a Pocket ID account signs in) unless you turn it off with
+`PASSWORD_LOGIN_ENABLED=false`, below. Service accounts never sign in with a password; they use
+API tokens.
 
 1. In Pocket ID, create a confidential client (PKCE on) with redirect URI
    `${APP_URL}/api/auth/oidc/callback` and logout URL `${APP_URL}/`. Restrict it to a group
@@ -130,7 +132,35 @@ How accounts are matched:
 
 Removing someone's access: take them out of the Pocket ID group **and** deactivate them in Notez.
 Pocket ID does not revoke existing Notez sessions, and a user who set a Notez password can still
-use it.
+use it (unless password login is off).
+
+### Pocket ID only (PASSWORD_LOGIN_ENABLED)
+
+`PASSWORD_LOGIN_ENABLED=false` (also `0`, `no`, `off`; default `true`) makes Pocket ID the only
+way to sign in. Recreate `notez-backend` after changing it.
+
+- Refused with 403 and code `password_login_disabled`: `POST /api/auth/login`,
+  `/api/auth/forgot-password`, `/api/auth/reset-password`, `GET /api/auth/validate-reset-token`
+  and `POST /api/auth/change-password`. They refuse before looking at the request body or any
+  account, so an old emailed reset link cannot set a password either.
+- Change password is refused too, so "off" means no password endpoint works at all: a password
+  nobody can sign in with is not worth setting. Settings, Profile hides the Password card, and nobody is sent to the forced "change your
+  password" page (`/api/auth/me` reports `mustChangePassword: false`).
+- `GET /api/auth/oidc/config` reports `passwordLoginEnabled: false`, so the login page shows only
+  the Pocket ID button.
+- Not affected: Pocket ID sign-in and Connect, session refresh and logout, API tokens and service
+  accounts (`/api/v1`, `/api/mcp`), the MCP OAuth connector (`/mcp/oauth/*`, approved from a
+  signed-in session), first-run setup, and an admin setting a user's password from the admin
+  panel (stored, but unusable while password login is off).
+- **Lockout guard:** the setting is ignored, with a warning in the backend log at start-up, when
+  single sign-on is not fully configured (`OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`,
+  `APP_URL`). An unrecognised value is also ignored with a warning. When it does take effect the
+  log says `Password login is off`.
+
+Before turning it off, make sure every person who uses Notez, admins included, has signed in with
+Pocket ID at least once (admins link from Settings, Profile, Connect). An account that was never
+linked can still be reached by its first Pocket ID sign-in if its email matches and it is a
+regular user; an unlinked admin cannot sign in until the setting is turned back on.
 
 Local development: SSO redirects back to relative `/login` paths, so set `APP_URL` to the Vite
 origin (`http://localhost:5173`, which proxies `/api`) and register

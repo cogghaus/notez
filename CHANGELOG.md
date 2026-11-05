@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.33.0] - 2026-10-15
+## [1.34.0] - 2026-11-05
 
 Mobile rework PR3 (`docs/mobile/03-build-plan.md`): the new mobile shell and navigation. Below 1280px (phones, and the Pixel Fold inner screen until PR8 brings its two-pane layout); desktop is unchanged.
 
@@ -27,6 +27,25 @@ Mobile rework PR3 (`docs/mobile/03-build-plan.md`): the new mobile shell and nav
 - `?note=` deep links accept note ids only; notification links are encoded.
 - The e2e harness has one hermetic mock API for every spec (`e2e/support/mockApi.ts`, with per-spec overrides).
 
+
+## [1.33.0] - 2026-11-05
+
+### Added
+
+- `PASSWORD_LOGIN_ENABLED` server setting (default `true`, so nothing changes unless it is set). `false` makes Pocket ID the only way to sign in:
+  - `POST /api/auth/login`, `/api/auth/forgot-password`, `/api/auth/reset-password`, `/api/auth/change-password` and `GET /api/auth/validate-reset-token` refuse with 403 and code `password_login_disabled`, before reading the body or any account.
+  - `GET /api/auth/oidc/config` reports `passwordLoginEnabled`; the login page then shows only the Pocket ID button, and Settings, Profile hides the Password card.
+  - `/api/auth/me` reports `mustChangePassword: false`, so nobody is sent to a password change the server would refuse.
+  - Unaffected: Pocket ID sign-in and Connect, session refresh, API tokens and service accounts (`/api/v1`, `/api/mcp`), and the MCP OAuth connector.
+  - Lockout guard: ignored, with a warning in the backend log, unless single sign-on is fully configured; an unrecognised value is also ignored with a warning. See `docs/deployment.md`, "Pocket ID only".
+
+## [1.32.1] - 2026-10-28
+
+### Fixed
+
+- Typing while an autosave was in flight could jump the cursor to the end of the note and drop what was typed after the save started, leaving partial words behind. `saveNote` wrote the title and content it had sent back into state when the response arrived, which rolled the editor back to that snapshot. It no longer writes title or content back from the response.
+- The plain editor stopped ignoring updates for 150ms after a content reset (keystrokes typed in that window were not saved until the next one). It now resets with `emitUpdate: false`, and skips the markdown comparison when the content prop is its own last output.
+- A shared note dropped out of the collaborative editor after its first title, tag or folder save: the `PATCH /api/notes/:id` response has no `isShared` or `permission`, and the client replaced its note with it. That editor then saved full content over REST, which replaced the live document for every collaborator (cursor jump to the end, concurrent typing lost). The client now keeps `isShared`, `permission` and `owner` across saves.
 
 ## [1.32.0] - 2026-10-15
 

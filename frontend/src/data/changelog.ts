@@ -12,8 +12,8 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
-    version: '1.33.0',
-    date: '2026-10-15',
+    version: '1.34.0',
+    date: '2026-11-05',
     added: [
       'A new phone layout: Notes, Tasks and Search tabs at the bottom, with your account menu and notifications at the top',
       'Back works the way you expect on phones, including the Android back gesture, and returns you to where you were in the list',
@@ -21,6 +21,21 @@ export const changelog: ChangelogEntry[] = [
       'Settings are easier to use on phones: pick a section, then come back with Back',
     ],
     changed: ['Accessibility improvements for keyboard and screen reader users'],
+  },
+  {
+    version: '1.33.0',
+    date: '2026-11-05',
+    added: [
+      'Server owners can make Pocket ID the only way to sign in. When they do, the sign-in page shows just the Pocket ID button',
+    ],
+  },
+  {
+    version: '1.32.1',
+    date: '2026-10-28',
+    fixed: [
+      'The cursor no longer jumps to the end of the note while you type, and words typed during a save are no longer lost',
+      'Shared notes stay in live editing after you rename them or change their tags or folder',
+    ],
   },
   {
     version: '1.32.0',

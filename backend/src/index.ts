@@ -38,6 +38,7 @@ import { storageService } from './services/storage.service.js';
 import { hocuspocusServer } from './services/collaboration.service.js';
 import { startWebhookWorker, stopWebhookWorker } from './services/webhook-worker.service.js';
 import { resolveTrustProxy } from './utils/trustProxy.js';
+import { isPasswordLoginEnabled, OIDC_PROVIDER_NAME } from './services/oidc.service.js';
 
 // Configure DATABASE_URL from components if not explicitly set
 // This allows using POSTGRES_USER, POSTGRES_PASSWORD, etc. instead of hardcoded URL
@@ -277,6 +278,10 @@ const start = async () => {
 
     await fastify.listen({ port, host });
     console.log(`🚀 Notez API server running on http://${host}:${port}`);
+    // Evaluated once at boot so a PASSWORD_LOGIN_ENABLED warning (no SSO, bad value) shows up now
+    if (!isPasswordLoginEnabled()) {
+      console.log(`🔒 Password login is off: ${OIDC_PROVIDER_NAME} is the only way to sign in`);
+    }
 
     // Start webhook delivery worker
     startWebhookWorker();

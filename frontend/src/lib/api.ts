@@ -96,8 +96,11 @@ export const authApi = {
 
   me: () => api.get('/api/auth/me'),
 
+  // passwordLoginEnabled is absent from servers older than 1.33.0: treat absent as true
   oidcConfig: () =>
-    api.get<{ enabled: boolean; providerName: string }>('/api/auth/oidc/config'),
+    api.get<{ enabled: boolean; providerName: string; passwordLoginEnabled?: boolean }>(
+      '/api/auth/oidc/config'
+    ),
 
   // Full-page navigation target (not an XHR): starts the SSO redirect. Relative on
   // purpose: in dev the Vite proxy forwards /api, so the callback's redirects back to

@@ -29,6 +29,7 @@ vi.mock('../services/oidc.service.js', async () => {
     OIDC_PROVIDER_NAME: 'Pocket ID',
     OidcLoginError,
     isOidcEnabled: vi.fn(),
+    isPasswordLoginEnabled: vi.fn(() => true),
     getOidcSettings: vi.fn(),
     beginLogin: vi.fn(),
     completeLogin: vi.fn(),
@@ -78,7 +79,7 @@ describe('SSO routes', () => {
   it('reports whether SSO is enabled', async () => {
     mockOidc.isOidcEnabled.mockReturnValue(true);
     const res = await app.inject({ method: 'GET', url: '/api/auth/oidc/config' });
-    expect(res.json()).toEqual({ enabled: true, providerName: 'Pocket ID' });
+    expect(res.json()).toEqual({ enabled: true, providerName: 'Pocket ID', passwordLoginEnabled: true });
   });
 
   it('login redirects to the provider with an httpOnly, short-lived transaction cookie', async () => {

@@ -37,7 +37,12 @@ export function ProfileSettings() {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [sso, setSso] = useState<{ enabled: boolean; providerName: string } | null>(null);
+  // undefined = still loading, null = could not be loaded (the server still enforces the rules)
+  const [sso, setSso] = useState<{
+    enabled: boolean;
+    providerName: string;
+    passwordLoginEnabled?: boolean;
+  } | null | undefined>(undefined);
   const [isLinkingSso, setIsLinkingSso] = useState(false);
   const [searchParams] = useSearchParams();
   const replaceSearchParams = useReplaceSearchParams(); // keeps the history depth the mobile shell relies on
@@ -463,8 +468,10 @@ export function ProfileSettings() {
         </div>
       )}
 
-      {/* Password Section (hidden for service accounts) */}
-      {!user.isServiceAccount && (
+      {/* Password Section (hidden for service accounts, and when the server has password login
+          off: the server refuses a change then). Not shown until the sign-in config has loaded,
+          so it does not flash up on a Pocket ID only server. */}
+      {!user.isServiceAccount && sso !== undefined && sso?.passwordLoginEnabled !== false && (
         <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
           <div className="flex items-center space-x-3 mb-4">
             <Lock className="w-5 h-5 text-gray-600 dark:text-gray-400" />
