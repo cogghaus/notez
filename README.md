@@ -90,6 +90,7 @@ See [`notez-mcp/README.md`](./notez-mcp/README.md) for setup instructions and av
 - `COOKIE_SECRET` -- Cookie signing secret (defaults to JWT_REFRESH_SECRET)
 - `RESEND_API_KEY` -- For password reset emails
 - `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET` -- Single sign-on through an OpenID Connect provider (e.g. Pocket ID). All three plus `APP_URL` enable a "Sign in with Pocket ID" button next to password login. Register `${APP_URL}/api/auth/oidc/callback` as the redirect URI. `OIDC_ISSUER` must equal the provider's published issuer exactly. Optional `OIDC_REQUIRED_GROUP` also checks the `groups` claim server-side. See [docs/deployment.md](./docs/deployment.md#single-sign-on-pocket-id)
+- `PASSWORD_LOGIN_ENABLED` -- Default `true`. Set `false` to make Pocket ID the only way to sign in: password login, forgot/reset password and change password are refused (403 `password_login_disabled`) and the login page shows only the Pocket ID button. API tokens, service accounts and the MCP OAuth connector are unaffected. Ignored, with a warning in the log, unless single sign-on is configured, so it cannot lock everyone out. See [docs/deployment.md](./docs/deployment.md#pocket-id-only-password_login_enabled)
 - `TRUST_PROXY` -- Which peers may set `X-Forwarded-For/-Host/-Proto`: a comma-separated list of IPs, CIDR ranges or `loopback`/`linklocal`/`uniquelocal`, or `true`/`false`. Default `loopback,172.16.0.0/12` (a proxy on the same host or in Docker on it). See [docs/deployment.md](./docs/deployment.md#reverse-proxy-and-trust_proxy)
 
 ## Contributing

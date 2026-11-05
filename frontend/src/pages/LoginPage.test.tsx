@@ -74,6 +74,40 @@ describe('LoginPage single sign-on', () => {
     expect(screen.queryByRole('link', { name: /Pocket ID/ })).toBeNull();
   });
 
+  it('shows only the Pocket ID button when the server has password login off', async () => {
+    oidcConfig.mockResolvedValue({
+      data: { enabled: true, providerName: 'Pocket ID', passwordLoginEnabled: false },
+    });
+    renderAt('/login');
+
+    expect(await screen.findByRole('link', { name: 'Sign in with Pocket ID' })).toBeTruthy();
+    expect(screen.queryByLabelText('Password')).toBeNull();
+    expect(screen.queryByLabelText('Username or Email')).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Forgot password?' })).toBeNull();
+    expect(screen.queryByText('or')).toBeNull();
+  });
+
+  it('still shows an sso_error message when the password form is hidden', async () => {
+    oidcConfig.mockResolvedValue({
+      data: { enabled: true, providerName: 'Pocket ID', passwordLoginEnabled: false },
+    });
+    renderAt('/login?sso_error=link_required');
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain('one-time setup');
+    expect(screen.queryByLabelText('Password')).toBeNull();
+  });
+
+  it('keeps the password form when the server reports password login on', async () => {
+    oidcConfig.mockResolvedValue({
+      data: { enabled: true, providerName: 'Pocket ID', passwordLoginEnabled: true },
+    });
+    renderAt('/login');
+
+    expect(await screen.findByLabelText('Password')).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Forgot password?' })).toBeTruthy();
+  });
+
   it('maps a known sso_error code to its message and clears the query', async () => {
     renderAt('/login?sso_error=link_required');
 

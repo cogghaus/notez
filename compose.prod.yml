@@ -76,6 +76,9 @@ services:
       OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-}
       # Optional: also require this group in the ID token's `groups` claim
       OIDC_REQUIRED_GROUP: ${OIDC_REQUIRED_GROUP:-}
+      # false = Pocket ID only (password login and forgot/reset/change password refused).
+      # Ignored, with a log warning, unless the OIDC settings above are complete
+      PASSWORD_LOGIN_ENABLED: ${PASSWORD_LOGIN_ENABLED:-true}
       # MinIO Configuration
       MINIO_ENDPOINT: notez-minio
       MINIO_PORT: 9000
