@@ -12,6 +12,13 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '1.33.0',
+    date: '2026-11-05',
+    added: [
+      'Server owners can make Pocket ID the only way to sign in. When they do, the sign-in page shows just the Pocket ID button',
+    ],
+  },
+  {
     version: '1.32.1',
     date: '2026-10-28',
     fixed: [

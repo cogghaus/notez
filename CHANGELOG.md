@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.33.0] - 2026-11-05
+
+### Added
+
+- `PASSWORD_LOGIN_ENABLED` server setting (default `true`, so nothing changes unless it is set). `false` makes Pocket ID the only way to sign in:
+  - `POST /api/auth/login`, `/api/auth/forgot-password`, `/api/auth/reset-password`, `/api/auth/change-password` and `GET /api/auth/validate-reset-token` refuse with 403 and code `password_login_disabled`, before reading the body or any account.
+  - `GET /api/auth/oidc/config` reports `passwordLoginEnabled`; the login page then shows only the Pocket ID button, and Settings, Profile hides the Password card.
+  - `/api/auth/me` reports `mustChangePassword: false`, so nobody is sent to a password change the server would refuse.
+  - Unaffected: Pocket ID sign-in and Connect, session refresh, API tokens and service accounts (`/api/v1`, `/api/mcp`), and the MCP OAuth connector.
+  - Lockout guard: ignored, with a warning in the backend log, unless single sign-on is fully configured; an unrecognised value is also ignored with a warning. See `docs/deployment.md`, "Pocket ID only".
+
 ## [1.32.1] - 2026-10-28
 
 ### Fixed

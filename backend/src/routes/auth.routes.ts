@@ -106,6 +106,21 @@ function isCanonicalRetry(request: FastifyRequest): boolean {
   return (request.query as { canonical?: string }).canonical === '1';
 }
 
+/**
+ * preHandler for every password endpoint (login, forgot/reset/change password). With
+ * PASSWORD_LOGIN_ENABLED=false single sign-on is the only way in, so these refuse before body
+ * validation or any account lookup. Runs ahead of authenticateToken too, so the answer is the same
+ * signed in or not.
+ */
+async function requirePasswordLogin(_request: FastifyRequest, reply: FastifyReply) {
+  if (oidcService.isPasswordLoginEnabled()) return;
+  return reply.status(403).send({
+    error: 'Forbidden',
+    code: 'password_login_disabled',
+    message: `Password sign-in is turned off on this server. Sign in with ${oidcService.OIDC_PROVIDER_NAME}.`,
+  });
+}
+
 // Rate limit configuration for auth endpoints
 // These are stricter than the global rate limit to prevent brute force attacks
 const authRateLimitConfig = {
@@ -195,7 +210,7 @@ export async function authRoutes(fastify: FastifyInstance) {
       config: {
         rateLimit: authRateLimitConfig,
       },
-      preHandler: validateBody(loginSchema),
+      preHandler: [requirePasswordLogin, validateBody(loginSchema)],
     },
     async (request, reply) => {
       try {
@@ -241,11 +256,12 @@ export async function authRoutes(fastify: FastifyInstance) {
 
   // ─── Single sign-on (Pocket ID / OIDC) ─────────────────────────────────
 
-  // Tells the login page whether to show the SSO button
+  // Tells the login page whether to show the SSO button, and whether to show the password form
   fastify.get('/auth/oidc/config', async () => {
     return {
       enabled: oidcService.isOidcEnabled(),
       providerName: oidcService.OIDC_PROVIDER_NAME,
+      passwordLoginEnabled: oidcService.isPasswordLoginEnabled(),
     };
   });
 
@@ -535,7 +551,9 @@ export async function authRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/auth/change-password',
     {
-      preHandler: [authenticateToken, validateBody(changePasswordSchema)],
+      // Refused when password login is off: a password nobody can sign in with is not worth
+      // setting, and the Settings page hides the option to match
+      preHandler: [requirePasswordLogin, authenticateToken, validateBody(changePasswordSchema)],
     },
     async (request, reply) => {
       try {
@@ -612,7 +630,9 @@ export async function authRoutes(fastify: FastifyInstance) {
             email: user.email,
             role: user.role,
             isServiceAccount: user.isServiceAccount,
-            mustChangePassword: user.mustChangePassword,
+            // With password login off a forced password change is a dead end (the change is
+            // refused), so the SPA must not send anyone to it
+            mustChangePassword: user.mustChangePassword && oidcService.isPasswordLoginEnabled(),
             oidcLinked: user.oidcSubject !== null, // the subject itself is not exposed
           },
         };
@@ -633,7 +653,7 @@ export async function authRoutes(fastify: FastifyInstance) {
       config: {
         rateLimit: passwordResetRateLimitConfig,
       },
-      preHandler: validateBody(forgotPasswordSchema),
+      preHandler: [requirePasswordLogin, validateBody(forgotPasswordSchema)],
     },
     async (request, _reply) => {
       try {
@@ -662,7 +682,7 @@ export async function authRoutes(fastify: FastifyInstance) {
       config: {
         rateLimit: passwordResetRateLimitConfig,
       },
-      preHandler: validateBody(resetPasswordSchema),
+      preHandler: [requirePasswordLogin, validateBody(resetPasswordSchema)],
     },
     async (request, reply) => {
       try {
@@ -694,7 +714,7 @@ export async function authRoutes(fastify: FastifyInstance) {
   );
 
   // Validate reset token (for frontend to check if token is valid before showing form)
-  fastify.get('/auth/validate-reset-token', async (request, reply) => {
+  fastify.get('/auth/validate-reset-token', { preHandler: requirePasswordLogin }, async (request, reply) => {
     try {
       const { token } = request.query as { token?: string };
 

@@ -87,6 +87,42 @@ export function isOidcEnabled(): boolean {
   return getOidcSettings() !== null;
 }
 
+const PASSWORD_LOGIN_OFF = ['false', '0', 'no', 'off'];
+const PASSWORD_LOGIN_ON = ['', 'true', '1', 'yes', 'on'];
+let warnedPasswordLogin = false;
+
+function warnPasswordLoginOnce(message: string): void {
+  if (warnedPasswordLogin) return;
+  warnedPasswordLogin = true;
+  console.warn(message);
+}
+
+/**
+ * Whether username/password sign-in (and forgot/reset/change password) is allowed.
+ * PASSWORD_LOGIN_ENABLED=false makes single sign-on the only way in. It defaults to on, and
+ * stays on whenever SSO is not configured, so a typo in the OIDC settings can never lock
+ * everyone out. API tokens, service accounts and the MCP OAuth flow do not use passwords
+ * and are unaffected either way.
+ */
+export function isPasswordLoginEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  const raw = (env.PASSWORD_LOGIN_ENABLED ?? '').trim().toLowerCase();
+  if (PASSWORD_LOGIN_ON.includes(raw)) return true;
+  if (!PASSWORD_LOGIN_OFF.includes(raw)) {
+    warnPasswordLoginOnce(
+      'PASSWORD_LOGIN_ENABLED has an unrecognised value (use true or false); password login stays on'
+    );
+    return true;
+  }
+  if (getOidcSettings(env) === null) {
+    warnPasswordLoginOnce(
+      'PASSWORD_LOGIN_ENABLED=false ignored: single sign-on is not configured (OIDC_ISSUER, ' +
+        'OIDC_CLIENT_ID, OIDC_CLIENT_SECRET, APP_URL), so password login stays on to avoid a lockout'
+    );
+    return true;
+  }
+  return false;
+}
+
 function scopeFor(settings: OidcSettings): string {
   return settings.requiredGroup ? 'openid profile email groups' : 'openid profile email';
 }
@@ -366,4 +402,5 @@ async function pickUsername(preferred: string | undefined, email: string): Promi
 /** Test hook: forget cached discovery so env changes take effect. */
 export function resetOidcClientCache(): void {
   configPromise = null;
+  warnedPasswordLogin = false;
 }

@@ -10,7 +10,11 @@ export function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [sso, setSso] = useState<{ enabled: boolean; providerName: string } | null>(null);
+  const [sso, setSso] = useState<{
+    enabled: boolean;
+    providerName: string;
+    passwordLoginEnabled?: boolean;
+  } | null>(null);
   // The form waits for the SSO config so the button does not push it down mid-tap
   const [ssoChecked, setSsoChecked] = useState(false);
   // Filled after mount so screen readers announce it (a live region that mounts
@@ -115,6 +119,10 @@ export function LoginPage() {
     }
   };
 
+  // The server turned password login off (PASSWORD_LOGIN_ENABLED=false): Pocket ID only. The form
+  // stays whenever SSO itself is unavailable, so a broken config never leaves an empty page.
+  const showPasswordForm = !(sso?.enabled && sso.passwordLoginEnabled === false);
+
   if (isCompletingSso) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-700">
@@ -148,21 +156,29 @@ export function LoginPage() {
 
         {ssoChecked && sso?.enabled && (
           <div className="mt-8 space-y-6">
+            {/* With the form hidden its error box is gone too, so SSO errors show here */}
+            {!showPasswordForm && error && (
+              <div className="rounded-md bg-red-50 dark:bg-red-900/20 p-4" role="alert">
+                <p className="text-sm text-red-800 dark:text-red-200">{error}</p>
+              </div>
+            )}
             <a
               href={authApi.oidcLoginUrl}
               className="w-full flex justify-center py-2 px-4 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-100 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-blue-500"
             >
               Sign in with {sso.providerName}
             </a>
-            <div className="flex items-center gap-3" aria-hidden="true">
-              <div className="flex-1 border-t border-gray-200 dark:border-gray-600" />
-              <span className="text-xs text-gray-500 dark:text-gray-400">or</span>
-              <div className="flex-1 border-t border-gray-200 dark:border-gray-600" />
-            </div>
+            {showPasswordForm && (
+              <div className="flex items-center gap-3" aria-hidden="true">
+                <div className="flex-1 border-t border-gray-200 dark:border-gray-600" />
+                <span className="text-xs text-gray-500 dark:text-gray-400">or</span>
+                <div className="flex-1 border-t border-gray-200 dark:border-gray-600" />
+              </div>
+            )}
           </div>
         )}
 
-        {ssoChecked && (
+        {ssoChecked && showPasswordForm && (
         <form className={sso?.enabled ? 'space-y-6' : 'mt-8 space-y-6'} onSubmit={handleSubmit}>
           {error && (
             <div className="rounded-md bg-red-50 dark:bg-red-900/20 p-4" role="alert">

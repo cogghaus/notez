@@ -36,7 +36,11 @@ export function ProfileSettings() {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [sso, setSso] = useState<{ enabled: boolean; providerName: string } | null>(null);
+  const [sso, setSso] = useState<{
+    enabled: boolean;
+    providerName: string;
+    passwordLoginEnabled?: boolean;
+  } | null>(null);
   const [isLinkingSso, setIsLinkingSso] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -461,8 +465,9 @@ export function ProfileSettings() {
         </div>
       )}
 
-      {/* Password Section (hidden for service accounts) */}
-      {!user.isServiceAccount && (
+      {/* Password Section (hidden for service accounts, and when the server has password login
+          off: the server refuses a change then) */}
+      {!user.isServiceAccount && sso?.passwordLoginEnabled !== false && (
         <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
           <div className="flex items-center space-x-3 mb-4">
             <Lock className="w-5 h-5 text-gray-600 dark:text-gray-400" />

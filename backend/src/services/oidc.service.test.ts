@@ -35,6 +35,7 @@ import {
   resetOidcClientCache,
   sanitizeUsername,
   getOidcSettings,
+  isPasswordLoginEnabled,
   OidcLoginError,
 } from './oidc.service.js';
 import { prisma } from '../lib/db.js';
@@ -485,6 +486,61 @@ describe('oidc.service', () => {
       for (const key of Object.keys(full)) {
         expect(getOidcSettings({ ...full, [key]: '' })).toBeNull();
       }
+    });
+  });
+
+  describe('isPasswordLoginEnabled (PASSWORD_LOGIN_ENABLED)', () => {
+    const sso = {
+      OIDC_ISSUER: 'https://id.example.com',
+      OIDC_CLIENT_ID: 'cid',
+      OIDC_CLIENT_SECRET: 'csecret',
+      APP_URL: 'https://notez.example.com',
+    };
+    let warn: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+      // Each case starts with no remembered warning
+      resetOidcClientCache();
+      warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+      warn.mockRestore();
+    });
+
+    it('is on when the setting is unset or empty (nothing changes unless it is set)', () => {
+      expect(isPasswordLoginEnabled({ ...sso })).toBe(true);
+      expect(isPasswordLoginEnabled({ ...sso, PASSWORD_LOGIN_ENABLED: '' })).toBe(true);
+      expect(isPasswordLoginEnabled({ ...sso, PASSWORD_LOGIN_ENABLED: 'true' })).toBe(true);
+      expect(warn).not.toHaveBeenCalled();
+    });
+
+    it.each(['false', 'FALSE', ' false ', '0', 'no', 'off'])(
+      'is off for %j when single sign-on is configured',
+      (value) => {
+        expect(isPasswordLoginEnabled({ ...sso, PASSWORD_LOGIN_ENABLED: value })).toBe(false);
+        expect(warn).not.toHaveBeenCalled();
+      }
+    );
+
+    it('stays on, with a warning, when it is turned off but single sign-on is not configured (no lockout)', () => {
+      const noSso = { ...sso, OIDC_CLIENT_SECRET: '' };
+      expect(isPasswordLoginEnabled({ ...noSso, PASSWORD_LOGIN_ENABLED: 'false' })).toBe(true);
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(String(warn.mock.calls[0][0])).toMatch(/PASSWORD_LOGIN_ENABLED/);
+    });
+
+    it('warns once, not on every request', () => {
+      const noSso = { APP_URL: 'https://notez.example.com', PASSWORD_LOGIN_ENABLED: 'false' };
+      isPasswordLoginEnabled(noSso);
+      isPasswordLoginEnabled(noSso);
+      isPasswordLoginEnabled(noSso);
+      expect(warn).toHaveBeenCalledTimes(1);
+    });
+
+    it('treats an unrecognised value as on (the safe default) and warns', () => {
+      expect(isPasswordLoginEnabled({ ...sso, PASSWORD_LOGIN_ENABLED: 'disabled' })).toBe(true);
+      expect(warn).toHaveBeenCalledTimes(1);
     });
   });
 });
