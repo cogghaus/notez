@@ -100,8 +100,9 @@ function warnPasswordLoginOnce(message: string): void {
 /**
  * Whether username/password sign-in (and forgot/reset/change password) is allowed.
  * PASSWORD_LOGIN_ENABLED=false makes single sign-on the only way in. It defaults to on, and
- * stays on whenever SSO is not configured, so a typo in the OIDC settings can never lock
- * everyone out. API tokens, service accounts and the MCP OAuth flow do not use passwords
+ * stays on whenever SSO is not configured, so a missing or malformed OIDC setting cannot lock
+ * everyone out. (A well-formed but wrong issuer, client secret or required group still can:
+ * docs/deployment.md has the recovery steps.) API tokens, service accounts and the MCP OAuth flow do not use passwords
  * and are unaffected either way.
  */
 export function isPasswordLoginEnabled(env: NodeJS.ProcessEnv = process.env): boolean {

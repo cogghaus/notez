@@ -206,6 +206,21 @@ describe('ProfileSettings: Sign in with Pocket ID', () => {
     expect(screen.queryByRole('link', { name: 'Change Password' })).toBeNull();
   });
 
+  it('does not flash the Password card while the sign-in config is still loading', async () => {
+    oidcConfig.mockReturnValue(new Promise(() => {}));
+    renderAt('/settings/profile');
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.queryByRole('link', { name: 'Change Password' })).toBeNull();
+  });
+
+  it('still offers Change Password if the sign-in config cannot be loaded (the server decides)', async () => {
+    oidcConfig.mockRejectedValue(new Error('network'));
+    renderAt('/settings/profile');
+
+    expect(await screen.findByRole('link', { name: 'Change Password' })).toBeTruthy();
+  });
+
   it('confirms the link on return (?sso_link=confirm), refreshes the user and clears the query', async () => {
     oidcLinkConfirm.mockResolvedValue({ data: { linked: true } });
     renderAt('/settings/profile?sso_link=confirm');
