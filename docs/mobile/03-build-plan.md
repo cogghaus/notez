@@ -40,7 +40,7 @@ The project as a whole is a minor bump. Proposed mapping:
 | --- | --- | --- |
 | PR1 | patch (1.30.5) | Bug fix, no new experience |
 | PR2 | patch (1.31.2) | Bug fixes, no new experience |
-| PR3 | **minor -> 1.34.0 (proposed 2026-11-05)** | First PR that ships the new mobile experience (new navigation) |
+| PR3 | **minor -> 1.34.0 (approved 2026-11-06)** | First PR that ships the new mobile experience (new navigation) |
 | PR4 to PR9 | patch (1.34.x) | Increments within the mobile release |
 
 Updated 2026-10-14: 1.31.0 went to the Foyer task schema (#190) between PR1 and PR2, so PR2 is a
@@ -48,7 +48,7 @@ Updated 2026-10-14: 1.31.0 went to the Foyer task schema (#190) between PR1 and 
 shipped as 1.31.2. 1.32.0 then went to the Connect-on-LAN and TRUST_PROXY follow-up (#195, a new
 config option), and Adam approved 1.33.0 for PR3 on 2026-10-15. While PR3 waited for device
 testing, 1.32.1 (autosave fix, #212) and 1.33.0 (password-login switch, #234) shipped, so PR3
-moves to 1.34.0, proposed 2026-11-05.
+moves to 1.34.0, approved by Adam 2026-11-06.
 
 Alternative: an integration branch with all phases, one merge to `main` as 1.31.0. Rejected for now
 because real-device testing and the cron deploy both run from `main`, and a long-lived branch would
