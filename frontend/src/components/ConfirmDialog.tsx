@@ -1,6 +1,7 @@
-import { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
+import { createContext, useContext, useState, useCallback, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { AlertTriangle, Trash2, X } from 'lucide-react';
+import { useFocusTrap } from '../lib/useFocusTrap';
 
 interface ConfirmOptions {
   title: string;
@@ -47,27 +48,19 @@ export function ConfirmProvider({ children }: ConfirmProviderProps) {
     });
   }, []);
 
-  const restoreFocus = () => {
-    const el = triggerRef.current;
-    if (el && el instanceof HTMLElement) {
-      // Defer to next frame so the dialog unmounts first
-      requestAnimationFrame(() => el.focus());
-    }
-    triggerRef.current = null;
-  };
+  // Tab cycling inside the dialog and focus restoration to the opener on close (spec 9.6)
+  useFocusTrap(dialogRef, isOpen, { opener: triggerRef.current });
 
   const handleConfirm = () => {
     setIsOpen(false);
     resolveRef.current?.(true);
     resolveRef.current = null;
-    restoreFocus();
   };
 
   const handleCancel = () => {
     setIsOpen(false);
     resolveRef.current?.(false);
     resolveRef.current = null;
-    restoreFocus();
   };
 
   // Using mousedown instead of click prevents issues with text selection.
@@ -84,38 +77,6 @@ export function ConfirmProvider({ children }: ConfirmProviderProps) {
       handleCancel();
     }
   };
-
-  // Focus trap: cycle Tab/Shift+Tab within the dialog
-  useEffect(() => {
-    if (!isOpen) return;
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-
-    const handleTrapKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Tab') return;
-      const focusable = dialog.querySelectorAll<HTMLElement>(
-        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-      );
-      if (focusable.length === 0) return;
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-
-      if (e.shiftKey) {
-        if (document.activeElement === first) {
-          e.preventDefault();
-          last.focus();
-        }
-      } else {
-        if (document.activeElement === last) {
-          e.preventDefault();
-          first.focus();
-        }
-      }
-    };
-
-    document.addEventListener('keydown', handleTrapKey);
-    return () => document.removeEventListener('keydown', handleTrapKey);
-  }, [isOpen]);
 
   const { title, message, confirmText = 'Confirm', cancelText = 'Cancel', variant = 'default' } = options;
 
