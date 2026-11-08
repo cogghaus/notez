@@ -83,7 +83,8 @@ function toolError(error: unknown) {
   };
 }
 
-type Scope = 'mcp:read' | 'mcp:write';
+export type McpScope = 'mcp:read' | 'mcp:write';
+type Scope = McpScope;
 
 interface ToolDef {
   scope: Scope;
