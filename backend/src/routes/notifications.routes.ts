@@ -194,7 +194,7 @@ export async function notificationsRoutes(fastify: FastifyInstance) {
         if (!parseResult.success) {
           return reply.status(400).send({
             error: 'Bad Request',
-            message: parseResult.error.errors.map((e) => e.message).join(', '),
+            message: parseResult.error.issues.map((e) => e.message).join(', '),
           });
         }
 

@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.35.2] - 2026-11-07
+
+### Security
+
+- `zod` 3.25.76 to 4.6.7 in the backend and the `notez-mcp` package (1.14.1), for "Zod can exhaust memory while validating oversized constrained collections". 3.x has no fix.
+
+### Changed
+
+- Validation follows zod 4:
+  - Ids must be RFC 9562 UUIDs. Every Notez id is one already.
+  - Email addresses are checked with a stricter pattern at setup, admin user creation and forgot-password. Sign-in still takes a username or email as plain text.
+  - Default validation messages read differently, for example "Invalid input: expected string, received undefined" instead of "Required". Custom messages are unchanged.
+
 ## [1.35.1] - 2026-11-07
 
 ### Security

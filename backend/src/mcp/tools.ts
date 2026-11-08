@@ -31,7 +31,7 @@ function checkTaskArgs<T extends z.ZodTypeAny>(schema: T, args: unknown):
   { ok: true; data: z.infer<T> } | { ok: false; error: Error } {
   const result = schema.safeParse(args);
   if (result.success) return { ok: true, data: result.data };
-  return { ok: false, error: new Error(result.error.errors.map((e) => e.message).join('; ')) };
+  return { ok: false, error: new Error(result.error.issues.map((e) => e.message).join('; ')) };
 }
 
 const taskStatusInput = z.enum(TASK_STATUSES);
