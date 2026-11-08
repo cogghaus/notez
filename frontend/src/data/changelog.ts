@@ -12,6 +12,13 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '1.34.0',
+    date: '2026-11-07',
+    added: [
+      'Your API tokens now also work with the remote MCP endpoint, so a server-to-server tool can connect without signing in through a browser. The token\'s Read and Write scopes decide which tools it gets',
+    ],
+  },
+  {
     version: '1.33.0',
     date: '2026-11-05',
     added: [
