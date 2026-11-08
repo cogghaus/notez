@@ -12,6 +12,14 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '1.35.1',
+    date: '2026-11-08',
+    fixed: [
+      'Stability and security improvements',
+      'Accessibility improvements for keyboard and screen reader users',
+    ],
+  },
+  {
     version: '1.35.0',
     date: '2026-11-07',
     added: [

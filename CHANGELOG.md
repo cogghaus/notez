@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.35.1] - 2026-11-08
+
+### Security
+
+- Dependency sweep that clears every open Dependabot alert with a non-major fix:
+  - backend: `@modelcontextprotocol/sdk` 1.32.2, `fastify` 5.12.8, `body-parser` 2.4.0, `qs` 6.17.1, `fast-uri` 3.1.9 / 4.2.3, `systeminformation` 5.33.19, `@fastify/static` 10.1.10, `@tiptap/*` 3.33.0, `happy-dom` 21.0.4 (override);
+  - frontend: `vite` 8.3.6, `vitest` 4.1.12, `undici` 7.30.2, `follow-redirects` 1.16.2, `postcss-selector-parser` 6.1.5, `@tiptap/*` 3.33.0;
+  - notez-mcp: `@modelcontextprotocol/sdk` 1.32.2, `hono` 4.13.17, `@hono/node-server` 2.1.6, `body-parser` 2.4.0, `qs` 6.17.1, `fast-uri` 3.1.9.
+- npm overrides, backend: `gaxios` ^7.3.1 under `gcp-metadata` (drops rimraf 5 and glob 10); both packages: `minimatch` ^11.0.5 under `@typescript-eslint/typescript-estree` (lint only); frontend: `playwright-core` 1.63.0 to match the pinned `@playwright/test`.
+- Still open, needing a separate decision: `zod` 3 to 4 (major, backend and notez-mcp), and the `minio` 8.0.7 chain (`query-string` 7, `decode-uri-component` 0.2, `stream-json` 1), which no minio release has moved off yet.
+
+### Fixed
+
+- The rich text editor has an accessible name ("Note content"). TipTap 3.33 gives the editor element `role="textbox"`, which axe requires to be named.
+
 ## [1.35.0] - 2026-11-07
 
 Mobile rework PR3 (`docs/mobile/03-build-plan.md`): the new mobile shell and navigation. Below 1280px (phones, and the Pixel Fold inner screen until PR8 brings its two-pane layout); desktop is unchanged.
