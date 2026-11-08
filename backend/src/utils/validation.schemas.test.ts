@@ -717,7 +717,7 @@ describe('validation.schemas', () => {
       const result = updateTaskSchema.safeParse({ source: 'foyer', externalId: 'x' });
       expect(result.success).toBe(false);
       if (!result.success) {
-        expect(result.error.errors[0].message).toBe('source and externalId are set at creation');
+        expect(result.error.issues[0].message).toBe('source and externalId are set at creation');
       }
       expectInvalid(updateTaskSchema, { externalId: 'x' });
     });

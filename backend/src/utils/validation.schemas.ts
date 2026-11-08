@@ -275,7 +275,7 @@ export function refineTaskDates(
 }
 
 // Present on update bodies only to refuse them with a clear message (zod would otherwise strip them silently)
-const taskSyncIdentityRefused = z.undefined({ errorMap: () => ({ message: TASK_SYNC_IDENTITY_IMMUTABLE_MESSAGE }) });
+const taskSyncIdentityRefused = z.undefined({ error: TASK_SYNC_IDENTITY_IMMUTABLE_MESSAGE }).optional();
 
 // Task schemas
 export const createTaskSchema = z.object({

@@ -14,7 +14,7 @@ export function validateBody(schema: ZodSchema) {
         return reply.status(400).send({
           error: 'Validation Error',
           message: 'Invalid request data',
-          details: error.errors.map((err) => ({
+          details: error.issues.map((err) => ({
             path: err.path.join('.'),
             message: err.message,
           })),
@@ -41,7 +41,7 @@ export function validateQuery(schema: ZodSchema) {
         return reply.status(400).send({
           error: 'Validation Error',
           message: 'Invalid query parameters',
-          details: error.errors.map((err) => ({
+          details: error.issues.map((err) => ({
             path: err.path.join('.'),
             message: err.message,
           })),
@@ -68,7 +68,7 @@ export function validateParams(schema: ZodSchema) {
         return reply.status(400).send({
           error: 'Validation Error',
           message: 'Invalid route parameters',
-          details: error.errors.map((err) => ({
+          details: error.issues.map((err) => ({
             path: err.path.join('.'),
             message: err.message,
           })),

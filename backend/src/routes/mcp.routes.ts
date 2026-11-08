@@ -150,8 +150,8 @@ const updateTaskBody = z.object({
   // Replaces all links, as the session route does
   links: z.array(taskLinkSchema).max(10, 'Maximum 10 links per task').optional(),
   // Refused: the sync identity is fixed at creation so de-duplication stays honest
-  source: z.undefined({ errorMap: () => ({ message: TASK_SYNC_IDENTITY_IMMUTABLE_MESSAGE }) }),
-  externalId: z.undefined({ errorMap: () => ({ message: TASK_SYNC_IDENTITY_IMMUTABLE_MESSAGE }) }),
+  source: z.undefined({ error: TASK_SYNC_IDENTITY_IMMUTABLE_MESSAGE }).optional(),
+  externalId: z.undefined({ error: TASK_SYNC_IDENTITY_IMMUTABLE_MESSAGE }).optional(),
 }).superRefine(refineTaskDates).refine(
   (data) => Object.values(data).some(v => v !== undefined),
   { message: 'At least one field must be provided' }
