@@ -27,6 +27,61 @@ The `/api/v1/*` routes use API tokens instead of session JWTs. (`/api/mcp/*` is 
 - **Header:** `Authorization: Bearer ntez_{token}`
 - Tokens are scoped (`read`, `write`) and may have expiry dates.
 - Rate limit: 120 requests/minute per token.
+- The same token also works on the remote MCP endpoint `/mcp` (since 1.34.0); see
+  [Remote MCP endpoint](#remote-mcp-endpoint-mcp) below.
+
+### Remote MCP endpoint (`/mcp`)
+
+`POST`/`GET`/`DELETE /mcp` is the MCP Streamable HTTP transport, served when
+`MCP_REMOTE_ENABLED=true`. It takes either of two bearer credentials:
+
+| Credential | Who uses it | Tools it gets |
+|---|---|---|
+| OAuth 2.1 access token | claude.ai connector (discovery via `/.well-known/oauth-protected-resource`) | The granted `mcp:read` / `mcp:write` scopes |
+| Personal API token (`ntez_...`) | Server-to-server MCP clients that cannot run the OAuth flow | The token's scopes, mapped below |
+
+API token scopes map onto the MCP tool scopes, and the session registers only the tools those
+scopes allow:
+
+| API token scope | MCP scope | Tools |
+|---|---|---|
+| `read` | `mcp:read` | Search, get and list notes, tasks, folders, tags, shares, notifications and your own feedback; `notez_check_ai_status` |
+| `write` | `mcp:write` | Create, update, append, delete and restore notes; create, update and delete tasks and task links; folders, tags, shares and notifications; submit feedback; the AI tools (`notez_ai_summarize`, `notez_ai_suggest_title`, `notez_ai_suggest_tags`), which spend the user's LLM quota |
+
+The full list, with each tool's scope, is `backend/src/mcp/tools.ts`. `write` does not imply
+`read`: a write-only token gets no read tools, the same as on the REST API. Give a client both
+only if it needs both.
+
+An API token on `/mcp` is checked exactly as on the REST API: revoked, expired and
+inactive-user tokens are refused, `lastUsedAt` is updated, and the rate limit is the same 120
+requests/minute per token (OAuth bearers: 60/minute per token and IP). A session opened by an
+API token can be used only by that token.
+
+Every refusal is `401` with
+`WWW-Authenticate: Bearer resource_metadata="{APP_URL}/.well-known/oauth-protected-resource"`.
+For an API token the body is always
+`{"error":"Unauthorized","message":"Invalid or expired API token"}`, whether the token is
+unknown, malformed, revoked, expired, has no MCP scope or belongs to an inactive user. The token
+is never echoed or logged.
+
+#### Minting a token for a server-to-server MCP client
+
+1. Sign in to Notez as the user the client should act as.
+2. Open **Settings > API Tokens** (`/settings/tokens`) and choose **New Token**.
+3. **Token Name:** name the client, for example `agent-host MCP`.
+4. **Scopes:** tick **Read** only, unless the client must create or change content; then also
+   tick **Write**.
+5. **Expiration:** `1 year` gives a natural rotation; `Never` is there for a credential you
+   rotate by hand.
+6. Choose **Create Token** and copy the `ntez_...` value from the banner. It is shown once and
+   cannot be retrieved again.
+7. Put it in the client's secret store, never in a file in a repo, and point the client at
+   `{APP_URL}/mcp` with the header `Authorization: Bearer <token>`.
+8. Check it: `GET {APP_URL}/mcp/health` with that header returns `activeSessions` alongside
+   `status`; a refused token returns only `status`.
+
+To rotate, mint a new token, switch the client to it, then revoke the old one on the same page.
+Revocation takes effect on the client's next request.
 
 ### Global Rate Limits
 
@@ -39,6 +94,7 @@ The `/api/v1/*` routes use API tokens instead of session JWTs. (`/api/mcp/*` is 
 | Avatar upload | 5 per 5 min (per user) |
 | Username change | 5 per hour (per user) |
 | MCP endpoints | 120 req/min (per token) |
+| `/mcp` transport | API token: 120 req/min (per token); OAuth: 60 req/min (per token + IP) |
 
 ### Security Headers
 
@@ -1488,7 +1544,8 @@ POST /api/ai/suggest-tags
 
 ## API Tokens (User Self-Service)
 
-Users manage their own API tokens for service account / MCP access.
+Users manage their own API tokens for service account / MCP access (the `notez-mcp` stdio
+server, and server-to-server clients of `/mcp`: see [Remote MCP endpoint](#remote-mcp-endpoint-mcp)).
 All routes require `Authorization: Bearer {token}`.
 
 ### List Tokens
