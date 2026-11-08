@@ -215,6 +215,11 @@ published in the OAuth metadata document. Note that `/mcp` keeps sessions in
 memory, so that deployment cannot be scaled horizontally without an external
 session store.
 
+`/mcp` accepts OAuth access tokens (the claude.ai connector) and, since 1.34.0,
+personal API tokens (`ntez_...`) for server-to-server MCP clients. The token's
+`read`/`write` scopes decide the tools. How to mint one and which scope to give
+it: [docs/api-reference.md, Remote MCP endpoint](./docs/api-reference.md#remote-mcp-endpoint-mcp).
+
 If no OTLP collector is reachable, set `OTEL_SDK_DISABLED=true` to avoid repeated
 export failures in the logs.
 

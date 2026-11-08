@@ -8,8 +8,8 @@ import { getTaskById, getTaskByExternalId, listTasks, createTask, updateTaskStat
 import { listFolders, createFolder, updateFolder, deleteFolder } from '../services/folder.service.js';
 import { listTags, renameTag, deleteTag } from '../services/tag.service.js';
 import { shareNote, listSharesForNote, unshareNote, updateSharePermission } from '../services/share.service.js';
-import { hashToken } from '../services/token.service.js';
 import { BadRequestError } from '../utils/errors.js';
+import { API_TOKEN_RATE_LIMIT, apiTokenRateLimitKey } from '../utils/api-token-rate-limit.js';
 import {
   FOLDER_ICONS,
   TASK_SORT_FIELDS,
@@ -201,15 +201,8 @@ const updateSharePermissionBody = z.object({
  */
 const perTokenRateLimit = {
   rateLimit: {
-    max: 120,
-    timeWindow: '1 minute',
-    keyGenerator: (request: FastifyRequest) => {
-      const auth = request.headers.authorization || '';
-      if (auth.startsWith('Bearer ntez_')) {
-        return `mcp:${hashToken(auth.substring(7))}`;
-      }
-      return `mcp:${request.ip}`;
-    },
+    ...API_TOKEN_RATE_LIMIT,
+    keyGenerator: (request: FastifyRequest) => apiTokenRateLimitKey(request) ?? `mcp:${request.ip}`,
   },
 };
 
