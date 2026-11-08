@@ -3,7 +3,7 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 import TurndownService from 'turndown';
 import { gfm } from 'turndown-plugin-gfm';
 import { marked } from 'marked';
-import { getBaseExtensions, EDITOR_PROSE_CLASS } from './editorExtensions';
+import { getBaseExtensions, EDITOR_ATTRIBUTES } from './editorExtensions';
 import { ReferencesPanel } from './ReferencesPanel';
 import { uploadImage } from '../api/images';
 import { ImagePlus } from 'lucide-react';
@@ -280,9 +280,7 @@ export function TiptapEditor({ content, onChange, disabled = false, placeholder 
       onChange(markdown);
     },
     editorProps: {
-      attributes: {
-        class: EDITOR_PROSE_CLASS,
-      },
+      attributes: EDITOR_ATTRIBUTES,
       // Ensure formatting commands work reliably by handling keydown at the editor level
       handleKeyDown: (_view, event) => {
         // Don't prevent default browser behavior for keyboard shortcuts
