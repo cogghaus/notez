@@ -5,9 +5,11 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
-import { McpSessionManager } from './session-manager.js';
+import { McpSessionManager, type McpSession } from './session-manager.js';
 import { verifyAccessToken, OAuthError } from './oauth.service.js';
 import { registerNotezTools } from './tools.js';
+import { API_TOKEN_PREFIX, API_TOKEN_REFUSAL, isApiTokenClient, verifyApiTokenForMcp } from './api-token-auth.js';
+import { API_TOKEN_RATE_LIMIT, apiTokenRateLimitKey } from '../utils/api-token-rate-limit.js';
 
 // Configurable origin allowlist (Slag CHAIN-3 mitigation)
 // Parse hostnames at startup to fail fast on misconfiguration and avoid per-request URL parsing
@@ -32,6 +34,43 @@ function isOriginAllowed(origin: string): boolean {
 }
 
 const sessionManager = new McpSessionManager();
+
+/**
+ * May this request use this session? Always: same user. An API-token session also belongs to that
+ * one token, and an API token cannot join an OAuth session, because a session's tools were fixed
+ * by the scopes of the credential that opened it. OAuth-with-OAuth keeps the user-only check.
+ */
+function sessionBelongsTo(session: McpSession, authInfo: AuthInfo): boolean {
+  if (session.userId !== (authInfo.extra?.userId as string)) return false;
+  if (isApiTokenClient(session.clientId) || isApiTokenClient(authInfo.clientId)) {
+    return session.clientId === authInfo.clientId;
+  }
+  return true;
+}
+
+type BearerCheck = { auth: AuthInfo } | { refusal: string };
+
+/**
+ * Verify a bearer token for /mcp: an OAuth access token (claude.ai connector) or a personal API
+ * token (ntez_ prefix, server-to-server clients). Never puts the token in the refusal.
+ */
+async function checkBearerToken(token: string): Promise<BearerCheck> {
+  if (token.startsWith(API_TOKEN_PREFIX)) {
+    const apiAuth = await verifyApiTokenForMcp(token);
+    if (apiAuth) return { auth: apiAuth };
+    // OAuth access tokens are random base64url, so one can (about once in 10^9) start with
+    // "ntez_" too. Try it as one before refusing, so OAuth behaviour is unchanged.
+    const oauthAuth = await verifyAccessToken(token).catch(() => null);
+    if (oauthAuth) return { auth: oauthAuth };
+    return { refusal: API_TOKEN_REFUSAL };
+  }
+
+  try {
+    return { auth: await verifyAccessToken(token) };
+  } catch (error) {
+    return { refusal: error instanceof OAuthError ? error.message : 'Invalid token' };
+  }
+}
 
 /**
  * MCP Streamable HTTP transport routes.
@@ -91,25 +130,24 @@ export async function mcpTransportRoutes(fastify: FastifyInstance) {
       return null;
     }
 
-    try {
-      return await verifyAccessToken(token);
-    } catch (error) {
-      reply.header('WWW-Authenticate', wwwAuthenticate);
-      if (error instanceof OAuthError) {
-        reply.code(401).send({ error: 'Unauthorized', message: error.message });
-      } else {
-        reply.code(401).send({ error: 'Unauthorized', message: 'Invalid token' });
-      }
-      return null;
-    }
+    const check = await checkBearerToken(token);
+    if ('auth' in check) return check.auth;
+
+    reply.header('WWW-Authenticate', wwwAuthenticate);
+    reply.code(401).send({ error: 'Unauthorized', message: check.refusal });
+    return null;
   }
 
-  // Rate limit for MCP transport (key on hashed token + IP)
+  // Rate limit for MCP transport. A ntez_ API token gets the REST per-token limit, keyed on the
+  // token hash (utils/api-token-rate-limit.ts); anything else keys on hashed header + IP, 60/min.
   const mcpRateLimit = {
     rateLimit: {
-      max: 60,
+      max: (request: FastifyRequest) =>
+        apiTokenRateLimitKey(request) !== null ? API_TOKEN_RATE_LIMIT.max : 60,
       timeWindow: '1 minute',
       keyGenerator: (request: FastifyRequest) => {
+        const apiTokenKey = apiTokenRateLimitKey(request);
+        if (apiTokenKey !== null) return apiTokenKey;
         const auth = request.headers.authorization || '';
         const tokenHash = createHash('sha256').update(auth).digest('hex').substring(0, 16);
         return `mcp-transport:${tokenHash}:${request.ip}`;
@@ -127,8 +165,8 @@ export async function mcpTransportRoutes(fastify: FastifyInstance) {
       let session = sessionId ? sessionManager.getSession(sessionId) : undefined;
 
       if (session) {
-        // Verify session belongs to this token's user (Slag CHAIN-3)
-        if (session.userId !== (authInfo.extra?.userId as string)) {
+        // Verify session belongs to this token's user (Slag CHAIN-3), and to this API token
+        if (!sessionBelongsTo(session, authInfo)) {
           return reply.code(403).send({
             jsonrpc: '2.0',
             error: { code: -32000, message: 'Session does not belong to this token' },
@@ -168,7 +206,8 @@ export async function mcpTransportRoutes(fastify: FastifyInstance) {
           version: '1.23.0',
         });
 
-        // Register tools based on granted scopes (v1.23: read-only)
+        // Register tools based on granted scopes: an OAuth grant's mcp:* scopes, or an API
+        // token's read/write mapped onto them (api-token-auth.ts)
         const allowedScopes = authInfo.scopes.filter(
           (s): s is 'mcp:read' | 'mcp:write' => s === 'mcp:read' || s === 'mcp:write'
         );
@@ -233,7 +272,7 @@ export async function mcpTransportRoutes(fastify: FastifyInstance) {
       return reply.code(404).send({ error: 'Session not found' });
     }
 
-    if (session.userId !== (authInfo.extra?.userId as string)) {
+    if (!sessionBelongsTo(session, authInfo)) {
       return reply.code(403).send({ error: 'Session does not belong to this token' });
     }
 
@@ -256,7 +295,7 @@ export async function mcpTransportRoutes(fastify: FastifyInstance) {
       return reply.code(404).send({ error: 'Session not found' });
     }
 
-    if (session.userId !== (authInfo.extra?.userId as string)) {
+    if (!sessionBelongsTo(session, authInfo)) {
       return reply.code(403).send({ error: 'Session does not belong to this token' });
     }
 
@@ -267,9 +306,9 @@ export async function mcpTransportRoutes(fastify: FastifyInstance) {
   // Health check for MCP subsystem (basic status is public, session count requires auth)
   fastify.get('/mcp/health', async (request) => {
     const authHeader = request.headers.authorization;
-    const authInfo = authHeader?.startsWith('Bearer ')
-      ? await verifyAccessToken(authHeader.substring(7)).catch(() => null)
-      : null;
+    const token = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null;
+    const check = token ? await checkBearerToken(token).catch(() => null) : null;
+    const authInfo = check && 'auth' in check ? check.auth : null;
     return {
       status: 'ok',
       ...(authInfo ? { activeSessions: sessionManager.getSessionCount() } : {}),

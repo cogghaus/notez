@@ -40,15 +40,16 @@ The project as a whole is a minor bump. Proposed mapping:
 | --- | --- | --- |
 | PR1 | patch (1.30.5) | Bug fix, no new experience |
 | PR2 | patch (1.31.2) | Bug fixes, no new experience |
-| PR3 | **minor -> 1.34.0 (approved 2026-11-06)** | First PR that ships the new mobile experience (new navigation) |
-| PR4 to PR9 | patch (1.34.x) | Increments within the mobile release |
+| PR3 | **minor -> 1.35.0** | First PR that ships the new mobile experience (new navigation) |
+| PR4 to PR9 | patch (1.35.x) | Increments within the mobile release |
 
 Updated 2026-10-14: 1.31.0 went to the Foyer task schema (#190) between PR1 and PR2, so PR2 is a
 1.31.x patch and PR3's minor moves to 1.32.0. Then the sign-in hotfix (#194) took 1.31.1, so PR2
 shipped as 1.31.2. 1.32.0 then went to the Connect-on-LAN and TRUST_PROXY follow-up (#195, a new
 config option), and Adam approved 1.33.0 for PR3 on 2026-10-15. While PR3 waited for device
 testing, 1.32.1 (autosave fix, #212) and 1.33.0 (password-login switch, #234) shipped, so PR3
-moves to 1.34.0, approved by Adam 2026-11-06.
+moves to 1.34.0, approved by Adam 2026-11-06. Then 1.34.0 went to API tokens on the remote MCP
+endpoint (#242) on 2026-11-07, so PR3 ships as the next minor, 1.35.0.
 
 Alternative: an integration branch with all phases, one merge to `main` as 1.31.0. Rejected for now
 because real-device testing and the cron deploy both run from `main`, and a long-lived branch would
@@ -124,7 +125,7 @@ strip function). Monaco follows the app theme.
 
 **Acceptance criteria:** tests above pass; Settings usable at 360px; desktop unchanged.
 
-## PR3: Mobile shell and navigation (`feature/mobile-shell-nav`) -> 1.34.0
+## PR3: Mobile shell and navigation (`feature/mobile-shell-nav`) -> 1.35.0
 
 Scope decisions taken when PR3 was built (2026-10-15):
 - Medium (600 to 1279px) uses the Compact shell (bottom tabs) until PR8 brings the rail and the

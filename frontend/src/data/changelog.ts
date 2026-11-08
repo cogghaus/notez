@@ -12,8 +12,8 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
-    version: '1.34.0',
-    date: '2026-11-05',
+    version: '1.35.0',
+    date: '2026-11-07',
     added: [
       'A new phone layout: Notes, Tasks and Search tabs at the bottom, with your account menu and notifications at the top',
       'Back works the way you expect on phones, including the Android back gesture, and returns you to where you were in the list',
@@ -21,6 +21,13 @@ export const changelog: ChangelogEntry[] = [
       'Settings are easier to use on phones: pick a section, then come back with Back',
     ],
     changed: ['Accessibility improvements for keyboard and screen reader users'],
+  },
+  {
+    version: '1.34.0',
+    date: '2026-11-07',
+    added: [
+      'Your API tokens now also work with the remote MCP endpoint, so a server-to-server tool can connect without signing in through a browser. The token\'s Read and Write scopes decide which tools it gets',
+    ],
   },
   {
     version: '1.33.0',

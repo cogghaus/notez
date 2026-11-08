@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.34.0] - 2026-11-05
+## [1.35.0] - 2026-11-07
 
 Mobile rework PR3 (`docs/mobile/03-build-plan.md`): the new mobile shell and navigation. Below 1280px (phones, and the Pixel Fold inner screen until PR8 brings its two-pane layout); desktop is unchanged.
 
@@ -27,6 +27,15 @@ Mobile rework PR3 (`docs/mobile/03-build-plan.md`): the new mobile shell and nav
 - `?note=` deep links accept note ids only; notification links are encoded.
 - The e2e harness has one hermetic mock API for every spec (`e2e/support/mockApi.ts`, with per-spec overrides).
 
+## [1.34.0] - 2026-11-07
+
+### Added
+
+- The remote MCP endpoint `/mcp` accepts personal API tokens (`ntez_...`) as well as OAuth access tokens, for server-to-server MCP clients that cannot run the OAuth flow. The token's scopes decide the tools: `read` opens the `mcp:read` tools, `write` the `mcp:write` tools (`write` does not imply `read`). The token is checked by the same code as on the REST API (revoked, expired and inactive-user tokens refused, `lastUsedAt` updated) and gets the same 120 requests/minute per token. Every refused API token gets one 401, with the same `WWW-Authenticate` header as every other `/mcp` refusal and one message, `Invalid or expired API token`; the token is never echoed or logged. `GET /mcp/health` counts sessions for an API token too. How to mint one: `docs/api-reference.md`, "Remote MCP endpoint".
+
+### Changed
+
+- A `/mcp` session opened by an API token can be used only by that token, and an API token cannot use a session an OAuth token opened (403). OAuth sessions keep the same-user check they had.
 
 ## [1.33.0] - 2026-11-05
 
