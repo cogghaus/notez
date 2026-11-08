@@ -227,6 +227,17 @@ describe('external API (mcp.routes) tasks', () => {
     expect(mockTasks.updateTask).not.toHaveBeenCalled();
   });
 
+  it.each([null, '', 0])('refuses source and externalId set to %j on update', async (value) => {
+    for (const key of ['source', 'externalId']) {
+      const res = await app.inject({
+        method: 'PATCH', url: `/api/v1/tasks/${TASK_ID}`, headers: AUTH,
+        payload: { title: 'T', [key]: value },
+      });
+      expect(res.statusCode).toBe(400);
+    }
+    expect(mockTasks.updateTask).not.toHaveBeenCalled();
+  });
+
   it('accepts WAITING on the status route', async () => {
     mockTasks.updateTaskStatus.mockResolvedValue({ id: TASK_ID, status: 'WAITING' } as unknown as Awaited<ReturnType<typeof taskService.updateTaskStatus>>);
 

@@ -722,6 +722,17 @@ describe('validation.schemas', () => {
       expectInvalid(updateTaskSchema, { externalId: 'x' });
     });
 
+    // zod 4: the refused keys rely on z.undefined().optional(); only an absent or undefined key passes.
+    it.each([null, '', 0, false])('refuses source or externalId set to %j on update', (value) => {
+      expectInvalid(updateTaskSchema, { title: 'T', source: value });
+      expectInvalid(updateTaskSchema, { title: 'T', externalId: value });
+    });
+
+    it('accepts an update that leaves source and externalId out or undefined', () => {
+      expect(updateTaskSchema.safeParse({ title: 'T' }).success).toBe(true);
+      expect(updateTaskSchema.safeParse({ title: 'T', source: undefined, externalId: undefined }).success).toBe(true);
+    });
+
     it('list query accepts source, externalId, parentTaskId and sortBy startDate', () => {
       const parsed = listTasksQuerySchema.parse({
         source: 'foyer',
