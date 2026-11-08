@@ -45,7 +45,11 @@
     "zustand": "^5.0.15"
   },
   "overrides": {
-    "dompurify": "$dompurify"
+    "dompurify": "$dompurify",
+    "playwright-core": "1.63.0",
+    "@typescript-eslint/typescript-estree": {
+      "minimatch": "^11.0.5"
+    }
   },
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",
