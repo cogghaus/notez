@@ -226,6 +226,16 @@ describe('MCP transport: a session belongs to the token that opened it', () => {
     expect(own.status).toBe(200);
   });
 
+  it("an OAuth token of the same user cannot use an API token's session", async () => {
+    const sessionId = await openSession(OAUTH_USER_API_TOKEN);
+    const res = await send('POST', OAUTH_TOKEN, sessionId);
+    await res.arrayBuffer();
+    expect(res.status).toBe(403);
+    const own = await send('DELETE', OAUTH_USER_API_TOKEN, sessionId);
+    await own.arrayBuffer();
+    expect(own.status).toBe(200);
+  });
+
   it("an API token cannot use an OAuth session of the same user", async () => {
     const sessionId = await openSession(OAUTH_TOKEN);
     const res = await send('POST', OAUTH_USER_API_TOKEN, sessionId);
