@@ -1,11 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { X, ChevronDown, ChevronRight, Sparkles, Wrench, RefreshCw, Minus, Plus } from 'lucide-react';
 import { changelog, type ChangelogEntry } from '../data/changelog';
+import { useFocusTrap } from '../lib/useFocusTrap';
 
 interface WhatsNewModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentVersion: string;
+  /** Where focus goes on close, when it is not the element focused at open (mobile overlays). */
+  returnFocusTo?: Element | null;
 }
 
 const LAST_SEEN_VERSION_KEY = 'notez-last-seen-version';
@@ -35,14 +38,14 @@ function ReleaseSection({ entry, isLatest = false }: { entry: ChangelogEntry; is
       <div className="flex items-center justify-between mb-3">
         <h3 className={`font-semibold ${isLatest ? 'text-lg text-blue-600 dark:text-blue-400' : 'text-base text-gray-700 dark:text-gray-300'}`}>
           v{entry.version}
-          {isLatest && <span className="ml-2 text-xs bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded-full">Latest</span>}
+          {isLatest && <span className="ml-2 text-xs bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-400 px-2 py-0.5 rounded-full">Latest</span>}
         </h3>
         <span className="text-sm text-gray-500 dark:text-gray-400">{entry.date}</span>
       </div>
 
       {hasAdded && (
         <div className="mb-3">
-          <div className="flex items-center gap-1.5 text-green-600 dark:text-green-400 text-sm font-medium mb-1.5">
+          <div className="flex items-center gap-1.5 text-green-700 xl:text-green-600 dark:text-green-400 text-sm font-medium mb-1.5">
             <Plus className="w-3.5 h-3.5" />
             <span>Added</span>
           </div>
@@ -76,7 +79,7 @@ function ReleaseSection({ entry, isLatest = false }: { entry: ChangelogEntry; is
 
       {hasChanged && (
         <div className="mb-3">
-          <div className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400 text-sm font-medium mb-1.5">
+          <div className="flex items-center gap-1.5 text-amber-700 xl:text-amber-600 dark:text-amber-400 text-sm font-medium mb-1.5">
             <RefreshCw className="w-3.5 h-3.5" />
             <span>Changed</span>
           </div>
@@ -111,8 +114,26 @@ function ReleaseSection({ entry, isLatest = false }: { entry: ChangelogEntry; is
   );
 }
 
-export function WhatsNewModal({ isOpen, onClose, currentVersion }: WhatsNewModalProps) {
+export function WhatsNewModal({ isOpen, onClose, currentVersion, returnFocusTo }: WhatsNewModalProps) {
   const [showHistory, setShowHistory] = useState(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+
+  useFocusTrap(dialogRef, isOpen, { opener: returnFocusTo });
+
+  // Focus starts on the heading (Tab reaches Close next); Escape closes. The latest onClose is kept
+  // in a ref so a parent re-render neither re-focuses the heading nor re-subscribes.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  useEffect(() => {
+    if (!isOpen) return;
+    headingRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onCloseRef.current();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [isOpen]);
 
   // Mark version as seen when modal opens
   useEffect(() => {
@@ -137,6 +158,7 @@ export function WhatsNewModal({ isOpen, onClose, currentVersion }: WhatsNewModal
       {/* Modal */}
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
         <div
+          ref={dialogRef}
           className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full max-h-[80vh] flex flex-col"
           role="dialog"
           aria-modal="true"
@@ -149,7 +171,7 @@ export function WhatsNewModal({ isOpen, onClose, currentVersion }: WhatsNewModal
                 <Sparkles className="w-5 h-5 text-white" />
               </div>
               <div>
-                <h2 id="whats-new-title" className="text-lg font-semibold text-gray-900 dark:text-white">What's New in Notez</h2>
+                <h2 id="whats-new-title" ref={headingRef} tabIndex={-1} className="text-lg font-semibold text-gray-900 dark:text-white focus:outline-none">What's New in Notez</h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400">Version {currentVersion}</p>
               </div>
             </div>
@@ -174,23 +196,22 @@ export function WhatsNewModal({ isOpen, onClose, currentVersion }: WhatsNewModal
               <div className="mt-6">
                 <button
                   onClick={() => setShowHistory(!showHistory)}
+                  aria-expanded={showHistory}
+                  aria-controls="whats-new-history"
                   className="flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
                 >
                   {showHistory ? (
-                    <ChevronDown className="w-4 h-4" />
+                    <ChevronDown className="w-4 h-4" aria-hidden="true" />
                   ) : (
-                    <ChevronRight className="w-4 h-4" />
+                    <ChevronRight className="w-4 h-4" aria-hidden="true" />
                   )}
                   <span>Previous Releases ({previousReleases.length})</span>
                 </button>
 
-                {showHistory && (
-                  <div className="mt-4 space-y-4">
-                    {previousReleases.map((entry) => (
-                      <ReleaseSection key={entry.version} entry={entry} />
-                    ))}
-                  </div>
-                )}
+                <div id="whats-new-history" hidden={!showHistory} className="mt-4 space-y-4">
+                  {showHistory &&
+                    previousReleases.map((entry) => <ReleaseSection key={entry.version} entry={entry} />)}
+                </div>
               </div>
             )}
           </div>

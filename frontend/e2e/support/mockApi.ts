@@ -56,6 +56,21 @@ export const TASK = {
   links: [],
 };
 
+/** `count` plain notes for long-list tests; the first is NOTE_ID so `GET /api/notes/:id` resolves. */
+export function makeNotes(count: number) {
+  return Array.from({ length: count }, (_, i) =>
+    i === 0
+      ? NOTE
+      : {
+          ...NOTE,
+          id: `aaaaaaaa-aaaa-4aaa-8aaa-${String(i).padStart(12, '0')}`,
+          title: `Filler note ${i}`,
+          content: `<p>Filler content ${i}</p>`,
+          tags: [],
+        },
+  );
+}
+
 function fixtureFor(method: string, pathname: string): unknown | undefined {
   if (method === 'GET') {
     switch (pathname) {
@@ -85,6 +100,20 @@ function fixtureFor(method: string, pathname: string): unknown | undefined {
         return { total: 1, byStatus: { PENDING: 1 }, byPriority: { HIGH: 1 } };
       case '/api/system/info':
         return { version: 'e2e' };
+      case '/api/search':
+        return {
+          results: [
+            {
+              id: NOTE.id,
+              title: NOTE.title,
+              content: NOTE.content,
+              snippet: 'Buy <mark>milk</mark> and eggs',
+              folder: NOTE.folder,
+              tags: NOTE.tags,
+            },
+          ],
+          total: 1,
+        };
     }
   }
   if (method === 'PATCH' && pathname === `/api/notes/${NOTE_ID}`) {
@@ -93,11 +122,22 @@ function fixtureFor(method: string, pathname: string): unknown | undefined {
   return undefined;
 }
 
+/**
+ * Per-spec fixtures, keyed "METHOD /path" (e.g. "GET /api/notes"). A value is the JSON body; a
+ * function receives the request URL and returns the body (undefined falls through to the defaults).
+ */
+export type FixtureOverrides = Record<string, unknown | ((url: URL) => unknown)>;
+
 /** Signs the fake user in and routes /api/* to the fixtures. Call before page.goto. */
-export async function installMockApi(page: Page): Promise<void> {
+export async function installMockApi(page: Page, overrides: FixtureOverrides = {}): Promise<void> {
   await page.addInitScript(() => {
     localStorage.setItem('accessToken', 'e2e-fake-token');
   });
+
+  const overrideFor = (method: string, url: URL): unknown => {
+    const entry = overrides[`${method} ${url.pathname}`];
+    return typeof entry === 'function' ? (entry as (u: URL) => unknown)(url) : entry;
+  };
 
   await page.route(
     (url) => url.pathname.startsWith('/api/') && !/\.(ts|tsx|js|css)$/.test(url.pathname),
@@ -108,7 +148,7 @@ export async function installMockApi(page: Page): Promise<void> {
         await route.fulfill({ status: 404, body: '' });
         return;
       }
-      const body = fixtureFor(req.method(), url.pathname);
+      const body = overrideFor(req.method(), url) ?? fixtureFor(req.method(), url.pathname);
       if (body === undefined) {
         console.log(`[e2e] unmatched route: ${req.method()} ${url.pathname}`);
         await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });

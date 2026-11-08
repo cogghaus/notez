@@ -11,6 +11,7 @@ export function UserDropdown() {
   const [isOpen, setIsOpen] = useState(false);
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const avatarButtonRef = useRef<HTMLButtonElement>(null);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -66,6 +67,7 @@ export function UserDropdown() {
   return (
     <div className="relative" ref={dropdownRef}>
       <button
+        ref={avatarButtonRef}
         onClick={() => setIsOpen(!isOpen)}
         className="flex items-center space-x-2 p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
         aria-expanded={isOpen}
@@ -144,6 +146,7 @@ export function UserDropdown() {
       <FeedbackModal
         isOpen={isFeedbackOpen}
         onClose={() => setIsFeedbackOpen(false)}
+        returnFocusTo={avatarButtonRef.current}
       />
     </div>
   );

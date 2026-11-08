@@ -88,7 +88,8 @@ test('note previews show plain text, not HTML', async ({ page }) => {
 test('folders pane fills the viewport width', async ({ page }, testInfo) => {
   test.skip(isDesktop(testInfo.project.name), 'folders are always visible on desktop');
   await page.goto('/', { waitUntil: 'domcontentloaded' });
-  await page.locator('[data-mobile-bottom-nav]').getByRole('button', { name: 'Folders' }).click();
+  // PR3 removed the Folders tab: the Notes title button opens the full-width Folders screen
+  await page.getByRole('button', { name: /All notes/ }).click();
   await expect(page.getByText('Work').first()).toBeVisible();
 
   const vw = await viewportWidth(page);
