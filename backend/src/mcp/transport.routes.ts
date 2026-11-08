@@ -9,6 +9,7 @@ import { McpSessionManager } from './session-manager.js';
 import { verifyAccessToken, OAuthError } from './oauth.service.js';
 import { registerNotezTools } from './tools.js';
 import { API_TOKEN_PREFIX, API_TOKEN_REFUSAL, verifyApiTokenForMcp } from './api-token-auth.js';
+import { API_TOKEN_RATE_LIMIT, apiTokenRateLimitKey } from '../utils/api-token-rate-limit.js';
 
 // Configurable origin allowlist (Slag CHAIN-3 mitigation)
 // Parse hostnames at startup to fail fast on misconfiguration and avoid per-request URL parsing
@@ -124,12 +125,16 @@ export async function mcpTransportRoutes(fastify: FastifyInstance) {
     return null;
   }
 
-  // Rate limit for MCP transport (key on hashed token + IP)
+  // Rate limit for MCP transport. A ntez_ API token gets the REST per-token limit, keyed on the
+  // token hash (utils/api-token-rate-limit.ts); anything else keys on hashed header + IP, 60/min.
   const mcpRateLimit = {
     rateLimit: {
-      max: 60,
+      max: (request: FastifyRequest) =>
+        apiTokenRateLimitKey(request) !== null ? API_TOKEN_RATE_LIMIT.max : 60,
       timeWindow: '1 minute',
       keyGenerator: (request: FastifyRequest) => {
+        const apiTokenKey = apiTokenRateLimitKey(request);
+        if (apiTokenKey !== null) return apiTokenKey;
         const auth = request.headers.authorization || '';
         const tokenHash = createHash('sha256').update(auth).digest('hex').substring(0, 16);
         return `mcp-transport:${tokenHash}:${request.ip}`;

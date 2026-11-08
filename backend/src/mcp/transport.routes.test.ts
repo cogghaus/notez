@@ -18,6 +18,7 @@ const NO_SCOPE_TOKEN = 'ntez_test-no-mcp-scope-token-0000000000000000000';
 const REVOKED_TOKEN = 'ntez_test-revoked-token-000000000000000000000000';
 const EXPIRED_TOKEN = 'ntez_test-expired-token-000000000000000000000000';
 const MALFORMED_TOKEN = 'ntez_%%not-a-token%%';
+const RATE_TOKEN = 'ntez_test-rate-limit-token-000000000000000000000';
 const OAUTH_TOKEN = 'oauth-test-access-token-00000000000000000000000';
 
 vi.mock('../services/token.service.js', async () => {
@@ -30,6 +31,7 @@ vi.mock('../services/token.service.js', async () => {
       if (raw === READ_TOKEN) return user('tok-read', 'user-read', ['read']);
       if (raw === RW_TOKEN) return user('tok-rw', 'user-rw', ['read', 'write']);
       if (raw === NO_SCOPE_TOKEN) return user('tok-none', 'user-none', []);
+      if (raw === RATE_TOKEN) return user('tok-rate', 'user-rate', ['read']);
       if (raw === REVOKED_TOKEN) throw new Error('Token has been revoked');
       if (raw === EXPIRED_TOKEN) throw new Error('Token has expired');
       throw new Error('Invalid token');
@@ -178,10 +180,45 @@ describe('MCP transport: refused API tokens', () => {
     expect(body).not.toContain(token);
   });
 
+});
+
+describe('MCP transport: rate limits', () => {
+  // A POST without a session and without an initialize body passes auth, then answers 400, so
+  // these requests count against the limit without opening sessions.
+  const NOT_INITIALIZE = { jsonrpc: '2.0', id: 1, method: 'tools/list' };
+
+  async function statuses(authorization: string, count: number): Promise<number[]> {
+    const out: number[] = [];
+    for (let i = 0; i < count; i++) {
+      const res = await fetch(`${base}/mcp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', Authorization: authorization },
+        body: JSON.stringify(NOT_INITIALIZE),
+      });
+      await res.arrayBuffer();
+      out.push(res.status);
+    }
+    return out;
+  }
+
+  it('an API token gets the REST per-token limit: 120 a minute, then 429', async () => {
+    const seen = await statuses(`Bearer ${RATE_TOKEN}`, 121);
+    expect(seen.slice(0, 120).every((s) => s === 400)).toBe(true);
+    expect(seen[120]).toBe(429);
+  });
+
+  it('an OAuth bearer keeps the transport limit: 60 a minute, then 429', async () => {
+    const seen = await statuses('Bearer oauth-test-rate-limit-token', 61);
+    expect(seen.slice(0, 60).every((s) => s === 401)).toBe(true);
+    expect(seen[60]).toBe(429);
+  });
+});
+
+describe('MCP transport: logging', () => {
   it('never writes an API token to the log', () => {
     const log = logLines.join('\n');
     expect(logLines.length).toBeGreaterThan(0);
-    for (const token of [READ_TOKEN, RW_TOKEN, NO_SCOPE_TOKEN, REVOKED_TOKEN, EXPIRED_TOKEN, MALFORMED_TOKEN]) {
+    for (const token of [READ_TOKEN, RW_TOKEN, NO_SCOPE_TOKEN, REVOKED_TOKEN, EXPIRED_TOKEN, MALFORMED_TOKEN, RATE_TOKEN]) {
       expect(log).not.toContain(token);
       expect(log).not.toContain(createHash('sha256').update(token).digest('hex'));
     }
