@@ -19,6 +19,9 @@ const REVOKED_TOKEN = 'ntez_test-revoked-token-000000000000000000000000';
 const EXPIRED_TOKEN = 'ntez_test-expired-token-000000000000000000000000';
 const MALFORMED_TOKEN = 'ntez_%%not-a-token%%';
 const RATE_TOKEN = 'ntez_test-rate-limit-token-000000000000000000000';
+// Second tokens of users who already have a session open with another credential.
+const RW_USER_READ_TOKEN = 'ntez_test-rw-user-read-token-0000000000000000000';
+const OAUTH_USER_API_TOKEN = 'ntez_test-oauth-user-api-token-00000000000000000';
 const OAUTH_TOKEN = 'oauth-test-access-token-00000000000000000000000';
 
 vi.mock('../services/token.service.js', async () => {
@@ -32,6 +35,8 @@ vi.mock('../services/token.service.js', async () => {
       if (raw === RW_TOKEN) return user('tok-rw', 'user-rw', ['read', 'write']);
       if (raw === NO_SCOPE_TOKEN) return user('tok-none', 'user-none', []);
       if (raw === RATE_TOKEN) return user('tok-rate', 'user-rate', ['read']);
+      if (raw === RW_USER_READ_TOKEN) return user('tok-rw-read', 'user-rw', ['read']);
+      if (raw === OAUTH_USER_API_TOKEN) return user('tok-oauth-user', 'user-oauth', ['read', 'write']);
       if (raw === REVOKED_TOKEN) throw new Error('Token has been revoked');
       if (raw === EXPIRED_TOKEN) throw new Error('Token has expired');
       throw new Error('Invalid token');
@@ -180,6 +185,56 @@ describe('MCP transport: refused API tokens', () => {
     expect(body).not.toContain(token);
   });
 
+});
+
+describe('MCP transport: a session belongs to the token that opened it', () => {
+  const TOOLS_LIST = { jsonrpc: '2.0', id: 2, method: 'tools/list' };
+
+  async function openSession(token: string): Promise<string> {
+    const res = await postInitialize(`Bearer ${token}`);
+    await res.arrayBuffer();
+    expect(res.status).toBe(200);
+    const sessionId = res.headers.get('mcp-session-id');
+    expect(sessionId).toBeTruthy();
+    return sessionId!;
+  }
+
+  function send(method: 'POST' | 'GET' | 'DELETE', token: string, sessionId: string) {
+    return fetch(`${base}/mcp`, {
+      method,
+      headers: {
+        // Fastify refuses an empty body declared as JSON, so only the POST carries one.
+        ...(method === 'POST' ? { 'Content-Type': 'application/json' } : {}),
+        Accept: 'application/json, text/event-stream',
+        Authorization: `Bearer ${token}`,
+        'Mcp-Session-Id': sessionId,
+      },
+      ...(method === 'POST' ? { body: JSON.stringify(TOOLS_LIST) } : {}),
+    });
+  }
+
+  it("another token of the same user cannot use an API token's session", async () => {
+    const sessionId = await openSession(RW_TOKEN);
+    for (const method of ['POST', 'GET', 'DELETE'] as const) {
+      const res = await send(method, RW_USER_READ_TOKEN, sessionId);
+      await res.arrayBuffer();
+      expect(res.status, method).toBe(403);
+    }
+    // Positive control: the token that opened it still can, and closes it.
+    const own = await send('DELETE', RW_TOKEN, sessionId);
+    await own.arrayBuffer();
+    expect(own.status).toBe(200);
+  });
+
+  it("an API token cannot use an OAuth session of the same user", async () => {
+    const sessionId = await openSession(OAUTH_TOKEN);
+    const res = await send('POST', OAUTH_USER_API_TOKEN, sessionId);
+    await res.arrayBuffer();
+    expect(res.status).toBe(403);
+    const own = await send('DELETE', OAUTH_TOKEN, sessionId);
+    await own.arrayBuffer();
+    expect(own.status).toBe(200);
+  });
 });
 
 describe('MCP transport: rate limits', () => {

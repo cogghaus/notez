@@ -5,10 +5,10 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
-import { McpSessionManager } from './session-manager.js';
+import { McpSessionManager, type McpSession } from './session-manager.js';
 import { verifyAccessToken, OAuthError } from './oauth.service.js';
 import { registerNotezTools } from './tools.js';
-import { API_TOKEN_PREFIX, API_TOKEN_REFUSAL, verifyApiTokenForMcp } from './api-token-auth.js';
+import { API_TOKEN_PREFIX, API_TOKEN_REFUSAL, isApiTokenClient, verifyApiTokenForMcp } from './api-token-auth.js';
 import { API_TOKEN_RATE_LIMIT, apiTokenRateLimitKey } from '../utils/api-token-rate-limit.js';
 
 // Configurable origin allowlist (Slag CHAIN-3 mitigation)
@@ -34,6 +34,19 @@ function isOriginAllowed(origin: string): boolean {
 }
 
 const sessionManager = new McpSessionManager();
+
+/**
+ * May this request use this session? Always: same user. An API-token session also belongs to that
+ * one token, and an API token cannot join an OAuth session, because a session's tools were fixed
+ * by the scopes of the credential that opened it. OAuth-with-OAuth keeps the user-only check.
+ */
+function sessionBelongsTo(session: McpSession, authInfo: AuthInfo): boolean {
+  if (session.userId !== (authInfo.extra?.userId as string)) return false;
+  if (isApiTokenClient(session.clientId) || isApiTokenClient(authInfo.clientId)) {
+    return session.clientId === authInfo.clientId;
+  }
+  return true;
+}
 
 type BearerCheck = { auth: AuthInfo } | { refusal: string };
 
@@ -152,8 +165,8 @@ export async function mcpTransportRoutes(fastify: FastifyInstance) {
       let session = sessionId ? sessionManager.getSession(sessionId) : undefined;
 
       if (session) {
-        // Verify session belongs to this token's user (Slag CHAIN-3)
-        if (session.userId !== (authInfo.extra?.userId as string)) {
+        // Verify session belongs to this token's user (Slag CHAIN-3), and to this API token
+        if (!sessionBelongsTo(session, authInfo)) {
           return reply.code(403).send({
             jsonrpc: '2.0',
             error: { code: -32000, message: 'Session does not belong to this token' },
@@ -259,7 +272,7 @@ export async function mcpTransportRoutes(fastify: FastifyInstance) {
       return reply.code(404).send({ error: 'Session not found' });
     }
 
-    if (session.userId !== (authInfo.extra?.userId as string)) {
+    if (!sessionBelongsTo(session, authInfo)) {
       return reply.code(403).send({ error: 'Session does not belong to this token' });
     }
 
@@ -282,7 +295,7 @@ export async function mcpTransportRoutes(fastify: FastifyInstance) {
       return reply.code(404).send({ error: 'Session not found' });
     }
 
-    if (session.userId !== (authInfo.extra?.userId as string)) {
+    if (!sessionBelongsTo(session, authInfo)) {
       return reply.code(403).send({ error: 'Session does not belong to this token' });
     }
 
