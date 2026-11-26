@@ -88,3 +88,14 @@ export function getBaseExtensions({
 /** Editor prose class — shared between both editor components */
 export const EDITOR_PROSE_CLASS =
   'tiptap-editor prose prose-sm dark:prose-invert max-w-none min-h-full px-4 py-3';
+
+/**
+ * Attributes for the editor element, shared between both editor components.
+ * TipTap 3.33+ gives the element role="textbox", and a textbox needs an accessible name
+ * (axe aria-input-field-name), so the label lives here with the class.
+ */
+export const EDITOR_ATTRIBUTES = {
+  class: EDITOR_PROSE_CLASS,
+  'aria-label': 'Note content',
+  'aria-multiline': 'true',
+};

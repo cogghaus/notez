@@ -34,7 +34,7 @@ import { HocuspocusProvider } from '@hocuspocus/provider';
 import * as Y from 'yjs';
 import { WS_BASE_URL } from '../lib/api';
 import { CollaborationPresence } from './CollaborationPresence';
-import { getBaseExtensions, EDITOR_PROSE_CLASS } from './editorExtensions';
+import { getBaseExtensions, EDITOR_ATTRIBUTES } from './editorExtensions';
 import { uploadImage } from '../api/images';
 import { ImagePlus } from 'lucide-react';
 import { useKeepCaretVisible } from '../lib/useKeepCaretVisible';
@@ -217,9 +217,7 @@ function CollabEditorContent({
     ],
     editable: !disabled,
     editorProps: {
-      attributes: {
-        class: EDITOR_PROSE_CLASS,
-      },
+      attributes: EDITOR_ATTRIBUTES,
     },
   });
 

@@ -262,4 +262,16 @@ describe('getBaseExtensions', () => {
       expect(EDITOR_PROSE_CLASS).toContain('prose');
     });
   });
+
+  describe('EDITOR_ATTRIBUTES', () => {
+    // TipTap 3.33+ sets role="textbox" on the editor element; a textbox needs a name (axe).
+    it('names the editor textbox and keeps the prose class', async () => {
+      const { EDITOR_ATTRIBUTES, EDITOR_PROSE_CLASS } = await import('./editorExtensions');
+      expect(EDITOR_ATTRIBUTES).toEqual({
+        class: EDITOR_PROSE_CLASS,
+        'aria-label': 'Note content',
+        'aria-multiline': 'true',
+      });
+    });
+  });
 });

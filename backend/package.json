@@ -1,6 +1,6 @@
 {
   "name": "notez-backend",
-  "version": "1.35.0",
+  "version": "1.35.1",
   "description": "Notez backend API server",
   "main": "dist/index.js",
   "type": "module",
@@ -47,14 +47,14 @@
     "@opentelemetry/sdk-metrics": "^2.11.0",
     "@opentelemetry/sdk-node": "^0.222.0",
     "@prisma/client": "^5.20.0",
-    "@tiptap/core": "^3.31.3",
-    "@tiptap/extension-code-block": "^3.29.2",
-    "@tiptap/extension-link": "^3.29.2",
-    "@tiptap/extension-task-item": "^3.31.3",
-    "@tiptap/extension-task-list": "^3.31.3",
-    "@tiptap/extension-typography": "^3.31.3",
-    "@tiptap/html": "^3.31.3",
-    "@tiptap/starter-kit": "^3.31.3",
+    "@tiptap/core": "^3.33.0",
+    "@tiptap/extension-code-block": "^3.33.0",
+    "@tiptap/extension-link": "^3.33.0",
+    "@tiptap/extension-task-item": "^3.33.0",
+    "@tiptap/extension-task-list": "^3.33.0",
+    "@tiptap/extension-typography": "^3.33.0",
+    "@tiptap/html": "^3.33.0",
+    "@tiptap/starter-kit": "^3.33.0",
     "@types/jsonwebtoken": "^9.0.10",
     "bcrypt": "^6.0.0",
     "dotenv": "^16.4.5",
@@ -88,5 +88,14 @@
     "tsx": "^4.23.15",
     "typescript": "^5.9.3",
     "vitest": "^5.0.4"
+  },
+  "overrides": {
+    "happy-dom": "^21.0.4",
+    "gcp-metadata": {
+      "gaxios": "^7.3.1"
+    },
+    "@typescript-eslint/typescript-estree": {
+      "minimatch": "^11.0.5"
+    }
   }
 }
