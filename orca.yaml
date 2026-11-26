@@ -1,0 +1,7 @@
+# Orca (orca.dev) worktree setup. Runs once in each new Orca worktree, on the
+# machine that owns it, when the repo's setup policy is "run".
+scripts:
+  setup: |
+    npm --prefix backend ci
+    npm --prefix frontend ci
+    npm --prefix notez-mcp ci
